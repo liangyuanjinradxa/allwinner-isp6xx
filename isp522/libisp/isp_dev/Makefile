@@ -29,7 +29,7 @@ all: $(TARGET) install
 
 clean:
 	-rm $(OBJS) $(TARGET)
-install:
+install: $(TARGET)
 	mkdir -p $(INSTALL_PREFIX)/usr/lib
 	install -m0755 $(TARGET) $(INSTALL_PREFIX)/usr/lib
 	install -m0755 $(TARGET) $(SUBLIB_DIR)

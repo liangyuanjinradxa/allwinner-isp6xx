@@ -25,7 +25,7 @@ all: $(TARGET) install
 
 clean:
 	-rm $(OBJS) $(TARGET)
-install:
+install: $(TARGET)
 	mkdir -p $(INSTALL_PREFIX)/usr/lib
 	mkdir -p $(SUBLIB_DIR)
 	mkdir -p $(STAGING_DIR)/usr/lib
