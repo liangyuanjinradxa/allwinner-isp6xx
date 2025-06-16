@@ -488,38 +488,46 @@ int isp_sensor_otp_init(struct hw_isp_device *isp)
 {
 	struct isp_lib_context *ctx = isp_dev_get_ctx(isp);
 	int ret = 0;
-	int i = 0;
 
 	if (ctx == NULL)
 		return -1;
 
-#if ISP_LIB_USE_OTP
-	// shading
-	ctx->pmsc_table = malloc(ISP_MSC_TBL_LENGTH*sizeof(unsigned short));
-	memset(ctx->pmsc_table, 0, ISP_MSC_TBL_LENGTH*sizeof(unsigned short));
+	if (ctx->stitch_mode == STITCH_2IN1_LINNER && ctx->isp_id == 0) {
+		ctx->sensor_otp.otp_enable = 0;
+		return 0;
+	}
 
-	if (!ctx->pmsc_table) {
-		ISP_ERR("msc_table alloc failed, no memory!\n");
+	ctx->sensor_otp.otp_info = malloc(sizeof(struct otp_info_cfg));
+	if (!ctx->sensor_otp.otp_info) {
+		ISP_ERR("otp_cfg alloc failed, no memory!\n");
+		ctx->sensor_otp.otp_enable = 0;
 		return -1;
 	}
+	memset(ctx->sensor_otp.otp_info, 0, sizeof(struct otp_info_cfg));
 
-	ctx->otp_enable = 1;
-	ret = ioctl(isp->sensor.fd, VIDIOC_VIN_GET_SENSOR_OTP_INFO, ctx->pmsc_table);
-	if(ret < 0) {
+	ret = ioctl(isp->sensor.fd, VIDIOC_VIN_GET_SENSOR_OTP_INFO, ctx->sensor_otp.otp_info->otp_buf);
+	if (ret < 0) {
 		ISP_WARN("VIDIOC_VIN_GET_SENSOR_OTP_INFO return error:%s\n", strerror(errno));
-		ctx->otp_enable = 0;
-		free(ctx->pmsc_table);
-		ctx->pmsc_table = NULL;
-		ctx->pwb_table = NULL;
+		ISP_PRINT("ISP%d OTP Disable\n", ctx->isp_id);
+		ctx->sensor_otp.otp_enable = 0;
+		free(ctx->sensor_otp.otp_info);
+		ctx->sensor_otp.otp_info = NULL;
+		ctx->sensor_otp.pmsc_table = NULL;
+		ctx->sensor_otp.pwb_table = NULL;
+		ctx->sensor_otp.paf_table = NULL;
 	} else {
-		ctx->otp_enable = 1;
-		ctx->pwb_table = (void *)(ctx->pmsc_table + 16*16*3*sizeof(unsigned short));
+		ctx->sensor_otp.otp_enable = 1;
+		ISP_PRINT("ISP%d OTP Enable\n", ctx->isp_id);
+		if (ctx->stitch_mode == STITCH_2IN1_LINNER) {
+			ctx->sensor_otp.pmsc_table = &ctx->sensor_otp.otp_info->otp_buf[0];
+			ctx->sensor_otp.pwb_table = &ctx->sensor_otp.otp_info->otp_buf[OTP_MSC_SIZE * 2];
+			ctx->sensor_otp.paf_table = &ctx->sensor_otp.otp_info->otp_buf[OTP_MSC_SIZE * 2 + OTP_WB_SIZE];
+		} else {
+			ctx->sensor_otp.pmsc_table = &ctx->sensor_otp.otp_info->otp_buf[0];
+			ctx->sensor_otp.pwb_table = &ctx->sensor_otp.otp_info->otp_buf[OTP_MSC_SIZE];
+			ctx->sensor_otp.paf_table = &ctx->sensor_otp.otp_info->otp_buf[OTP_MSC_SIZE + OTP_WB_SIZE];
+		}
 	}
-#else
-	ctx->otp_enable = 0;
-	ctx->pmsc_table = NULL;
-	ctx->pwb_table = NULL;
-#endif
 	return 0;
 }
 
@@ -530,11 +538,13 @@ int isp_sensor_otp_exit(struct hw_isp_device *isp)
 	if (ctx == NULL)
 		return -1;
 
-#if ISP_LIB_USE_OTP
-	// shading
-	if (ctx->pmsc_table != NULL)
-		free(ctx->pmsc_table);
-#endif
+	if (ctx->sensor_otp.otp_info)
+		free(ctx->sensor_otp.otp_info);
+	ctx->sensor_otp.otp_info = NULL;
+	ctx->sensor_otp.pmsc_table = NULL;
+	ctx->sensor_otp.pwb_table = NULL;
+	ctx->sensor_otp.paf_table = NULL;
+	ctx->sensor_otp.otp_enable = 0;
 
 	return 0;
 }

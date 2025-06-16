@@ -418,9 +418,6 @@ struct vin_isp_tdm_data {
 #define VIDIOC_VIN_TDM_REQ_DATA \
 	_IOWR('V', BASE_VIDIOC_PRIVATE + 42, struct vin_isp_tdm_data)
 
-#define ISP_MSC_TBL_SIZE	484
-#define ISP_MSC_TBL_LENGTH			(3*ISP_MSC_TBL_SIZE)
-
 /*
 * large image dma merge mode
 *
@@ -450,11 +447,6 @@ struct sensor_config {
 	unsigned int gain_max;	/*sensor gain max, Q4               */
 	unsigned int mbus_code;	/*media bus code                    */
 	unsigned int wdr_mode;	/*isp wdr mode                    */
-#if 0
-	/* otp information*/
-	int otp_enable;
-	void * pmsc_table;		/*msc table  22x22x3 = ISP_MSC_TBL_LENGTH, default mode using 16x16x3  */
-#endif
 };
 
 struct sensor_exp_gain {
@@ -518,20 +510,22 @@ struct flash_para {
 	unsigned int mode; //enum v4l2_flash_led_mode mode;
 };
 
+struct msc_para {
+	unsigned char data[4096];
+};
+
 /*
  * Camera Sensor IOCTLs
  */
 
 #define VIDIOC_VIN_SENSOR_CFG_REQ \
 	_IOWR('V', BASE_VIDIOC_PRIVATE + 60, struct sensor_config)
-
 #define VIDIOC_VIN_SENSOR_EXP_GAIN \
 	_IOWR('V', BASE_VIDIOC_PRIVATE + 61, struct sensor_exp_gain)
 #define VIDIOC_VIN_SENSOR_SET_FPS \
 	_IOWR('V', BASE_VIDIOC_PRIVATE + 62, struct sensor_fps)
 #define VIDIOC_VIN_SENSOR_GET_TEMP \
 	_IOWR('V', BASE_VIDIOC_PRIVATE + 63, struct sensor_temp)
-
 #define VIDIOC_VIN_ACT_SET_CODE \
 	_IOWR('V', BASE_VIDIOC_PRIVATE + 64, struct actuator_ctrl)
 #define VIDIOC_VIN_ACT_INIT \
@@ -541,31 +535,22 @@ struct flash_para {
 
 #define VIDIOC_VIN_ISP_LOAD_REG \
 	_IOWR('V', BASE_VIDIOC_PRIVATE + 70, struct isp_table_reg_map)
-
 #define VIDIOC_VIN_ISP_TABLE1_MAP \
 	_IOWR('V', BASE_VIDIOC_PRIVATE + 71, struct isp_table_reg_map)
-
 #define VIDIOC_VIN_ISP_TABLE2_MAP \
 	_IOWR('V', BASE_VIDIOC_PRIVATE + 72, struct isp_table_reg_map)
-
 #define VIDIOC_VIN_GET_SENSOR_CODE \
 	_IOWR('V', BASE_VIDIOC_PRIVATE + 73, int)
-
 #define VIDIOC_VIN_GET_SENSOR_OTP_INFO \
-	_IOWR('V', BASE_VIDIOC_PRIVATE + 74, unsigned long long)
-
+	_IOWR('V', BASE_VIDIOC_PRIVATE + 74, struct msc_para)
 #define VIDIOC_VIN_SET_SENSOR_OTP_INFO \
 	_IOWR('V', BASE_VIDIOC_PRIVATE + 75, unsigned long long)
-
 #define VIDIOC_VIN_ISP_SYNC_DEBUG_INFO \
 	_IOWR('V', BASE_VIDIOC_PRIVATE + 76, struct isp_debug_info)
-
 #define VIDIOC_VIN_SENSOR_GET_FPS \
 	_IOWR('V', BASE_VIDIOC_PRIVATE + 77, struct sensor_fps)
-
 #define VIDIOC_VIN_SENSOR_GET_FLIP \
 	_IOWR('V', BASE_VIDIOC_PRIVATE + 78, struct sensor_flip)
-
 #define VIDIOC_VIN_SENSOR_MIPI_SWITCH \
 	_IOWR('V', BASE_VIDIOC_PRIVATE + 79, struct sensor_mipi_switch_entity)
 #define VIDIOC_VIN_ISP_RESET \
@@ -574,6 +559,8 @@ struct flash_para {
 	_IOWR('V', BASE_VIDIOC_PRIVATE + 81, struct vin_pattern_config)
 #define VIDIOC_VIN_NEXT_PTN_CFG \
 	_IOWR('V', BASE_VIDIOC_PRIVATE + 82, struct vin_pattern_config)
+#define VIDIOC_VIN_SET_LDCI_MODE \
+	_IOWR('V', BASE_VIDIOC_PRIVATE + 83, unsigned int)
 
 /* VIN ioctl */
 enum set_bit_width {

@@ -32,7 +32,7 @@ int video_init(struct isp_video_device *video)
 	struct hw_isp_media_dev *media = video->priv;
 	char name[32];
 
-	snprintf(name, sizeof(name), SUNXI_VIDEO"%d", video->id);
+	snprintf(name, sizeof(name), SUNXI_VIDEO"%u", video->id);
 	ISP_PRINT("video device name is %s\n", name);
 	video->entity = media_get_entity_by_name(media->mdev, name);
 	if (video->entity == NULL) {
@@ -43,7 +43,7 @@ int video_init(struct isp_video_device *video)
 	if (video->entity->fd != -1)
 		return 0;
 
-	video->entity->fd = open(video->entity->devname, O_RDWR | O_NONBLOCK, 0);
+	video->entity->fd = open(video->entity->devname, O_RDWR | O_NONBLOCK | O_CLOEXEC, 0);
 	if (video->entity->fd == -1) {
 		ISP_ERR("%s: Failed to open subdev device node %s\n", __func__,
 			video->entity->devname);
@@ -73,7 +73,7 @@ int video_set_fmt(struct isp_video_device *video, struct video_fmt *vfmt)
 	struct v4l2_streamparm parms;
 
 	memset(&inp, 0, sizeof inp);
-	inp.index = 0;
+	inp.index = vfmt->index;
 	if (-1 == ioctl(video->entity->fd, VIDIOC_S_INPUT, &inp)) {
 		ISP_ERR("VIDIOC_S_INPUT %d error!\n", 0);
 		return -1;
@@ -438,6 +438,24 @@ int video_queue_buffer(struct isp_video_device *video, unsigned int buf_id)
 	return 0;
 }
 
+int video_s_selection(struct isp_video_device *video, int t, int l, int w, int h)
+{
+	struct v4l2_selection s;
+	int ret;
+
+	s.target = V4L2_SEL_TGT_CROP;
+	s.r.top = t;
+	s.r.left = l;
+	s.r.width = w;
+	s.r.height = h;
+
+	ret = ioctl(video->entity->fd, VIDIOC_S_SELECTION, &s);
+	if (ret < 0)
+		return -errno;
+
+	return 0;
+}
+
 int video_stream_on(struct isp_video_device *video)
 {
 	int type = video->type;
@@ -557,7 +575,7 @@ int video_save_frames(struct isp_video_device *video, unsigned int buf_id, char 
 	for (j = 0; j < video->nplanes; j++) {
 		//printf("file start = %p length = %d\n",
 		//	buffer->planes[j].mem, buffer->planes[j].size);
-		sprintf(fdstr, "%s/fb%d_yuv.bin", path, video->id);
+		sprintf(fdstr, "%s/fb%u_yuv.bin", path, video->id);
 		file_fd = fopen(fdstr, "ab");
 		fwrite(buffer->planes[j].mem, buffer->planes[j].size, 1, file_fd);
 		fclose(file_fd);
@@ -655,8 +673,6 @@ int overlay_update(struct isp_video_device *video, int on_off)
 int orl_set_fmt(struct isp_video_device *video, struct orl_fmt *pOrlFmt)
 {
 	struct v4l2_format fmt;
-	void *bitmap = NULL;
-	unsigned int bitmap_size = 0, pix_size = 0;
 	int i, ret = 0;
 	memset(&fmt, 0, sizeof(fmt));
 

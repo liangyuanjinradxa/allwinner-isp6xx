@@ -203,6 +203,13 @@ int video_get_fmt(struct isp_video_device *video, struct video_fmt *vfmt)
 	return 0;
 }
 
+void video_set_ldci_mode(struct isp_video_device *video, unsigned int ldci_select)
+{
+	if (-1 == ioctl(video->entity->fd, VIDIOC_VIN_SET_LDCI_MODE, &ldci_select)) {
+		ISP_ERR("VIDIOC_VIN_SET_LDCI_MODE failed (%d)\n", errno);
+	}
+}
+
 void video_set_next_ptn(struct isp_video_device *video, struct video_fmt *vfmt)
 {
 	if (vfmt->ptn_en) {

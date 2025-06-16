@@ -28,13 +28,15 @@ libisp_ini.so:
 $(OBJS):%.c.o:%.c
 	$(CC) $(CFLAGS) $(LDFLAGS) $(local_CFLAGS) -c $< -o $@ -fPIC
 
-all: $(TARGET) install
-
-clean:
-	-rm $(OBJS) $(TARGET)
 install: $(TARGET)
 	mkdir -p $(INSTALL_PREFIX)/usr/lib
 	install -m0755 $(TARGET) $(INSTALL_PREFIX)/usr/lib
+	install ./*.so $(INSTALL_PREFIX)/usr/lib
 	mkdir -p $(INSTALL_PREFIX)/usr/include
 	cp -r ./*.h  $(INSTALL_PREFIX)/usr/include
 	cp -r ./libisp/include/V4l2Camera/sunxi_camera_v2.h  $(INSTALL_PREFIX)/usr/include
+
+all:  install
+
+clean:
+	-rm $(OBJS) $(TARGET)

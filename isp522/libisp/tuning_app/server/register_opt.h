@@ -15,7 +15,7 @@ int set_reg_opt(const char *sensor_name, int addr_width, int data_width);
  * read register
  * returns data, -1 if something went wrong
  */
-int read_reg(int reg_addr);
+int read_reg(int reg_addr, int data_width);
 /*
  * write register
  * returns 0 if OK, others if something went wrong

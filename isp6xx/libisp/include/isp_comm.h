@@ -123,11 +123,11 @@
 #define ISP_SAVE_LOAD_REG_SIZE			0x0100
 #define ISP_SAVE_LOAD_STATISTIC_SIZE		0x3300
 
-#define ISP_SAVE_LOAD_PLTM_PLX_SIZE		0x3000
+#define ISP_SAVE_LOAD_PLTM_PKX_SIZE		0x3000
 #define ISP_SAVE_LOAD_D3D_K_SIZE		0x300
 
-#define ISP_SAVE_LOAD_PLTM_PLX_OFS		ISP_STAT_TOTAL_SIZE
-#define ISP_SAVE_LOAD_D3D_K_OFS			(ISP_STAT_TOTAL_SIZE + ISP_SAVE_LOAD_PLTM_PLX_SIZE)
+#define ISP_SAVE_LOAD_PLTM_PKX_OFS		ISP_STAT_TOTAL_SIZE
+#define ISP_SAVE_LOAD_D3D_K_OFS			(ISP_STAT_TOTAL_SIZE + ISP_SAVE_LOAD_PLTM_PKX_SIZE)
 
 //ISP LDCI BUFFER
 #define ISP_LDCI_BUFFER_OFS			(ISP_STAT_TOTAL_SIZE + ISP_SAVE_LOAD_STATISTIC_SIZE)
@@ -1399,6 +1399,11 @@ struct npu_face_nr_config {
 	struct isp_h3a_coor_win face_roi[20];
 };
 
+struct target_val {
+	HW_S32 ae_forced;
+	HW_S32 lum_forced;
+};
+
 struct isp_af_en_config {
 	unsigned char af_iir0_en;
 	unsigned char af_fir0_en;
@@ -1759,6 +1764,44 @@ struct ae_table_info {
 	HW_S32 length;
 	HW_S32 ev_step;
 	HW_S32 shutter_shift;
+};
+
+struct isp_initial_status {
+	HW_U8 wb_mode_en;
+	HW_U8 wb_mgain_en;
+	HW_U8 exp_mode_en;
+	HW_U8 iso_mode_en;
+	HW_U8 iso_sensitivity_en;
+	HW_U8 exposure_metering_en;
+	HW_U8 exp_compensation_en;
+	HW_U8 exp_absolute_en;
+	HW_U8 flicker_mode_en;
+	HW_U8 brightness_level_en;
+	HW_U8 contrast_level_en;
+	HW_U8 saturation_level_en;
+	HW_U8 sharpness_level_en;
+	HW_U8 effect_en;
+	HW_U8 ai_scene_en;
+};
+
+struct isp_initial_cfg {
+	struct isp_initial_status enable;
+
+	HW_U8 wb_mode;
+	struct isp_wb_gain wb_gain_manual;
+	HW_U8 exp_mode;
+	HW_U8 iso_mode;
+	HW_S32 iso_sensitivity;
+	HW_U8 ae_metering_mode;
+	HW_S32 exp_compensation;
+	HW_U32 exp_absolute;
+	HW_U8 flicker_mode;
+	HW_S32 brightness_level;
+	HW_S32 contrast_level;
+	HW_S32 saturation_level;
+	HW_S32 sharpness_level;
+	HW_U8 effect;
+	HW_U8 ai_scene;
 };
 
 enum stitch_mode_t {

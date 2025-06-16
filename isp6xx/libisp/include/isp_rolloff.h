@@ -113,6 +113,9 @@ typedef struct LscGainPool {
 	float *LscRGain;
 	float *LscGGain;
 	float *LscBGain;
+	float *LscRGain_l;
+	float *LscGGain_l;
+	float *LscBGain_l;
 } LscGainPool_t;
 
 typedef enum rolloff_correct_mode {
@@ -161,6 +164,7 @@ typedef struct isp_rolloff_setting {
 } isp_rolloff_setting_t;
 
 typedef struct isp_rolloff_param {
+	HW_U8 stitch_mode;
 	rolloff_param_type_t type;
 	HW_S32 isp_platform_id;
 	HW_S32 rolloff_frame_id;
@@ -177,6 +181,9 @@ typedef struct isp_rolloff_result {
 	float RGainTbl[ISP_LENS_TBL_SIZE];
 	float GGainTbl[ISP_LENS_TBL_SIZE];
 	float BGainTbl[ISP_LENS_TBL_SIZE];
+	float RGainTbl_l[ISP_LENS_TBL_SIZE];
+	float GGainTbl_l[ISP_LENS_TBL_SIZE];
+	float BGainTbl_l[ISP_LENS_TBL_SIZE];
 	rolloff_correct_mode_t correctMode;
 } rolloff_result_t;
 

@@ -14,6 +14,9 @@
  *
  *****************************************************************************
  */
+#ifndef _GNU_SOURCE
+#define _GNU_SOURCE /*in order to use pthread_setname_np*/
+#endif
 
 #include <endian.h>
 #include <errno.h>
@@ -46,6 +49,7 @@
 
 #include "isp_manage.h"
 #include "isp_version.h"
+#include "isp.h"
 
 #include "iniparser/src/iniparser.h"
 #include "include/isp_cmd_intf.h"
@@ -111,14 +115,32 @@ static void __af_done(struct isp_lib_context *lib,
 #endif
 	FUNCTION_LOG;
 }
-static void __awb_done(struct isp_lib_context *lib,
+static int __awb_done(struct isp_lib_context *lib,
 			awb_result_t *result __attribute__((__unused__)))
 {
 #if (HW_ISP_DEVICE_NUM > 1)
-	if(media_params.isp_sync_mode && (lib->isp_id == 0)) {
-		*result = isp_ctx[1].awb_entity_ctx.awb_result;
+	int i, idx = 0, count = (media_params.isp_sync_mode >> 16) & 0xff;
+	if (count == 1) {
+		for (i = 0; i < HW_ISP_DEVICE_NUM; i++) {
+			if (media_params.isp_sync_mode & (0x1 << i)) {
+				idx = i;
+				break;
+			}
+		}
+		if (lib->isp_id != idx) {
+			*result = isp_ctx[idx].awb_entity_ctx.awb_result;
+			ISP_LIB_LOG(ISP_LOG_AWB, "slave mode : isp%d awb result -> isp%d awb result\n", idx, lib->isp_id);
+			return 1;
+		}
+	} else if (count > 1) {
+		if (lib->isp_id != 0) {
+			*result = isp_ctx[0].awb_entity_ctx.awb_result;
+			ISP_LIB_LOG(ISP_LOG_AWB, "merge mode : isp0 awb result -> isp%d awb result\n", lib->isp_id);
+			return 1;
+		}
 	}
 #endif
+	return 0;
 	FUNCTION_LOG;
 }
 static void __afs_done(struct isp_lib_context *lib,
@@ -173,34 +195,42 @@ void isp_flash_update_status(struct hw_isp_device *isp)
 	ae_result_t *ae_result = &isp_gen->ae_entity_ctx.ae_result;
 	int flash_gain = isp_gen->isp_ini_cfg.isp_tunning_settings.flash_gain;
 	int flash_delay = isp_gen->isp_ini_cfg.isp_tunning_settings.flash_delay_frame;
+	int auto_focus_en = isp_gen->isp_ini_cfg.isp_test_settings.af_en;
+	enum auto_focus_status af_status = isp_gen->af_entity_ctx.af_result.af_status_output;
+	static int pre_flash_end_cnt = 0;
 	int ev_idx_flash = 0;
 
 	switch (isp_gen->ae_settings.flash_mode) {
 	case FLASH_MODE_ON:
 		if (isp_gen->ae_settings.take_picture_flag == V4L2_TAKE_PICTURE_FLASH) {
-			if(isp_gen->ae_settings.flash_open == 0) {
+			if (isp_gen->ae_settings.flash_open == 0) {
 				isp_gen->ae_settings.flash_switch_flag = true;
 				__isp_flash_open(isp);
-			}
-		}
-		break;
-	case FLASH_MODE_AUTO:
-		if (isp_gen->ae_settings.take_picture_flag == V4L2_TAKE_PICTURE_FLASH) {
-			if(isp_gen->ae_settings.flash_open == 0) {
-				if(ae_result->sensor_set.ev_set.ev_idx > (ae_result->sensor_set.ev_idx_max - 40)) {
-					ISP_DEV_LOG(ISP_LOG_FLASH, "ev_idx is %d, ev_idx_max is %d\n",
-							ae_result->sensor_set.ev_set.ev_idx, ae_result->sensor_set.ev_idx_max);
-					isp_gen->ae_settings.flash_switch_flag = true;
-					__isp_flash_open(isp);
-				}
+				/*when flash open, awb speedup*/
+				isp_gen->awb_entity_ctx.awb_param->awb_ini.awb_interval = 1;
+				isp_gen->awb_entity_ctx.awb_param->awb_ini.awb_speed = 10;
+				isp_gen->awb_entity_ctx.awb_param->awb_ini.awb_green_zone_dist = 128;
+				isp_gen->af_entity_ctx.af_param->auto_focus_trigger = 1;
+				isp_af_set_params_helper(&isp_gen->af_entity_ctx, ISP_AF_TRIGGER);
 			} else {
-				if (isp_gen->ae_frame_cnt == (isp_gen->ae_settings.take_pic_start_cnt + flash_delay))
-				{
+				if (auto_focus_en == 1 && pre_flash_end_cnt == 0) {
+					/* when af_en = 1, should wait for af end */
+					if (isp_gen->ae_frame_cnt >= (isp_gen->ae_settings.take_pic_start_cnt + flash_delay)
+						&& (af_status == AUTO_FOCUS_STATUS_REACHED || af_status == AUTO_FOCUS_STATUS_FAILED))
+						pre_flash_end_cnt = isp_gen->ae_frame_cnt;
+
+				} else if (auto_focus_en == 0 && pre_flash_end_cnt == 0) {
+					if (isp_gen->ae_frame_cnt == (isp_gen->ae_settings.take_pic_start_cnt + flash_delay))
+						pre_flash_end_cnt = isp_gen->ae_frame_cnt;
+				}
+				if (isp_gen->ae_frame_cnt == pre_flash_end_cnt) {
 					ae_result->ae_flash_led = V4L2_FLASH_LED_MODE_NONE;
 					isp_flash_ctrl(isp, V4L2_FLASH_LED_MODE_NONE);
 					isp_gen->ae_settings.flash_switch_flag = false;
 
 					isp_gen->ae_settings.exposure_lock = true;
+					isp_gen->af_settings.focus_lock = true;
+					isp_gen->awb_settings.white_balance_lock = true;
 
 					if (ae_result->ae_flash_ev_cumul >= 100)
 					{
@@ -210,17 +240,17 @@ void isp_flash_update_status(struct hw_isp_device *isp)
 					{
 						ev_idx_flash = ae_result->sensor_set.ev_idx_expect;
 					}
-					else if (ae_result->ae_flash_ev_cumul >= -25 && ae_result->ae_flash_ev_cumul < flash_gain*100/256)
+					else if (ae_result->ae_flash_ev_cumul >= -500 && ae_result->ae_flash_ev_cumul < flash_gain*100/256)
 					{
 						ev_idx_flash = ae_result->sensor_set.ev_idx_expect + ae_result->ae_flash_ev_cumul * flash_gain/256;
 					}
 					else
 					{
-						ev_idx_flash = ae_result->sensor_set.ev_idx_expect + ae_result->ae_flash_ev_cumul * flash_gain/256;
+						ev_idx_flash = ae_result->sensor_set.ev_idx_expect + ae_result->ae_flash_ev_cumul * flash_gain/512;
 					}
 					ev_idx_flash = clamp(ev_idx_flash, 1, ae_result->sensor_set.ev_idx_max);
 
-					ISP_DEV_LOG(ISP_LOG_FLASH, "%s: FLASH_OFF, ae_flash_ev_cumul:%d, ev_idx_expect:%d, ev_idx_flash:%d, flash_gain:%d.\n",
+					ISP_LIB_LOG(ISP_LOG_FLASH, "%s: FLASH_OFF, ae_flash_ev_cumul:%d, ev_idx_expect:%d, ev_idx_flash:%d, flash_gain:%d.\n",
 						__FUNCTION__,	ae_result->ae_flash_ev_cumul,
 						ae_result->sensor_set.ev_idx_expect, ev_idx_flash,
 						isp_gen->isp_ini_cfg.isp_tunning_settings.flash_gain);
@@ -228,58 +258,175 @@ void isp_flash_update_status(struct hw_isp_device *isp)
 					isp_ae_cxt->ae_param->ae_pline_index = ev_idx_flash;
 					isp_ae_set_params_helper(isp_ae_cxt, ISP_AE_SET_EXP_IDX);
 				}
-				else if (isp_gen->ae_frame_cnt == (1 + isp_gen->ae_settings.take_pic_start_cnt + flash_delay))
+				else if (isp_gen->ae_frame_cnt == (1 + pre_flash_end_cnt))
 				{
-					ISP_DEV_LOG(ISP_LOG_FLASH, "%s: FLASH_ON.\n", __FUNCTION__);
-
+					//isp_gen->image_params.isp_image_params.image_para.bits.flash_ok = 1;
+					ISP_LIB_LOG(ISP_LOG_FLASH, "%s: FLASH_ON.\n", __FUNCTION__);
 					isp_gen->ae_settings.flash_switch_flag = true;
 					ae_result->ae_flash_led = V4L2_FLASH_LED_MODE_FLASH;
 					isp_flash_ctrl(isp, V4L2_FLASH_LED_MODE_FLASH);
-				}
-				else if ((isp_gen->ae_frame_cnt >= (4 + isp_gen->ae_settings.take_pic_start_cnt + flash_delay)) &&
-					(isp_gen->ae_frame_cnt <= (6 + isp_gen->ae_settings.take_pic_start_cnt + flash_delay)))
+				} /* because sensor exp delay n+1/n+2, so we should delay 3 frames report hal */
+				else if (isp_gen->ae_frame_cnt == (3 + pre_flash_end_cnt))
 				{
-					ae_result->ae_flash_ok = 1;
-					isp_gen->image_params.isp_image_params.image_para.bits.flash_ok = ae_result->ae_flash_ok;
+					isp_gen->image_params.isp_image_params.image_para.bits.flash_ok = 1;
 				}
-				else if (isp_gen->ae_frame_cnt == (7 + isp_gen->ae_settings.take_pic_start_cnt + flash_delay))
+				else if (isp_gen->ae_frame_cnt == (7 + pre_flash_end_cnt))
 				{
-					ISP_DEV_LOG(ISP_LOG_FLASH, "%s: FLASH_OFF.\n", __FUNCTION__);
+					ISP_LIB_LOG(ISP_LOG_FLASH, "%s: FLASH_OFF.\n", __FUNCTION__);
 
+					isp_gen->image_params.isp_image_params.image_para.bits.flash_ok = 3;
+					ae_result->ae_flash_led = V4L2_FLASH_LED_MODE_NONE;
+					isp_flash_ctrl(isp, V4L2_FLASH_LED_MODE_NONE);
+					/*when flash close, reset awb speed*/
+					isp_gen->awb_entity_ctx.awb_param->awb_ini.awb_interval = isp_gen->isp_ini_cfg.isp_3a_settings.awb_interval;
+					isp_gen->awb_entity_ctx.awb_param->awb_ini.awb_speed = isp_gen->isp_ini_cfg.isp_3a_settings.awb_speed;
+					isp_gen->awb_entity_ctx.awb_param->awb_ini.awb_green_zone_dist = isp_gen->isp_ini_cfg.isp_3a_settings.awb_green_zone_dist;
+					isp_gen->ae_settings.exposure_lock = false;
+					isp_gen->af_settings.focus_lock = false;
+					isp_gen->awb_settings.white_balance_lock = false;
+				}
+			}
+		} else { /* touch focus */
+			if (auto_focus_en == 1) {
+				if (isp_gen->ae_settings.flash_open == 0) {
+					isp_gen->ae_settings.flash_switch_flag = true;
+					__isp_flash_open(isp);
+					isp_gen->af_entity_ctx.af_param->auto_focus_trigger = 1;
+					isp_af_set_params_helper(&isp_gen->af_entity_ctx, ISP_AF_TRIGGER);
+				} else {
+					if (isp_gen->ae_frame_cnt >= (isp_gen->ae_settings.take_pic_start_cnt + flash_delay)
+						&& (af_status == AUTO_FOCUS_STATUS_REACHED || af_status == AUTO_FOCUS_STATUS_FAILED)) {
+						ae_result->ae_flash_led = V4L2_FLASH_LED_MODE_NONE;
+						isp_flash_ctrl(isp, V4L2_FLASH_LED_MODE_NONE);
+						isp_gen->ae_settings.flash_open = 0;
+						isp_gen->image_params.isp_image_params.image_para.bits.flash_ok = 3;
+					}
+				}
+			}
+		}
+		break;
+	case FLASH_MODE_AUTO:
+		if (isp_gen->ae_settings.take_picture_flag == V4L2_TAKE_PICTURE_FLASH) {
+			if (isp_gen->ae_settings.flash_open == 0) {
+				if (ae_result->sensor_set.ev_set.ev_idx > (ae_result->sensor_set.ev_idx_max - 20)) {
+					ISP_LIB_LOG(ISP_LOG_FLASH, "ev_idx is %d, ev_idx_max is %d\n",
+							ae_result->sensor_set.ev_set.ev_idx, ae_result->sensor_set.ev_idx_max);
+					isp_gen->ae_settings.flash_switch_flag = true;
+					__isp_flash_open(isp);
+					isp_gen->awb_entity_ctx.awb_param->awb_ini.awb_interval = 1;
+					isp_gen->awb_entity_ctx.awb_param->awb_ini.awb_speed = 10;
+					isp_gen->awb_entity_ctx.awb_param->awb_ini.awb_green_zone_dist = 128;
+					isp_gen->af_entity_ctx.af_param->auto_focus_trigger = 1;
+					isp_af_set_params_helper(&isp_gen->af_entity_ctx, ISP_AF_TRIGGER);
+				} else {
+					isp_gen->image_params.isp_image_params.image_para.bits.flash_ok = 2;
+				}
+			} else {
+				if (auto_focus_en == 1 && pre_flash_end_cnt == 0) {
+					/* when af_en = 1, should wait for af end */
+					if (isp_gen->ae_frame_cnt >= (isp_gen->ae_settings.take_pic_start_cnt + flash_delay)
+						&& (af_status == AUTO_FOCUS_STATUS_REACHED || af_status == AUTO_FOCUS_STATUS_FAILED))
+						pre_flash_end_cnt = isp_gen->ae_frame_cnt;
+
+				} else if (auto_focus_en == 0 && pre_flash_end_cnt == 0) {
+					if (isp_gen->ae_frame_cnt == (isp_gen->ae_settings.take_pic_start_cnt + flash_delay))
+						pre_flash_end_cnt = isp_gen->ae_frame_cnt;
+				}
+				if (isp_gen->ae_frame_cnt == pre_flash_end_cnt) {
 					ae_result->ae_flash_led = V4L2_FLASH_LED_MODE_NONE;
 					isp_flash_ctrl(isp, V4L2_FLASH_LED_MODE_NONE);
 					isp_gen->ae_settings.flash_switch_flag = false;
 
+					isp_gen->ae_settings.exposure_lock = true;
+					isp_gen->af_settings.focus_lock = true;
+					isp_gen->awb_settings.white_balance_lock = true;
+
+					if (ae_result->ae_flash_ev_cumul >= 100)
+					{
+						ev_idx_flash = ae_result->sensor_set.ev_idx_expect;
+					}
+					else if (ae_result->ae_flash_ev_cumul < 100 && ae_result->ae_flash_ev_cumul >= flash_gain*100/256)
+					{
+						ev_idx_flash = ae_result->sensor_set.ev_idx_expect;
+					}
+					else if (ae_result->ae_flash_ev_cumul >= -500 && ae_result->ae_flash_ev_cumul < flash_gain*100/256)
+					{
+						ev_idx_flash = ae_result->sensor_set.ev_idx_expect + ae_result->ae_flash_ev_cumul * flash_gain/256;
+					}
+					else
+					{
+						ev_idx_flash = ae_result->sensor_set.ev_idx_expect + ae_result->ae_flash_ev_cumul * flash_gain/512;
+					}
+					ev_idx_flash = clamp(ev_idx_flash, 1, ae_result->sensor_set.ev_idx_max);
+
+					ISP_LIB_LOG(ISP_LOG_FLASH, "%s: FLASH_OFF, ae_flash_ev_cumul:%d, ev_idx_expect:%d, ev_idx_flash:%d, flash_gain:%d.\n",
+						__FUNCTION__,	ae_result->ae_flash_ev_cumul,
+						ae_result->sensor_set.ev_idx_expect, ev_idx_flash,
+						isp_gen->isp_ini_cfg.isp_tunning_settings.flash_gain);
+
+					isp_ae_cxt->ae_param->ae_pline_index = ev_idx_flash;
+					isp_ae_set_params_helper(isp_ae_cxt, ISP_AE_SET_EXP_IDX);
+				}
+				else if (isp_gen->ae_frame_cnt == (1 + pre_flash_end_cnt))
+				{
+					//isp_gen->image_params.isp_image_params.image_para.bits.flash_ok = 1;
+					ISP_LIB_LOG(ISP_LOG_FLASH, "%s: FLASH_ON.\n", __FUNCTION__);
+					isp_gen->ae_settings.flash_switch_flag = true;
+					ae_result->ae_flash_led = V4L2_FLASH_LED_MODE_FLASH;
+					isp_flash_ctrl(isp, V4L2_FLASH_LED_MODE_FLASH);
+				} /* because sensor exp delay n+1/n+2, so we should delay 3 frames report hal */
+				else if (isp_gen->ae_frame_cnt == (3 + pre_flash_end_cnt))
+				{
+					isp_gen->image_params.isp_image_params.image_para.bits.flash_ok = 1;
+				}
+				else if (isp_gen->ae_frame_cnt == (7 + pre_flash_end_cnt))
+				{
+					ISP_LIB_LOG(ISP_LOG_FLASH, "%s: FLASH_OFF.\n", __FUNCTION__);
+
+					isp_gen->image_params.isp_image_params.image_para.bits.flash_ok = 3;
+					ae_result->ae_flash_led = V4L2_FLASH_LED_MODE_NONE;
+					isp_flash_ctrl(isp, V4L2_FLASH_LED_MODE_NONE);
+					/*when flash close, reset awb speed*/
+					isp_gen->awb_entity_ctx.awb_param->awb_ini.awb_interval = isp_gen->isp_ini_cfg.isp_3a_settings.awb_interval;
+					isp_gen->awb_entity_ctx.awb_param->awb_ini.awb_speed = isp_gen->isp_ini_cfg.isp_3a_settings.awb_speed;
+					isp_gen->awb_entity_ctx.awb_param->awb_ini.awb_green_zone_dist = isp_gen->isp_ini_cfg.isp_3a_settings.awb_green_zone_dist;
 					isp_gen->ae_settings.exposure_lock = false;
+					isp_gen->af_settings.focus_lock = false;
+					isp_gen->awb_settings.white_balance_lock = false;
+				}
+			}
+		} else {  /* touch focus */
+			if (auto_focus_en == 1) {
+				if (isp_gen->ae_settings.flash_open == 0) {
+					if (ae_result->sensor_set.ev_set.ev_idx > (ae_result->sensor_set.ev_idx_max - 20)) {
+						ISP_LIB_LOG(ISP_LOG_FLASH, "%s: ev_idx is %d, ev_idx_max is %d\n", __FUNCTION__,
+								ae_result->sensor_set.ev_set.ev_idx, ae_result->sensor_set.ev_idx_max);
+						isp_gen->ae_settings.flash_switch_flag = true;
+						__isp_flash_open(isp);
+						isp_gen->af_entity_ctx.af_param->auto_focus_trigger = 1;
+						isp_af_set_params_helper(&isp_gen->af_entity_ctx, ISP_AF_TRIGGER);
+					} else {
+						isp_gen->image_params.isp_image_params.image_para.bits.flash_ok = 3;
+					}
+				} else {
+					if (isp_gen->ae_frame_cnt >= (isp_gen->ae_settings.take_pic_start_cnt + flash_delay)
+						&& (af_status == AUTO_FOCUS_STATUS_REACHED || af_status == AUTO_FOCUS_STATUS_FAILED)) {
+						ae_result->ae_flash_led = V4L2_FLASH_LED_MODE_NONE;
+						isp_flash_ctrl(isp, V4L2_FLASH_LED_MODE_NONE);
+						isp_gen->ae_settings.flash_open = 0;
+						isp_gen->image_params.isp_image_params.image_para.bits.flash_ok = 3;
+					}
 				}
 			}
 		}
 		break;
 	case FLASH_MODE_TORCH:
-		if (isp_gen->ae_settings.take_picture_flag == V4L2_TAKE_PICTURE_FLASH) {
-			if (isp_gen->ae_settings.flash_open == 0) {
-				isp_gen->ae_settings.flash_switch_flag = true;
-				__isp_flash_open(isp);
-			} else {
-				if ((isp_gen->ae_frame_cnt >= (1 + isp_gen->ae_settings.take_pic_start_cnt + flash_delay))
-					&& (isp_gen->ae_frame_cnt <= (3 + isp_gen->ae_settings.take_pic_start_cnt + flash_delay)))
-				{
-					ae_result->ae_flash_ok = 1;
-					isp_gen->image_params.isp_image_params.image_para.bits.flash_ok = ae_result->ae_flash_ok;
-				}
-				if (isp_gen->ae_frame_cnt == (4 + isp_gen->ae_settings.take_pic_start_cnt + flash_delay))
-				{
-					ISP_DEV_LOG(ISP_LOG_FLASH, "%s: FLASH_OFF.\n", __FUNCTION__);
-					ae_result->ae_flash_led = V4L2_FLASH_LED_MODE_TORCH;
-					isp_flash_ctrl(isp, V4L2_FLASH_LED_MODE_NONE);
-					isp_gen->ae_settings.flash_switch_flag = false;
-				}
-			}
-		} else {
-			ISP_DEV_LOG(ISP_LOG_FLASH, "%s: TORCH_ON, FLASH_MODE TORCH_ON.\n", __FUNCTION__);
-			isp_gen->ae_settings.flash_switch_flag = true;
-			ae_result->ae_flash_led = V4L2_FLASH_LED_MODE_TORCH;
+		ISP_LIB_LOG(ISP_LOG_FLASH, "%s: TORCH_ON, FLASH_MODE TORCH_ON.\n", __FUNCTION__);
+		isp_gen->ae_settings.flash_switch_flag = true;
+		ae_result->ae_flash_led = V4L2_FLASH_LED_MODE_TORCH;
+		if (isp_gen->ae_settings.flash_open == 0) {
 			isp_flash_ctrl(isp, V4L2_FLASH_LED_MODE_TORCH);
+			isp_gen->ae_settings.flash_open = 1;
 		}
 		break;
 	case FLASH_MODE_OFF:
@@ -287,9 +434,12 @@ void isp_flash_update_status(struct hw_isp_device *isp)
 			ae_result->ae_flash_led = V4L2_FLASH_LED_MODE_NONE;
 			isp_flash_ctrl(isp, V4L2_FLASH_LED_MODE_NONE);
 			isp_gen->ae_settings.flash_switch_flag = false;
+			isp_gen->ae_settings.flash_open = 0;
 		}
-		if (isp_gen->ae_settings.exposure_lock)
-			isp_gen->ae_settings.exposure_lock = false;
+		isp_gen->ae_settings.exposure_lock = false;
+		isp_gen->af_settings.focus_lock = false;
+		isp_gen->awb_settings.white_balance_lock = false;
+		pre_flash_end_cnt = 0;
 		break;
 	case FLASH_MODE_RED_EYE:
 	case FLASH_MODE_NONE:
@@ -339,6 +489,7 @@ static void __isp_stats_process(struct hw_isp_device *isp,	const void *buffer)
 			isp_act_set_pos(isp, af_result->real_code_output);
 			af_result->last_code_output = af_result->real_code_output;
 		}
+		ISP_DEV_LOG(ISP_LOG_ISP, "set sensor pos real_code_output: %d.\n", af_result->real_code_output);
 	}
 
 #if ISP_LIB_USE_FLASH
@@ -504,6 +655,9 @@ void __isp_ctrl_process(struct hw_isp_device *isp, struct v4l2_event *event)
 	case V4L2_CID_FLASH_LED_MODE:
 		isp_s_flash_mode(isp_gen, event->u.ctrl.value);
 		break;
+	case V4L2_CID_FLASH_LED_MODE_V1:
+		isp_s_flash_mode_v1(isp_gen, event->u.ctrl.value);
+		break;
 	default:
 		ISP_ERR("Unknown ctrl.\n");
 		break;
@@ -608,6 +762,41 @@ void media_dev_exit(void)
 #endif
 }
 
+int isp_ir_reset(int dev_id, int mode_flag)
+{
+	int ret = 0;
+
+	struct hw_isp_device *isp = NULL;
+
+	if (dev_id >= HW_ISP_DEVICE_NUM)
+		return -1;
+
+	isp = media_params.isp_dev[dev_id];
+	if (!isp) {
+		ISP_ERR("isp%d device is NULL!\n", dev_id);
+		return -1;
+	}
+
+	if (mode_flag & 0x01) {
+		ISP_WARN("ISP select wdr config fail\n");
+	}
+
+	if (mode_flag & 0x02) {
+		isp_ctx[dev_id].isp_ir_flag = 1;
+		ISP_PRINT("ISP select ir config\n");
+	} else {
+		isp_ctx[dev_id].isp_ir_flag = 0;
+	}
+
+	isp_params_parse(isp, &isp_ctx[dev_id].isp_ini_cfg, isp_ctx[dev_id].isp_ir_flag, media_params.isp_sync_mode);
+	ret = isp_tuning_reset(isp, &isp_ctx[dev_id].isp_ini_cfg);
+	if (ret) {
+		ISP_ERR("error: unable to reset isp tuning\n");
+	}
+
+	return ret;
+}
+
 int isp_reset(int dev_id)
 {
 	int ret = 0;
@@ -622,14 +811,16 @@ int isp_reset(int dev_id)
 		return -1;
 	}
 
-	isp_params_parse(isp, &isp_ctx[dev_id].isp_ini_cfg, media_params.isp_sync_mode);
-
+	isp_ctx[dev_id].isp_ir_flag = 0;
+	isp_params_parse(isp, &isp_ctx[dev_id].isp_ini_cfg, isp_ctx[dev_id].isp_ir_flag, media_params.isp_sync_mode);
 	ret = isp_tuning_reset(isp, &isp_ctx[dev_id].isp_ini_cfg);
 	if (ret) {
 		ISP_ERR("error: unable to reset isp tuning\n");
 	}
+
 	return ret;
 }
+
 
 int isp_init(int dev_id)
 {
@@ -669,13 +860,16 @@ int isp_init(int dev_id)
 	isp_dev_banding_ctx(isp, &isp_ctx[dev_id]);
 
 	isp_ctx[dev_id].isp_id = dev_id;
+
+	isp_sensor_otp_init(isp);
 	isp_config_sensor_info(isp);
 
 	isp_ctx_save_init(&isp_ctx[dev_id]);
 	isp_stat_save_init(&isp_ctx[dev_id]);
 	isp_log_save_init(&isp_ctx[dev_id]);
 
-	ret = isp_params_parse(isp, &isp_ctx[dev_id].isp_ini_cfg, media_params.isp_sync_mode);
+	isp_ctx[dev_id].isp_ir_flag = 0; // default close ir config , colorful
+	ret = isp_params_parse(isp, &isp_ctx[dev_id].isp_ini_cfg, isp_ctx[dev_id].isp_ir_flag, media_params.isp_sync_mode);
 	if (ret < 0) {
 		if (dev_id >= 1)
 			isp_ctx[dev_id].isp_ini_cfg = isp_ctx[0].isp_ini_cfg;
@@ -799,6 +993,7 @@ int isp_exit(int dev_id)
 	isp_ctx_save_exit(&isp_ctx[dev_id]);
 	isp_tuning_exit(isp);
 	isp_ctx_algo_exit(&isp_ctx[dev_id]);
+	isp_sensor_otp_exit(isp);
 	isp_dev_close(&media_params, dev_id);
 
 	ISP_DEV_LOG(ISP_LOG_ISP, "isp%d exit end!!!\n", dev_id);
@@ -828,8 +1023,48 @@ int isp_run(int dev_id)
 	ret = pthread_create(&media_params.isp_tid[dev_id], NULL, __isp_thread, isp);
 	if(ret != 0)
 		ISP_ERR("%s: %s\n",__func__, strerror(ret));
+	pthread_setname_np(media_params.isp_tid[dev_id], "isp_thread");
 
 	return ret;
+}
+
+/*
+ *if donot want to run isp_stop/isp_exit and isp_init.
+ *run isp_events_stop to stop isp run, and then run isp_events_restar and isp_run to rerun isp.
+ */
+int isp_events_stop(int dev_id)
+{
+	if (dev_id >= HW_ISP_DEVICE_NUM)
+		return -1;
+
+	events_stop(&events_arr[dev_id]);
+
+	/*wait to exit until the thread is finished*/
+	pthread_join(media_params.isp_tid[dev_id], NULL);
+
+	return 0;
+}
+
+int isp_events_restar(int dev_id)
+{
+	if (dev_id >= HW_ISP_DEVICE_NUM)
+		return -1;
+
+	events_init(&events_arr[dev_id]);
+	events_star(&events_arr[dev_id]);
+
+	isp_ctx[dev_id].af_frame_cnt  = 0;
+	isp_ctx[dev_id].ae_frame_cnt  = 0;
+	isp_ctx[dev_id].awb_frame_cnt = 0;
+	isp_ctx[dev_id].gtm_frame_cnt = 0;
+
+	isp_ctx[dev_id].md_frame_cnt  = 0;
+	isp_ctx[dev_id].afs_frame_cnt  = 0;
+	isp_ctx[dev_id].iso_frame_cnt = 0;
+	isp_ctx[dev_id].rolloff_frame_cnt = 0;
+	isp_ctx[dev_id].alg_frame_cnt = 0;
+
+	return 0;
 }
 
 HW_S32 isp_pthread_join(int dev_id)
@@ -988,6 +1223,9 @@ HW_S32 isp_get_attr_cfg(int dev_id, HW_U32 ctrl_id, void *value)
 		case ISP_CTRL_PLTMWDR_STR:
 			*(HW_S32 *)value = isp_gen->tune.pltmwdr_level;
 			break;
+		case ISP_CTRL_PLTM_HARDWARE_STR:
+			*(HW_S32 *)value = isp_gen->pltm_entity_ctx.pltm_result.pltm_next_stren;
+			break;
 		case ISP_CTRL_DN_STR:
 			*(HW_S32 *)value = isp_gen->tune.denoise_level;
 			break;
@@ -1017,6 +1255,9 @@ HW_S32 isp_get_attr_cfg(int dev_id, HW_U32 ctrl_id, void *value)
 			break;
 		case ISP_CTRL_EV_IDX:
 			*(HW_S32 *)value = isp_gen->ae_entity_ctx.ae_result.sensor_set.ev_set.ev_idx;
+			break;
+		case ISP_CTRL_ISO_LUM_IDX:
+			*(HW_S32 *)value = isp_gen->iso_entity_ctx.iso_result.lum_idx;
 			break;
 		default:
 			ISP_ERR("Unknown ctrl.\n");
@@ -1080,10 +1321,818 @@ HW_S32 isp_set_attr_cfg(int dev_id, HW_U32 ctrl_id, void *value)
 		case ISP_CTRL_AE_ROI:
 			isp_s_ae_roi(isp_gen, AE_METERING_MODE_SPOT, value);
 			break;
+		case ISP_CTRL_AF_METERING:
+			isp_s_af_metering_mode(isp_gen, value);
+			break;
 		default:
 			ISP_ERR("Unknown ctrl.\n");
 			break;
 	}
+	return 0;
+}
+
+HW_S32 isp_get_info_length(HW_S32* i3a_length, HW_S32* debug_length)
+{
+	HW_S32 data_len = 0;
+
+	*i3a_length =
+		sizeof(ae_result_t) + sizeof(ae_param_t)+ sizeof(struct isp_ae_stats_s) // ae info
+		+ sizeof(awb_result_t)+ sizeof(awb_param_t)+ sizeof(struct isp_awb_stats_s) // awb info
+		+ sizeof(af_result_t)+ sizeof(af_param_t)+ sizeof(struct isp_af_stats_s); // af info
+
+	*debug_length =
+		sizeof(iso_result_t)
+		+sizeof(iso_param_t) // iso info
+		+sizeof(struct isp_module_config)  // isp module info
+		+sizeof(int) 						// otp enable flag
+		+16*16*3*sizeof(unsigned short)	// msc tbl
+		+4*2*sizeof(unsigned short);	// wb otp data
+
+	data_len = *i3a_length + *debug_length;
+	ISP_PRINT("i3a_length:%d, debug_length:%d.\n", *i3a_length, *debug_length);
+	ISP_PRINT("af_result_t:%d, af_param_t:%d, isp_af_stats_s:%d.\n", sizeof(ae_result_t), sizeof(ae_param_t), sizeof(struct isp_ae_stats_s));
+ 	ISP_PRINT("af_result_t:%d, af_param_t:%d, isp_af_stats_s:%d.\n", sizeof(awb_result_t), sizeof(awb_param_t), sizeof(struct isp_awb_stats_s));
+	ISP_PRINT("af_result_t:%d, af_param_t:%d, isp_af_stats_s:%d.\n", sizeof(af_result_t), sizeof(af_param_t), sizeof(struct isp_af_stats_s));
+    return  data_len;
+}
+
+HW_S32 isp_get_3a_parameters(int dev_id, void* params)
+{
+	struct hw_isp_device *isp = NULL;
+
+	if (dev_id >= HW_ISP_DEVICE_NUM)
+	return -1;
+
+	isp = media_params.isp_dev[dev_id];
+	if (!isp) {
+		ISP_ERR("isp%d device is NULL!\n", dev_id);
+		return -1;
+	}
+	struct isp_lib_context *isp_gen = isp_dev_get_ctx(isp);
+	if (isp_gen == NULL)
+		return -1;
+	if (isp_gen->ae_entity_ctx.ae_stats.ae_stats == NULL
+			|| isp_gen->awb_entity_ctx.awb_stats.awb_stats == NULL
+			|| isp_gen->af_entity_ctx.af_stats.af_stats == NULL) {
+		ISP_ERR("isp:%d device have empty info!\n", dev_id);
+		return -1;
+	}
+	void * ptr = params;
+	int isp_3a_size = 0;
+	// ae info
+	memcpy(ptr, &(isp_gen->ae_entity_ctx.ae_result), sizeof(ae_result_t));
+	ptr += sizeof(ae_result_t);
+
+	memcpy(ptr, isp_gen->ae_entity_ctx.ae_param, sizeof(ae_param_t));
+	ptr += sizeof(ae_param_t);
+
+	memcpy(ptr, isp_gen->ae_entity_ctx.ae_stats.ae_stats, sizeof(struct isp_ae_stats_s));
+	ptr += sizeof(struct isp_ae_stats_s);
+
+	// awb info
+	memcpy(ptr, &(isp_gen->awb_entity_ctx.awb_result), sizeof(awb_result_t));
+	ptr += sizeof(awb_result_t);
+
+	memcpy(ptr, isp_gen->awb_entity_ctx.awb_param, sizeof(awb_param_t));
+	ptr += sizeof(awb_param_t);
+
+	memcpy(ptr, isp_gen->awb_entity_ctx.awb_stats.awb_stats, sizeof(struct isp_awb_stats_s));
+	ptr += sizeof(struct isp_awb_stats_s);
+
+	// af info
+	memcpy(ptr, &(isp_gen->af_entity_ctx.af_result), sizeof(af_result_t));
+	ptr += sizeof(af_result_t);
+
+	memcpy(ptr, isp_gen->af_entity_ctx.af_param, sizeof(af_param_t));
+	ptr += sizeof(af_param_t);
+
+	memcpy(ptr, isp_gen->af_entity_ctx.af_stats.af_stats, sizeof(struct isp_af_stats_s));
+	ptr += sizeof(struct isp_af_stats_s);
+
+	isp_3a_size = sizeof(ae_result_t) + sizeof(ae_param_t) +
+		sizeof(struct isp_ae_stats_s) + sizeof(awb_result_t) +
+		sizeof(awb_param_t) + sizeof(struct isp_awb_stats_s) +
+		sizeof(af_result_t) + sizeof(af_param_t) +
+		sizeof(struct isp_af_stats_s);
+
+	ptr = NULL;
+	return isp_3a_size;
+}
+
+HW_S32 isp_get_debug_msg(int dev_id, void* msg)
+{
+	struct hw_isp_device *isp = NULL;
+	if (dev_id >= HW_ISP_DEVICE_NUM)
+		return -1;
+
+	isp = media_params.isp_dev[dev_id];
+	if (!isp) {
+		ISP_ERR("isp%d device is NULL!\n", dev_id);
+		return -1;
+	}
+	struct isp_lib_context *isp_gen = isp_dev_get_ctx(isp);
+	if (isp_gen == NULL)
+		return -1;
+
+	void * ptr = msg;
+	int isp_debug_msg_size = 0;
+	memcpy(ptr, &(isp_gen->iso_entity_ctx.iso_result), sizeof(iso_result_t));
+	ptr += sizeof(iso_result_t);
+
+	memcpy(ptr, isp_gen->iso_entity_ctx.iso_param, sizeof(iso_param_t));
+	ptr += sizeof(iso_param_t);
+
+	memcpy(ptr, &isp_gen->module_cfg, sizeof(struct isp_module_config));
+	ptr += sizeof(struct isp_module_config);
+
+	memcpy(ptr, &isp_gen->otp_enable, sizeof(int));
+	ptr += sizeof(int);
+
+	// shading msc rgb tbl 16x16x3
+	memcpy(ptr, isp_gen->pmsc_table, 16*16*3*sizeof(unsigned short));
+	ptr += 16*16*3*sizeof(unsigned short);
+
+	// wb otp & golden data
+	memcpy(ptr, isp_gen->pwb_table, 4*2*sizeof(unsigned short));
+	ptr += 4*2*sizeof(unsigned short);
+
+	isp_debug_msg_size = sizeof(iso_result_t) +
+		sizeof(iso_param_t) +
+		sizeof(struct isp_module_config) +
+		sizeof(int) +
+		16*16*3*sizeof(unsigned short) +
+		4*2*sizeof(unsigned short);
+
+	ptr = NULL;
+	return isp_debug_msg_size;
+}
+
+HW_S32 isp_get_awb_gain_sum(int dev_id, HW_S32 *rgain_sum, HW_S32 *bgain_sum)
+{
+	struct hw_isp_device *isp = NULL;
+
+	if (dev_id >= HW_ISP_DEVICE_NUM)
+		return -1;
+
+	isp = media_params.isp_dev[dev_id];
+	if (!isp) {
+		ISP_ERR("isp%d device is NULL!\n", dev_id);
+		return -1;
+	}
+
+	struct isp_lib_context *isp_gen = isp_dev_get_ctx(isp);
+	if (isp_gen == NULL)
+		return -1;
+
+	*rgain_sum = isp_gen->awb_rgain_sum_for_ir;
+	*bgain_sum = isp_gen->awb_bgain_sum_for_ir;
+
+	return 0;
+}
+
+HW_S32 isp_save_debug_info(int dev_id, int is_save_buf,
+	const char *file_name, char *isp_info_param)
+{
+	struct hw_isp_device *isp = NULL;
+	struct isp_lib_context *isp_gen = NULL;
+	FILE *file = NULL;
+	char *buffer = NULL;
+	int buffer_index = 0;
+	int buffer_length = 0;
+	int k = 0, m = 0;
+	int r_cnt = 0;
+
+	if (dev_id >= HW_ISP_DEVICE_NUM)
+		return -1;
+
+	isp = media_params.isp_dev[dev_id];
+	if (!isp) {
+		ISP_ERR("isp%d device is NULL!\n", dev_id);
+		return -1;
+	}
+
+	isp_gen = isp_dev_get_ctx(isp);
+	if (!isp_gen)
+		return -1;
+
+	if(file_name != NULL) {
+		file = fopen(file_name, "wb+");
+		if (!file)
+			return -1;
+	}
+
+	buffer = calloc(90 * 1024,sizeof(char));
+	if (!buffer) {
+		fclose(file);
+		return -1;
+	}
+
+	buffer_length = snprintf(buffer, 256, "struct isp_3a_parameters_t isp_3a_parameters = {\n");
+	if(file_name != NULL) {
+		fwrite(buffer, buffer_length, 1, file);
+	}
+	if(is_save_buf) {
+		memcpy(isp_info_param,buffer,buffer_length);
+		isp_info_param += buffer_length;
+		r_cnt += buffer_length;
+	}
+
+	/* ae result */
+	buffer_index = buffer_length = snprintf(buffer, 8192,
+		"\t.ae_result = {\n"
+		"\t\t.ae_status = %d,\n"
+		"\t\t.sensor_set = {\n"
+		"\t\t\t.ev_set = {\n"
+		"\t\t\t\t.ev_exposure_time = %u,\n"
+		"\t\t\t\t.ev_analog_gain = %u,\n"
+		"\t\t\t\t.ev_digital_gain = %u,\n"
+		"\t\t\t\t.ev_total_gain = %u,\n"
+		"\t\t\t\t.ev_sensor_exp_line = %u,\n"
+		"\t\t\t\t.ev_sensor_true_exp_line = %u,\n"
+		"\t\t\t\t.ev_f_number = %u,\n"
+		"\t\t\t\t.ev_fno2 = %u,\n"
+		"\t\t\t\t.ev_av = %u,\n"
+		"\t\t\t\t.ev_tv = %u,\n"
+		"\t\t\t\t.ev_sv = %u,\n"
+		"\t\t\t\t.ev_lv = %u,\n"
+		"\t\t\t\t.ev = %u,\n"
+		"\t\t\t\t.ev_idx = %d,\n"
+		"\t\t\t},\n"
+		"\t\t\t.ev_set_last = {\n"
+		"\t\t\t\t.ev_exposure_time = %u,\n"
+		"\t\t\t\t.ev_analog_gain = %u,\n"
+		"\t\t\t\t.ev_digital_gain = %u,\n"
+		"\t\t\t\t.ev_total_gain = %u,\n"
+		"\t\t\t\t.ev_sensor_exp_line = %u,\n"
+		"\t\t\t\t.ev_sensor_true_exp_line = %u,\n"
+		"\t\t\t\t.ev_f_number = %u,\n"
+		"\t\t\t\t.ev_fno2 = %u,\n"
+		"\t\t\t\t.ev_av = %u,\n"
+		"\t\t\t\t.ev_tv = %u,\n"
+		"\t\t\t\t.ev_sv = %u,\n"
+		"\t\t\t\t.ev_lv = %u,\n"
+		"\t\t\t\t.ev = %u,\n"
+		"\t\t\t\t.ev_idx = %d,\n"
+		"\t\t\t},\n"
+		"\t\t\t.ev_set_curr = {\n"
+		"\t\t\t\t.ev_exposure_time = %u,\n"
+		"\t\t\t\t.ev_analog_gain = %u,\n"
+		"\t\t\t\t.ev_digital_gain = %u,\n"
+		"\t\t\t\t.ev_total_gain = %u,\n"
+		"\t\t\t\t.ev_sensor_exp_line = %u,\n"
+		"\t\t\t\t.ev_sensor_true_exp_line = %u,\n"
+		"\t\t\t\t.ev_f_number = %u,\n"
+		"\t\t\t\t.ev_fno2 = %u,\n"
+		"\t\t\t\t.ev_av = %u,\n"
+		"\t\t\t\t.ev_tv = %u,\n"
+		"\t\t\t\t.ev_sv = %u,\n"
+		"\t\t\t\t.ev_lv = %u,\n"
+		"\t\t\t\t.ev = %u,\n"
+		"\t\t\t\t.ev_idx = %d,\n"
+		"\t\t\t},\n"
+		"\t\t\t.ev_idx_max = %d,\n"
+		"\t\t\t.ev_idx_expect = %d,\n"
+		"\t\t},\n",
+		isp_gen->ae_entity_ctx.ae_result.ae_status,
+		isp_gen->ae_entity_ctx.ae_result.sensor_set.ev_set.ev_exposure_time,
+		isp_gen->ae_entity_ctx.ae_result.sensor_set.ev_set.ev_analog_gain,
+		isp_gen->ae_entity_ctx.ae_result.sensor_set.ev_set.ev_digital_gain,
+		isp_gen->ae_entity_ctx.ae_result.sensor_set.ev_set.ev_total_gain,
+		isp_gen->ae_entity_ctx.ae_result.sensor_set.ev_set.ev_sensor_exp_line,
+		isp_gen->ae_entity_ctx.ae_result.sensor_set.ev_set.ev_sensor_true_exp_line,
+		isp_gen->ae_entity_ctx.ae_result.sensor_set.ev_set.ev_f_number,
+		isp_gen->ae_entity_ctx.ae_result.sensor_set.ev_set.ev_fno2,
+		isp_gen->ae_entity_ctx.ae_result.sensor_set.ev_set.ev_av,
+		isp_gen->ae_entity_ctx.ae_result.sensor_set.ev_set.ev_tv,
+		isp_gen->ae_entity_ctx.ae_result.sensor_set.ev_set.ev_sv,
+		isp_gen->ae_entity_ctx.ae_result.sensor_set.ev_set.ev_lv,
+		isp_gen->ae_entity_ctx.ae_result.sensor_set.ev_set.ev,
+		isp_gen->ae_entity_ctx.ae_result.sensor_set.ev_set.ev_idx,
+
+		isp_gen->ae_entity_ctx.ae_result.sensor_set.ev_set_last.ev_exposure_time,
+		isp_gen->ae_entity_ctx.ae_result.sensor_set.ev_set_last.ev_analog_gain,
+		isp_gen->ae_entity_ctx.ae_result.sensor_set.ev_set_last.ev_digital_gain,
+		isp_gen->ae_entity_ctx.ae_result.sensor_set.ev_set_last.ev_total_gain,
+		isp_gen->ae_entity_ctx.ae_result.sensor_set.ev_set_last.ev_sensor_exp_line,
+		isp_gen->ae_entity_ctx.ae_result.sensor_set.ev_set_last.ev_sensor_true_exp_line,
+		isp_gen->ae_entity_ctx.ae_result.sensor_set.ev_set_last.ev_f_number,
+		isp_gen->ae_entity_ctx.ae_result.sensor_set.ev_set_last.ev_fno2,
+		isp_gen->ae_entity_ctx.ae_result.sensor_set.ev_set_last.ev_av,
+		isp_gen->ae_entity_ctx.ae_result.sensor_set.ev_set_last.ev_tv,
+		isp_gen->ae_entity_ctx.ae_result.sensor_set.ev_set_last.ev_sv,
+		isp_gen->ae_entity_ctx.ae_result.sensor_set.ev_set_last.ev_lv,
+		isp_gen->ae_entity_ctx.ae_result.sensor_set.ev_set_last.ev,
+		isp_gen->ae_entity_ctx.ae_result.sensor_set.ev_set_last.ev_idx,
+
+		isp_gen->ae_entity_ctx.ae_result.sensor_set.ev_set_curr.ev_exposure_time,
+		isp_gen->ae_entity_ctx.ae_result.sensor_set.ev_set_curr.ev_analog_gain,
+		isp_gen->ae_entity_ctx.ae_result.sensor_set.ev_set_curr.ev_digital_gain,
+		isp_gen->ae_entity_ctx.ae_result.sensor_set.ev_set_curr.ev_total_gain,
+		isp_gen->ae_entity_ctx.ae_result.sensor_set.ev_set_curr.ev_sensor_exp_line,
+		isp_gen->ae_entity_ctx.ae_result.sensor_set.ev_set_curr.ev_sensor_true_exp_line,
+		isp_gen->ae_entity_ctx.ae_result.sensor_set.ev_set_curr.ev_f_number,
+		isp_gen->ae_entity_ctx.ae_result.sensor_set.ev_set_curr.ev_fno2,
+		isp_gen->ae_entity_ctx.ae_result.sensor_set.ev_set_curr.ev_av,
+		isp_gen->ae_entity_ctx.ae_result.sensor_set.ev_set_curr.ev_tv,
+		isp_gen->ae_entity_ctx.ae_result.sensor_set.ev_set_curr.ev_sv,
+		isp_gen->ae_entity_ctx.ae_result.sensor_set.ev_set_curr.ev_lv,
+		isp_gen->ae_entity_ctx.ae_result.sensor_set.ev_set_curr.ev,
+		isp_gen->ae_entity_ctx.ae_result.sensor_set.ev_set_curr.ev_idx,
+		isp_gen->ae_entity_ctx.ae_result.sensor_set.ev_idx_max,
+		isp_gen->ae_entity_ctx.ae_result.sensor_set.ev_idx_expect
+		);
+
+	buffer_length = snprintf(&buffer[buffer_index], 4096,
+		"\t\t.sensor_set_short = {\n"
+		"\t\t\t.ev_set = {\n"
+		"\t\t\t\t.ev_exposure_time = %u,\n"
+		"\t\t\t\t.ev_analog_gain = %u,\n"
+		"\t\t\t\t.ev_digital_gain = %u,\n"
+		"\t\t\t\t.ev_total_gain = %u,\n"
+		"\t\t\t\t.ev_sensor_exp_line = %u,\n"
+		"\t\t\t\t.ev_sensor_true_exp_line = %u,\n"
+		"\t\t\t\t.ev_f_number = %u,\n"
+		"\t\t\t\t.ev_fno2 = %u,\n"
+		"\t\t\t\t.ev_av = %u,\n"
+		"\t\t\t\t.ev_tv = %u,\n"
+		"\t\t\t\t.ev_sv = %u,\n"
+		"\t\t\t\t.ev_lv = %u,\n"
+		"\t\t\t\t.ev = %u,\n"
+		"\t\t\t\t.ev_idx = %d,\n"
+		"\t\t\t},\n"
+		"\t\t\t.ev_set_last = {\n"
+		"\t\t\t\t.ev_exposure_time = %u,\n"
+		"\t\t\t\t.ev_analog_gain = %u,\n"
+		"\t\t\t\t.ev_digital_gain = %u,\n"
+		"\t\t\t\t.ev_total_gain = %u,\n"
+		"\t\t\t\t.ev_sensor_exp_line = %u,\n"
+		"\t\t\t\t.ev_sensor_true_exp_line = %u,\n"
+		"\t\t\t\t.ev_f_number = %u,\n"
+		"\t\t\t\t.ev_fno2 = %u,\n"
+		"\t\t\t\t.ev_av = %u,\n"
+		"\t\t\t\t.ev_tv = %u,\n"
+		"\t\t\t\t.ev_sv = %u,\n"
+		"\t\t\t\t.ev_lv = %u,\n"
+		"\t\t\t\t.ev = %u,\n"
+		"\t\t\t\t.ev_idx = %d,\n"
+		"\t\t\t},\n"
+		"\t\t\t.ev_set_curr = {\n"
+		"\t\t\t\t.ev_exposure_time = %u,\n"
+		"\t\t\t\t.ev_analog_gain = %u,\n"
+		"\t\t\t\t.ev_digital_gain = %u,\n"
+		"\t\t\t\t.ev_total_gain = %u,\n"
+		"\t\t\t\t.ev_sensor_exp_line = %u,\n"
+		"\t\t\t\t.ev_sensor_true_exp_line = %u,\n"
+		"\t\t\t\t.ev_f_number = %u,\n"
+		"\t\t\t\t.ev_fno2 = %u,\n"
+		"\t\t\t\t.ev_av = %u,\n"
+		"\t\t\t\t.ev_tv = %u,\n"
+		"\t\t\t\t.ev_sv = %u,\n"
+		"\t\t\t\t.ev_lv = %u,\n"
+		"\t\t\t\t.ev = %u,\n"
+		"\t\t\t\t.ev_idx = %d,\n"
+		"\t\t\t},\n"
+		"\t\t\t.ev_idx_max = %d,\n"
+		"\t\t\t.ev_idx_expect = %d,\n"
+		"\t\t},\n",
+		isp_gen->ae_entity_ctx.ae_result.sensor_set_short.ev_set.ev_exposure_time,
+		isp_gen->ae_entity_ctx.ae_result.sensor_set_short.ev_set.ev_analog_gain,
+		isp_gen->ae_entity_ctx.ae_result.sensor_set_short.ev_set.ev_digital_gain,
+		isp_gen->ae_entity_ctx.ae_result.sensor_set_short.ev_set.ev_total_gain,
+		isp_gen->ae_entity_ctx.ae_result.sensor_set_short.ev_set.ev_sensor_exp_line,
+		isp_gen->ae_entity_ctx.ae_result.sensor_set_short.ev_set.ev_sensor_true_exp_line,
+		isp_gen->ae_entity_ctx.ae_result.sensor_set_short.ev_set.ev_f_number,
+		isp_gen->ae_entity_ctx.ae_result.sensor_set_short.ev_set.ev_fno2,
+		isp_gen->ae_entity_ctx.ae_result.sensor_set_short.ev_set.ev_av,
+		isp_gen->ae_entity_ctx.ae_result.sensor_set_short.ev_set.ev_tv,
+		isp_gen->ae_entity_ctx.ae_result.sensor_set_short.ev_set.ev_sv,
+		isp_gen->ae_entity_ctx.ae_result.sensor_set_short.ev_set.ev_lv,
+		isp_gen->ae_entity_ctx.ae_result.sensor_set_short.ev_set.ev,
+		isp_gen->ae_entity_ctx.ae_result.sensor_set_short.ev_set.ev_idx,
+
+		isp_gen->ae_entity_ctx.ae_result.sensor_set_short.ev_set_last.ev_exposure_time,
+		isp_gen->ae_entity_ctx.ae_result.sensor_set_short.ev_set_last.ev_analog_gain,
+		isp_gen->ae_entity_ctx.ae_result.sensor_set_short.ev_set_last.ev_digital_gain,
+		isp_gen->ae_entity_ctx.ae_result.sensor_set_short.ev_set_last.ev_total_gain,
+		isp_gen->ae_entity_ctx.ae_result.sensor_set_short.ev_set_last.ev_sensor_exp_line,
+		isp_gen->ae_entity_ctx.ae_result.sensor_set_short.ev_set_last.ev_sensor_true_exp_line,
+		isp_gen->ae_entity_ctx.ae_result.sensor_set_short.ev_set_last.ev_f_number,
+		isp_gen->ae_entity_ctx.ae_result.sensor_set_short.ev_set_last.ev_fno2,
+		isp_gen->ae_entity_ctx.ae_result.sensor_set_short.ev_set_last.ev_av,
+		isp_gen->ae_entity_ctx.ae_result.sensor_set_short.ev_set_last.ev_tv,
+		isp_gen->ae_entity_ctx.ae_result.sensor_set_short.ev_set_last.ev_sv,
+		isp_gen->ae_entity_ctx.ae_result.sensor_set_short.ev_set_last.ev_lv,
+		isp_gen->ae_entity_ctx.ae_result.sensor_set_short.ev_set_last.ev,
+		isp_gen->ae_entity_ctx.ae_result.sensor_set_short.ev_set_last.ev_idx,
+
+		isp_gen->ae_entity_ctx.ae_result.sensor_set_short.ev_set_curr.ev_exposure_time,
+		isp_gen->ae_entity_ctx.ae_result.sensor_set_short.ev_set_curr.ev_analog_gain,
+		isp_gen->ae_entity_ctx.ae_result.sensor_set_short.ev_set_curr.ev_digital_gain,
+		isp_gen->ae_entity_ctx.ae_result.sensor_set_short.ev_set_curr.ev_total_gain,
+		isp_gen->ae_entity_ctx.ae_result.sensor_set_short.ev_set_curr.ev_sensor_exp_line,
+		isp_gen->ae_entity_ctx.ae_result.sensor_set_short.ev_set_curr.ev_sensor_true_exp_line,
+		isp_gen->ae_entity_ctx.ae_result.sensor_set_short.ev_set_curr.ev_f_number,
+		isp_gen->ae_entity_ctx.ae_result.sensor_set_short.ev_set_curr.ev_fno2,
+		isp_gen->ae_entity_ctx.ae_result.sensor_set_short.ev_set_curr.ev_av,
+		isp_gen->ae_entity_ctx.ae_result.sensor_set_short.ev_set_curr.ev_tv,
+		isp_gen->ae_entity_ctx.ae_result.sensor_set_short.ev_set_curr.ev_sv,
+		isp_gen->ae_entity_ctx.ae_result.sensor_set_short.ev_set_curr.ev_lv,
+		isp_gen->ae_entity_ctx.ae_result.sensor_set_short.ev_set_curr.ev,
+		isp_gen->ae_entity_ctx.ae_result.sensor_set_short.ev_set_curr.ev_idx,
+
+		isp_gen->ae_entity_ctx.ae_result.sensor_set_short.ev_idx_max,
+		isp_gen->ae_entity_ctx.ae_result.sensor_set_short.ev_idx_expect
+		);
+
+	buffer_index += buffer_length;
+	buffer_length = snprintf(&buffer[buffer_index], 4096,
+		"\t\t.BrightPixellValue = %d,\n"
+		"\t\t.DarkPixelValue = %d,\n"
+		"\t\t.ae_gain = %u,\n"
+		"\t\t.ae_target = %d,\n"
+		"\t\t.ae_avg_lum = %d,\n"
+		"\t\t.ae_weight_lum = %d,\n"
+		"\t\t.ae_delta_exp_idx = %d,\n"
+		"\t\t.ev_lv_adj = %d,\n"
+		"\t\t.ae_flash_ev_cumul = %d,\n"
+		"\t\t.ae_flash_ok = %u,\n"
+		"\t\t.ae_flash_led = %u,\n"
+		"\t\t.ae_wdr_ratio = {\n"
+		"\t\t\t.sensor = %d,\n"
+		"\t\t\t.isp_hardware = %d,\n"
+		"\t\t\t.tmp = %d,\n"
+		"\t\t\t.last = %d,\n"
+		"\t\t},\n"
+		"\t\t.ae_wdr_delay = %d,\n"
+		"\t\t.wdr_hi_th = %d,\n"
+		"\t\t.wdr_low_th = %d,\n"
+		"\t\t.hist_low = %u,\n"
+		"\t\t.hist_mid = %u,\n"
+		"\t\t.hist_hi = %u,\n"
+		"\t\t.backlight = %u,\n"
+		"\t\t.gain_ratio = %f,\n"
+		"\t},\n",
+		isp_gen->ae_entity_ctx.ae_result.BrightPixellValue, isp_gen->ae_entity_ctx.ae_result.DarkPixelValue,
+		isp_gen->ae_entity_ctx.ae_result.ae_gain, isp_gen->ae_entity_ctx.ae_result.ae_target,
+		isp_gen->ae_entity_ctx.ae_result.ae_avg_lum, isp_gen->ae_entity_ctx.ae_result.ae_weight_lum,
+		isp_gen->ae_entity_ctx.ae_result.ae_delta_exp_idx, isp_gen->ae_entity_ctx.ae_result.ev_lv_adj,
+		isp_gen->ae_entity_ctx.ae_result.ae_flash_ev_cumul, isp_gen->ae_entity_ctx.ae_result.ae_flash_ok,
+		isp_gen->ae_entity_ctx.ae_result.ae_flash_led, isp_gen->ae_entity_ctx.ae_result.ae_wdr_ratio.sensor,
+		isp_gen->ae_entity_ctx.ae_result.ae_wdr_ratio.isp_hardware, isp_gen->ae_entity_ctx.ae_result.ae_wdr_ratio.tmp,
+		isp_gen->ae_entity_ctx.ae_result.ae_wdr_ratio.last, isp_gen->ae_entity_ctx.ae_result.ae_wdr_delay,
+		isp_gen->ae_entity_ctx.ae_result.wdr_hi_th, isp_gen->ae_entity_ctx.ae_result.wdr_low_th,
+		isp_gen->ae_entity_ctx.ae_result.hist_low, isp_gen->ae_entity_ctx.ae_result.hist_mid,
+		isp_gen->ae_entity_ctx.ae_result.hist_hi, isp_gen->ae_entity_ctx.ae_result.backlight,
+		isp_gen->ae_entity_ctx.ae_result.gain_ratio);
+	buffer_index += buffer_length;
+
+	/* ae_param */
+	/* isp_ae_stats */
+	buffer_length = snprintf(&buffer[buffer_index], 256,
+		"\t.isp_ae_stats = {\n"
+		"\t\t.win_pix_n = %u,\n",
+		isp_gen->ae_entity_ctx.ae_stats.ae_stats->win_pix_n);
+	buffer_index += buffer_length;
+
+	buffer_length = snprintf(&buffer[buffer_index], 256, "\t\t.accum_r = {\n\t\t\t");
+	buffer_index += buffer_length;
+	for(k = 0; k < ISP_AE_ROW - 1; k++)
+	{
+		for(m = 0; m < ISP_AE_COL;m++)
+		{
+			buffer_length = snprintf(&buffer[buffer_index], 64, "%d, ", isp_gen->ae_entity_ctx.ae_stats.ae_stats->accum_r[k][m]);
+			buffer_index += buffer_length;
+		}
+		buffer_length = snprintf(&buffer[buffer_index], 32, "\n\t\t\t");
+		buffer_index += buffer_length;
+	}
+	for(m = 0; m < ISP_AE_COL - 1;m++)
+	{
+		buffer_length = snprintf(&buffer[buffer_index], 64, "%d, ", isp_gen->ae_entity_ctx.ae_stats.ae_stats->accum_r[k][m]);
+		buffer_index += buffer_length;
+	}
+	buffer_length = snprintf(&buffer[buffer_index], 64, "%d\n\t\t},\n", isp_gen->ae_entity_ctx.ae_stats.ae_stats->accum_r[k][m]);
+	buffer_index += buffer_length;
+
+	buffer_length = snprintf(&buffer[buffer_index], 256, "\t\t.accum_g = {\n\t\t\t");
+	buffer_index += buffer_length;
+	for(k = 0; k < ISP_AE_ROW - 1; k++)
+	{
+		for(m = 0; m < ISP_AE_COL;m++)
+		{
+			buffer_length = snprintf(&buffer[buffer_index], 64, "%d, ", isp_gen->ae_entity_ctx.ae_stats.ae_stats->accum_g[k][m]);
+			buffer_index += buffer_length;
+		}
+		buffer_length = snprintf(&buffer[buffer_index], 32, "\n\t\t\t");
+		buffer_index += buffer_length;
+	}
+	for(m = 0; m < ISP_AE_COL - 1;m++)
+	{
+		buffer_length = snprintf(&buffer[buffer_index], 64, "%d, ", isp_gen->ae_entity_ctx.ae_stats.ae_stats->accum_g[k][m]);
+		buffer_index += buffer_length;
+	}
+	buffer_length = snprintf(&buffer[buffer_index], 64, "%d\n\t\t},\n", isp_gen->ae_entity_ctx.ae_stats.ae_stats->accum_g[k][m]);
+	buffer_index += buffer_length;
+
+	buffer_length = snprintf(&buffer[buffer_index], 256, "\t\t.accum_b = {\n\t\t\t");
+	buffer_index += buffer_length;
+	for(k = 0; k < ISP_AE_ROW - 1; k++)
+	{
+		for(m = 0; m < ISP_AE_COL;m++)
+		{
+			buffer_length = snprintf(&buffer[buffer_index], 64, "%d, ", isp_gen->ae_entity_ctx.ae_stats.ae_stats->accum_b[k][m]);
+			buffer_index += buffer_length;
+		}
+		buffer_length = snprintf(&buffer[buffer_index], 32, "\n\t\t\t");
+		buffer_index += buffer_length;
+	}
+	for(m = 0; m < ISP_AE_COL - 1;m++)
+	{
+		buffer_length = snprintf(&buffer[buffer_index], 64, "%d, ", isp_gen->ae_entity_ctx.ae_stats.ae_stats->accum_b[k][m]);
+		buffer_index += buffer_length;
+	}
+	buffer_length = snprintf(&buffer[buffer_index], 64, "%d\n\t\t},\n", isp_gen->ae_entity_ctx.ae_stats.ae_stats->accum_b[k][m]);
+	buffer_index += buffer_length;
+	buffer_length = snprintf(&buffer[buffer_index], 32,"\t},\n");/* end isp_ae_stats */
+	buffer_index += buffer_length;
+
+	/* awb_param */
+	/* isp_awb_stats */
+	buffer_length = snprintf(&buffer[buffer_index], 256, "\t.isp_awb_stats = {\n");
+	buffer_index += buffer_length;
+
+	buffer_length = snprintf(&buffer[buffer_index], 256, "\t\t.awb_sum_r = {\n\t\t\t");
+	buffer_index += buffer_length;
+	for(k = 0; k < ISP_AWB_ROW - 1; k++)
+	{
+		for(m = 0; m < ISP_AWB_COL;m++)
+		{
+			buffer_length = snprintf(&buffer[buffer_index], 64, "%d, ", isp_gen->awb_entity_ctx.awb_stats.awb_stats->awb_sum_r[k][m]);
+			buffer_index += buffer_length;
+		}
+		buffer_length = snprintf(&buffer[buffer_index], 32, "\n\t\t\t");
+		buffer_index += buffer_length;
+	}
+	for(m = 0; m < ISP_AWB_COL - 1;m++)
+	{
+		buffer_length = snprintf(&buffer[buffer_index], 64, "%d, ", isp_gen->awb_entity_ctx.awb_stats.awb_stats->awb_sum_r[k][m]);
+		buffer_index += buffer_length;
+	}
+	buffer_length = snprintf(&buffer[buffer_index], 64, "%d\n\t\t},\n", isp_gen->awb_entity_ctx.awb_stats.awb_stats->awb_sum_r[k][m]);
+	buffer_index += buffer_length;
+
+	buffer_length = snprintf(&buffer[buffer_index], 256, "\t\t.awb_sum_g = {\n\t\t\t");
+	buffer_index += buffer_length;
+	for(k = 0; k < ISP_AWB_ROW - 1; k++)
+	{
+		for(m = 0; m < ISP_AWB_COL;m++)
+		{
+			buffer_length = snprintf(&buffer[buffer_index], 64, "%d, ", isp_gen->awb_entity_ctx.awb_stats.awb_stats->awb_sum_g[k][m]);
+			buffer_index += buffer_length;
+		}
+		buffer_length = snprintf(&buffer[buffer_index], 32, "\n\t\t\t");
+		buffer_index += buffer_length;
+	}
+	for(m = 0; m < ISP_AWB_COL - 1;m++)
+	{
+		buffer_length = snprintf(&buffer[buffer_index], 64, "%d, ", isp_gen->awb_entity_ctx.awb_stats.awb_stats->awb_sum_g[k][m]);
+		buffer_index += buffer_length;
+	}
+	buffer_length = snprintf(&buffer[buffer_index], 64, "%d\n\t\t},\n", isp_gen->awb_entity_ctx.awb_stats.awb_stats->awb_sum_g[k][m]);
+	buffer_index += buffer_length;
+
+	buffer_length = snprintf(&buffer[buffer_index], 256, "\t\t.awb_sum_b = {\n\t\t\t");
+	buffer_index += buffer_length;
+	for(k = 0; k < ISP_AWB_ROW - 1; k++)
+	{
+		for(m = 0; m < ISP_AWB_COL;m++)
+		{
+			buffer_length = snprintf(&buffer[buffer_index], 64, "%d, ", isp_gen->awb_entity_ctx.awb_stats.awb_stats->awb_sum_b[k][m]);
+			buffer_index += buffer_length;
+		}
+		buffer_length = snprintf(&buffer[buffer_index], 32, "\n\t\t\t");
+		buffer_index += buffer_length;
+	}
+	for(m = 0; m < ISP_AWB_COL - 1;m++)
+	{
+		buffer_length = snprintf(&buffer[buffer_index], 64, "%d, ", isp_gen->awb_entity_ctx.awb_stats.awb_stats->awb_sum_b[k][m]);
+		buffer_index += buffer_length;
+	}
+	buffer_length = snprintf(&buffer[buffer_index], 64, "%d\n\t\t},\n", isp_gen->awb_entity_ctx.awb_stats.awb_stats->awb_sum_b[k][m]);
+	buffer_index += buffer_length;
+
+	buffer_length = snprintf(&buffer[buffer_index], 256, "\t\t.awb_sum_cnt = {\n\t\t\t");
+	buffer_index += buffer_length;
+	for(k = 0; k < ISP_AWB_ROW - 1; k++)
+	{
+		for(m = 0; m < ISP_AWB_COL;m++)
+		{
+			buffer_length = snprintf(&buffer[buffer_index], 64, "%d, ", isp_gen->awb_entity_ctx.awb_stats.awb_stats->awb_sum_cnt[k][m]);
+			buffer_index += buffer_length;
+		}
+		buffer_length = snprintf(&buffer[buffer_index], 32, "\n\t\t\t");
+		buffer_index += buffer_length;
+	}
+	for(m = 0; m < ISP_AWB_COL - 1;m++)
+	{
+		buffer_length = snprintf(&buffer[buffer_index], 64, "%d, ", isp_gen->awb_entity_ctx.awb_stats.awb_stats->awb_sum_cnt[k][m]);
+		buffer_index += buffer_length;
+	}
+	buffer_length = snprintf(&buffer[buffer_index], 64, "%d\n\t\t},\n", isp_gen->awb_entity_ctx.awb_stats.awb_stats->awb_sum_cnt[k][m]);
+	buffer_index += buffer_length;
+
+	buffer_length = snprintf(&buffer[buffer_index], 256, "\t\t.awb_avg_r = {\n\t\t\t");
+	buffer_index += buffer_length;
+	for(k = 0; k < ISP_AWB_ROW - 1; k++)
+	{
+		for(m = 0; m < ISP_AWB_COL;m++)
+		{
+			buffer_length = snprintf(&buffer[buffer_index], 64, "%d, ", isp_gen->awb_entity_ctx.awb_stats.awb_stats->awb_avg_r[k][m]);
+			buffer_index += buffer_length;
+		}
+		buffer_length = snprintf(&buffer[buffer_index], 32, "\n\t\t\t");
+		buffer_index += buffer_length;
+	}
+	for(m = 0; m < ISP_AWB_COL - 1;m++)
+	{
+		buffer_length = snprintf(&buffer[buffer_index], 64, "%d, ", isp_gen->awb_entity_ctx.awb_stats.awb_stats->awb_avg_r[k][m]);
+		buffer_index += buffer_length;
+	}
+	buffer_length = snprintf(&buffer[buffer_index], 64, "%d\n\t\t},\n", isp_gen->awb_entity_ctx.awb_stats.awb_stats->awb_avg_r[k][m]);
+	buffer_index += buffer_length;
+
+	buffer_length = snprintf(&buffer[buffer_index], 256, "\t\t.awb_avg_g = {\n\t\t\t");
+	buffer_index += buffer_length;
+	for(k = 0; k < ISP_AWB_ROW - 1; k++)
+	{
+		for(m = 0; m < ISP_AWB_COL;m++)
+		{
+			buffer_length = snprintf(&buffer[buffer_index], 64, "%d, ", isp_gen->awb_entity_ctx.awb_stats.awb_stats->awb_avg_g[k][m]);
+			buffer_index += buffer_length;
+		}
+		buffer_length = snprintf(&buffer[buffer_index], 32, "\n\t\t\t");
+		buffer_index += buffer_length;
+	}
+	for(m = 0; m < ISP_AWB_COL - 1;m++)
+	{
+		buffer_length = snprintf(&buffer[buffer_index], 64, "%d, ", isp_gen->awb_entity_ctx.awb_stats.awb_stats->awb_avg_g[k][m]);
+		buffer_index += buffer_length;
+	}
+	buffer_length = snprintf(&buffer[buffer_index], 64, "%d\n\t\t},\n", isp_gen->awb_entity_ctx.awb_stats.awb_stats->awb_avg_g[k][m]);
+	buffer_index += buffer_length;
+
+	buffer_length = snprintf(&buffer[buffer_index], 256, "\t\t.awb_avg_b = {\n\t\t\t");
+	buffer_index += buffer_length;
+	for(k = 0; k < ISP_AWB_ROW - 1; k++)
+	{
+		for(m = 0; m < ISP_AWB_COL;m++)
+		{
+			buffer_length = snprintf(&buffer[buffer_index], 64, "%d, ", isp_gen->awb_entity_ctx.awb_stats.awb_stats->awb_avg_b[k][m]);
+			buffer_index += buffer_length;
+		}
+		buffer_length = snprintf(&buffer[buffer_index], 32, "\n\t\t\t");
+		buffer_index += buffer_length;
+	}
+	for(m = 0; m < ISP_AWB_COL - 1;m++)
+	{
+		buffer_length = snprintf(&buffer[buffer_index], 64, "%d, ", isp_gen->awb_entity_ctx.awb_stats.awb_stats->awb_avg_b[k][m]);
+		buffer_index += buffer_length;
+	}
+	buffer_length = snprintf(&buffer[buffer_index], 64, "%d\n\t\t},\n", isp_gen->awb_entity_ctx.awb_stats.awb_stats->awb_avg_b[k][m]);
+	buffer_index += buffer_length;
+
+	buffer_length = snprintf(&buffer[buffer_index], 256, "\t\t.avg = {\n\t\t\t");
+	buffer_index += buffer_length;
+	for(k = 0; k < ISP_AWB_ROW - 1; k++)
+	{
+		for(m = 0; m < ISP_AWB_COL;m++)
+		{
+			buffer_length = snprintf(&buffer[buffer_index], 64, "%d, ", isp_gen->awb_entity_ctx.awb_stats.awb_stats->avg[k][m]);
+			buffer_index += buffer_length;
+		}
+		buffer_length = snprintf(&buffer[buffer_index], 32, "\n\t\t\t");
+		buffer_index += buffer_length;
+	}
+	for(m = 0; m < ISP_AWB_COL - 1;m++)
+	{
+		buffer_length = snprintf(&buffer[buffer_index], 64, "%d, ", isp_gen->awb_entity_ctx.awb_stats.awb_stats->avg[k][m]);
+		buffer_index += buffer_length;
+	}
+	buffer_length = snprintf(&buffer[buffer_index], 64, "%d\n\t\t},\n", isp_gen->awb_entity_ctx.awb_stats.awb_stats->avg[k][m]);
+	buffer_index += buffer_length;
+
+    buffer_length = snprintf(&buffer[buffer_index], 256, "\t\t.awb_deal_r = {\n\t\t\t");
+	buffer_index += buffer_length;
+	for(k = 0; k < ISP_AWB_ROW - 1; k++)
+	{
+		for(m = 0; m < ISP_AWB_COL;m++)
+		{
+			buffer_length = snprintf(&buffer[buffer_index], 64, "%d, ", isp_gen->awb_entity_ctx.awb_stats.awb_stats->awb_deal_r[k][m]);
+			buffer_index += buffer_length;
+		}
+		buffer_length = snprintf(&buffer[buffer_index], 32, "\n\t\t\t");
+		buffer_index += buffer_length;
+	}
+	for(m = 0; m < ISP_AWB_COL - 1;m++)
+	{
+		buffer_length = snprintf(&buffer[buffer_index], 64, "%d, ", isp_gen->awb_entity_ctx.awb_stats.awb_stats->awb_deal_r[k][m]);
+		buffer_index += buffer_length;
+	}
+	buffer_length = snprintf(&buffer[buffer_index], 64, "%d\n\t\t},\n", isp_gen->awb_entity_ctx.awb_stats.awb_stats->awb_deal_r[k][m]);
+	buffer_index += buffer_length;
+
+	buffer_length = snprintf(&buffer[buffer_index], 256, "\t\t.awb_deal_g = {\n\t\t\t");
+	buffer_index += buffer_length;
+	for(k = 0; k < ISP_AWB_ROW - 1; k++)
+	{
+		for(m = 0; m < ISP_AWB_COL;m++)
+		{
+			buffer_length = snprintf(&buffer[buffer_index], 64, "%d, ", isp_gen->awb_entity_ctx.awb_stats.awb_stats->awb_deal_g[k][m]);
+			buffer_index += buffer_length;
+		}
+		buffer_length = snprintf(&buffer[buffer_index], 32, "\n\t\t\t");
+		buffer_index += buffer_length;
+	}
+	for(m = 0; m < ISP_AWB_COL - 1;m++)
+	{
+		buffer_length = snprintf(&buffer[buffer_index], 64, "%d, ", isp_gen->awb_entity_ctx.awb_stats.awb_stats->awb_deal_g[k][m]);
+		buffer_index += buffer_length;
+	}
+	buffer_length = snprintf(&buffer[buffer_index], 64, "%d\n\t\t},\n", isp_gen->awb_entity_ctx.awb_stats.awb_stats->awb_deal_g[k][m]);
+	buffer_index += buffer_length;
+
+	buffer_length = snprintf(&buffer[buffer_index], 256, "\t\t.awb_deal_b = {\n\t\t\t");
+	buffer_index += buffer_length;
+	for(k = 0; k < ISP_AWB_ROW - 1; k++)
+	{
+		for(m = 0; m < ISP_AWB_COL;m++)
+		{
+			buffer_length = snprintf(&buffer[buffer_index], 64, "%d, ", isp_gen->awb_entity_ctx.awb_stats.awb_stats->awb_deal_b[k][m]);
+			buffer_index += buffer_length;
+		}
+		buffer_length = snprintf(&buffer[buffer_index], 32, "\n\t\t\t");
+		buffer_index += buffer_length;
+	}
+	for(m = 0; m < ISP_AWB_COL - 1;m++)
+	{
+		buffer_length = snprintf(&buffer[buffer_index], 64, "%d, ", isp_gen->awb_entity_ctx.awb_stats.awb_stats->awb_deal_b[k][m]);
+		buffer_index += buffer_length;
+	}
+	buffer_length = snprintf(&buffer[buffer_index], 64, "%d\n\t\t},\n", isp_gen->awb_entity_ctx.awb_stats.awb_stats->awb_deal_b[k][m]);
+	buffer_index += buffer_length;
+
+	buffer_length = snprintf(&buffer[buffer_index], 32,"\t},\n");/* end isp_awb_stats */
+	buffer_index += buffer_length;
+
+	/* af_result */
+	buffer_length = snprintf(&buffer[buffer_index], 256,
+		"\t.af_result = {\n"
+		"\t\t.af_status_output = %d,\n"
+		"\t\t.last_code_output = %u,\n"
+		"\t\t.real_code_output = %u,\n"
+		"\t\t.std_code_output = %u,\n"
+		"\t\t.af_sap_lim_output = %u,\n"
+		"\t\t.af_sharp_output = %u,\n"
+		"\t},\n",
+		isp_gen->af_entity_ctx.af_result.af_status_output, isp_gen->af_entity_ctx.af_result.last_code_output,
+		isp_gen->af_entity_ctx.af_result.real_code_output, isp_gen->af_entity_ctx.af_result.std_code_output,
+		isp_gen->af_entity_ctx.af_result.af_sap_lim_output, isp_gen->af_entity_ctx.af_result.af_sharp_output);
+	buffer_index += buffer_length;
+
+	buffer_length = snprintf(&buffer[buffer_index], 32,"};\n");
+	buffer_index += buffer_length;
+
+	/* af_param */
+	/* isp_af_stats */
+	buffer_length = snprintf(&buffer[buffer_index], AF_PRINT_LENGTH + 4,
+		"%s\n",
+		isp_gen->af_entity_ctx.af_result.af_printf_out);
+	buffer_index += buffer_length;
+
+	if(file_name != NULL) {
+		fwrite(buffer, buffer_index, 1, file);
+	}
+	if(is_save_buf) {
+		memcpy(isp_info_param,buffer,buffer_index);
+		r_cnt += buffer_index;
+	}
+
+	if(file_name != NULL) {
+		fclose(file);
+	}
+	free(buffer);
+
+	return r_cnt;
+}
+
+int isp_print_out_af(int dev_id)
+{
+	if(!&(isp_ctx[dev_id].af_entity_ctx)) {
+		ISP_ERR("&isp_ctx[%d].af_entity_ctx = null!\n",dev_id);
+		return -1;
+	}
+	isp_af_set_params_helper(&(isp_ctx[dev_id].af_entity_ctx), ISP_AF_PRINT_INFO);
+
 	return 0;
 }
 
@@ -1092,7 +2141,34 @@ HW_S32 isp_get_version(char* version)
 {
 	sprintf(version, "ISP%d", ISP_VERSION);
 
-	ISP_PRINT("ISP Version: ISP%d", ISP_VERSION);
+	ISP_PRINT("ISP Version: ISP%d\n", ISP_VERSION);
+
+	return 0;
+}
+
+/*******************set isp model*********************/
+int isp_set_aetable(int dev_id, int enable)
+{
+	struct hw_isp_device *isp = NULL;
+	struct v4l2_event event;
+	isp = media_params.isp_dev[dev_id];
+	if (!isp) {
+		ISP_ERR("isp%d device is NULL!\n", dev_id);
+		return -1;
+	}
+	struct isp_lib_context *isp_gen = isp_dev_get_ctx(isp);
+
+	memset(&event, 0, sizeof(event));
+	event.id = V4L2_CID_SCENE_MODE;
+	event.u.ctrl.value = enable;
+
+	if(isp->ops->ctrl_process) {
+        isp->ops->ctrl_process(isp, &event);
+		isp_ctx_config_update(isp_gen);
+	} else {
+		ISP_ERR("set isp ae table fail!!!\n");
+		return -1;
+	}
 
 	return 0;
 }

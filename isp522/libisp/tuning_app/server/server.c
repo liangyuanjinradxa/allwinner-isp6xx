@@ -4,7 +4,7 @@
 int main(int argc, const char *argv[])
 {
 	int ret = -1;
-	
+
 #if SERVER_DEBUG_EN
 	if (argc >= 2) {
 		init_logger(argv[1], "wb");
@@ -12,7 +12,7 @@ int main(int argc, const char *argv[])
 		init_logger("/data/hawkview_server.log", "wb");
 	}
 #endif
-	
+
 	ret = init_server();
 	if (!ret) {
 		ret = run_server();

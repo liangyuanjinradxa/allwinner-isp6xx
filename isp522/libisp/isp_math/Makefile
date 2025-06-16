@@ -20,11 +20,13 @@ $(STATIC_TARGET):$(OBJS)
 $(OBJS):%.c.o:%.c
 	$(CC) $(CFLAGS) $(LDFLAGS) $(local_CFLAGS) -c $< -o $@ -fPIC
 
-all: $(TARGET) install
 
-clean:
-	-rm $(OBJS) $(TARGET)
 install: $(TARGET)
 	mkdir -p $(INSTALL_PREFIX)/usr/lib
 	install -m0755 $(TARGET) $(INSTALL_PREFIX)/usr/lib
 	install -m0755 $(TARGET) $(SUBLIB_DIR)
+
+all: install
+
+clean:
+	-rm $(OBJS) $(TARGET)

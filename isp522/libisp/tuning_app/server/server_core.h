@@ -8,6 +8,7 @@
 void *sock_handle_heart_jump_thread(void *sock_th_params);
 void *sock_handle_preview_thread(void *sock_th_params);
 void *sock_handle_capture_thread(void *sock_th_params);
+void *sock_handle_blockinfo_thread(void *sock_th_params);
 void *sock_handle_tuning_thread(void *sock_th_params);
 void *sock_handle_statistics_thread(void *sock_th_params);
 void *sock_handle_script_thread(void *sock_th_params);
@@ -16,7 +17,7 @@ void *sock_handle_aelv_thread(void *sock_th_params);
 void *sock_handle_set_input_thread(void *sock_th_params);
 void *sock_handle_raw_flow_thread(void *sock_th_params);
 void *sock_handle_isp_version_thread(void *sock_th_params);
-
+void *sock_handle_preview_vencode_thread(void *params);
 /*
  * check all threads status
  * one thread uses a bit, 0 - not run/exit, 1 - running
@@ -39,6 +40,8 @@ typedef enum _thread_status_flag_e {
 	TH_STATUS_SET_INPUT                = 0x00000100,
 	TH_STATUS_RAW_FLOW                 = 0x00000200,
 	TH_STATUS_VENC_TUNING              = 0x00000400,
+	TH_STATUS_PREVIEW_VENCODE          = 0x00000800,
+	TH_STATUS_BLOCK_INFO               = 0x00001000,
 	// others
 	//...
 	TH_STATUS_SERVER_QUIT              = 0x01000000,

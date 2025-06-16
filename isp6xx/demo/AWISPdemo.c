@@ -459,6 +459,7 @@ int main_test(int sel, int mode)
 
 	isp->ispApiInit();
 	isp_id = isp->ispGetIspId(dev_id);
+	ISPDemo_PRINT("####isp_id:%d\n", isp_id);
 	if (largeImg_mode == 1) {
 		ret = isp->ispSetIspLargeImage(isp_id);
 		if (ret < 0) {
@@ -467,14 +468,19 @@ int main_test(int sel, int mode)
 		}
 		ret = isp->ispStart(isp_id - 1);
 		if (ret < 0) {
-			ISPDemo_ERR("isp%d start err!\n", (isp_id - 1));
+			ISPDemo_ERR("isp 0 start err!\n");
 			goto STREAM_ON;
 		}
-		ret = isp->ispStop(isp_id);
+		ret = isp->ispStart(isp_id);
 		if (ret < 0) {
 			ISPDemo_ERR("isp%d start err!\n", isp_id);
 			goto STREAM_ON;
 		}
+		/*ret = isp->ispStop(isp_id);
+		if (ret < 0) {
+			ISPDemo_ERR("isp%d start err!\n", isp_id);
+			goto STREAM_ON;
+		}*/
 	} else {
 		ret = isp->ispStart(isp_id);
 		if (ret < 0) {
@@ -546,8 +552,8 @@ STREAM_ON:
 		return -1;
 
 	if (largeImg_mode == 1) {
-		isp->ispWaitToExit(isp_id - 1);
 		isp->ispWaitToExit(isp_id);
+		isp->ispWaitToExit(isp_id - 1);
 	} else {
 		isp->ispWaitToExit(isp_id);
 	}

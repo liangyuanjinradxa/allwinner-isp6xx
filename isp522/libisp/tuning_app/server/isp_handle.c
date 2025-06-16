@@ -26,9 +26,9 @@ int g_module_init = ISP_MODULE_INIT_NOT;
 int g_cur_isp_sel = -1;
 int g_isp_status[HW_ISP_DEVICE_NUM];
 
-void get_isp_version(char* version) 
-{ 
-	isp_get_version(version); 
+void get_isp_version(char* version)
+{
+	isp_get_version(version);
 }
 
 int get_isp_id()
@@ -54,6 +54,7 @@ int init_isp_module()
 		}
 		g_module_init = ISP_MODULE_INIT_YES;
 	}
+
 	return ret;
 }
 
@@ -77,13 +78,14 @@ int exit_isp_module()
 	return 0;
 }
 
-int select_isp(int id)
+int select_isp(int id, int init_flag)
 {
 	int ret = -1;
 
 	//LOG("%s: isp - %d\n", __FUNCTION__, id);
 	if (VALID_ISP_SEL(id)) {
-		if (ISP_MODULE_INIT_YES != g_module_init) {  // init module first
+		//if (ISP_MODULE_INIT_YES != g_module_init) {  // init module first
+		if (init_flag) {
 			ret = init_isp_module();
 			if (ret < 0) {
 				LOG("%s: failed to init isp module\n", __FUNCTION__);
@@ -486,6 +488,17 @@ void convert_tuning_cfg_func(HW_U8 group_id, HW_U32 cfg_ids, unsigned char *cfg_
 			/* offset */
 			cfg_data += sizeof(struct isp_af_scene_cfg);
 		}
+		if (cfg_ids & HW_ISP_CFG_AE_WDR) {
+			DD("ae wdr: ");
+			int_ptr = (HW_S32 *)cfg_data;
+			attr_len = sizeof(struct isp_ae_wdr_cfg) / sizeof(HW_S32);
+			for (i = 0; i < attr_len; i++, int_ptr++) {
+				*int_ptr = cvt_long(*int_ptr);
+			}
+			DD("\n");
+			/* offset */
+			cfg_data += sizeof(struct isp_ae_wdr_cfg);
+		}
 		break;
 	case HW_ISP_CFG_TUNING:
 		if (cfg_ids & HW_ISP_CFG_TUNING_FLASH) {
@@ -524,9 +537,15 @@ void convert_tuning_cfg_func(HW_U8 group_id, HW_U32 cfg_ids, unsigned char *cfg_
 		if (cfg_ids & HW_ISP_CFG_TUNING_GTM) {
 			DD("tuning gtm: ");
 			int_ptr = (HW_S32 *)cfg_data;
-			attr_len = sizeof(struct isp_tuning_gtm_cfg) / sizeof(HW_S32);
-			for (i = 0; i < attr_len; i++, int_ptr++) {
+			// 1. type, gamma_type, auto_alpha_en, hist_pix_cnt, dark_minval, bright_minval
+			for (i = 0; i < 6; i++, int_ptr++) {
 				*int_ptr = cvt_long(*int_ptr);
+			}
+			// 2. plum_var
+			short_ptr = (HW_S16 *)int_ptr;
+			attr_len = 9*9;
+			for (i = 0; i < attr_len; i++, short_ptr++) {
+				*short_ptr = cvt_short(*short_ptr);
 			}
 			DD("\n");
 			/* offset */
@@ -633,35 +652,83 @@ void convert_tuning_cfg_func(HW_U8 group_id, HW_U32 cfg_ids, unsigned char *cfg_
 			/* offset */
 			cfg_data += sizeof(struct isp_tuning_gca_cfg);
 		}
-		if (cfg_ids & HW_ISP_CFG_TUNING_MSC) {
-			DD("tuning msc: ");
-			// 1. mff_mod, msc_mode
+#endif
+		if (cfg_ids & HW_VENCODER_CFG_TUNING_COMMON)
+		{
+			DD("tuning vencoder common : ");
 			int_ptr = (HW_S32 *)cfg_data;
-			for (i = 0; i < 2; i++, int_ptr++) {
-				*int_ptr = cvt_long(*int_ptr);
-			}
-			// 2. msc_blw_lut, msc_blh_lut
-			int_ptr = (HW_S32 *)int_ptr;
-			attr_len = ISP_MSC_TBL_LUT_SIZE + ISP_MSC_TBL_LUT_SIZE;
+			attr_len = sizeof(vencoder_common_cfg_t) / sizeof(HW_S32);
 			for (i = 0; i < attr_len; i++, int_ptr++) {
 				*int_ptr = cvt_long(*int_ptr);
-				}
-			// 3. value
-			ushort_ptr = (HW_U16 *)int_ptr;
-			attr_len = (ISP_MSC_TEMP_NUM + ISP_MSC_TEMP_NUM) *ISP_MSC_TBL_LENGTH;
-			for (i = 0; i < attr_len; i++, ushort_ptr++) {
-				*ushort_ptr = cvt_short(*ushort_ptr);
-				}
-			// 4. temp.
-			for (i = 0; i < 6; i++, ushort_ptr++) {
-				*ushort_ptr = cvt_short(*ushort_ptr);
-				}
-
+			}
 			DD("\n");
 			/* offset */
-			cfg_data += sizeof(struct isp_tuning_msc_table_cfg);
+			cfg_data += sizeof(vencoder_common_cfg_t);
 		}
-#endif
+		if (cfg_ids & HW_VENCODER_CFG_TUNING_VBR)
+		{
+			DD("tuning vencoder vbr: ");
+			int_ptr = (HW_S32 *)cfg_data;
+			attr_len = sizeof(vencoder_vbr_cfg_t) / sizeof(HW_S32);
+			for (i = 0; i < attr_len; i++, int_ptr++) {
+				*int_ptr = cvt_long(*int_ptr);
+			}
+			DD("\n");
+			/* offset */
+			cfg_data += sizeof(vencoder_vbr_cfg_t);
+		}
+		if (cfg_ids & HW_VENCODER_CFG_TUNING_AVBR)
+		{
+			DD("tuning vencoder avbr: ");
+			int_ptr = (HW_S32 *)cfg_data;
+			attr_len = sizeof(vencoder_avbr_cfg_t) / sizeof(HW_S32);
+			for (i = 0; i < attr_len; i++, int_ptr++) {
+				*int_ptr = cvt_long(*int_ptr);
+			}
+			DD("\n");
+			/* offset */
+			cfg_data += sizeof(vencoder_avbr_cfg_t);
+		}
+		if (cfg_ids & HW_VENCODER_CFG_TUNING_FIXQP)
+		{
+			DD("tuning vencoder fixqp: ");
+			int_ptr = (HW_S32 *)cfg_data;
+			attr_len = sizeof(vencoder_fixqp_cfg_t) / sizeof(HW_S32);
+			for (i = 0; i < attr_len; i++, int_ptr++) {
+				*int_ptr = cvt_long(*int_ptr);
+			}
+			DD("\n");
+			/* offset */
+			cfg_data += sizeof(vencoder_fixqp_cfg_t);
+		}
+		if (cfg_ids & HW_VENCODER_CFG_TUNING_PROC)
+		{
+			DD("tuning vencoder proc cfg: ");
+			int_ptr = (HW_S32 *)cfg_data;
+			attr_len = sizeof(vencoder_proc_cfg_t) / sizeof(HW_S32);
+			for (i = 0; i < attr_len; i++, int_ptr++) {
+				*int_ptr = cvt_long(*int_ptr);
+			}
+			DD("\n");
+			/* offset */
+			cfg_data += sizeof(vencoder_proc_cfg_t);
+		}
+		if (cfg_ids & HW_VENCODER_CFG_TUNING_SAVEBSFILE)
+		{
+			DD("tuning vencoder savebsfile cfg: ");
+			uchar_ptr = (HW_U8 *)cfg_data;
+			for (i = 0; i < VENCODER_FILENAME_LEN; i++, uchar_ptr++) {
+				DD("%d ", *uchar_ptr);
+			}
+
+			int_ptr = (HW_S32 *)uchar_ptr;
+			for (i = 0; i < 3; i++, int_ptr++) {
+				*int_ptr = cvt_long(*int_ptr);
+			}
+			DD("\n");
+			/* offset */
+			cfg_data += sizeof(vencoder_savebsfile_cfg_t);
+		}
 		break;
 	case HW_ISP_CFG_TUNING_TABLES:
 		if (cfg_ids & HW_ISP_CFG_TUNING_LSC) {
@@ -670,6 +737,7 @@ void convert_tuning_cfg_func(HW_U8 group_id, HW_U32 cfg_ids, unsigned char *cfg_
 			int_ptr = (HW_S32 *)cfg_data;
 #if (ISP_VERSION >= 521)
 			*int_ptr = cvt_long(*int_ptr);
+			int_ptr++;
 #endif
 			for (i = 0; i < 4; i++, int_ptr++) {
 				*int_ptr = cvt_long(*int_ptr);
@@ -810,6 +878,7 @@ void convert_tuning_cfg_func(HW_U8 group_id, HW_U32 cfg_ids, unsigned char *cfg_
 			/* offset */
 			cfg_data += sizeof(struct isp_tuning_cem_table_cfg);
 		}
+#if (ISP_VERSION != 522)
 		if (cfg_ids & HW_ISP_CFG_TUNING_PLTM_TBL) {
 			DD("tuning pltm table: ");
 #if DO_LOG_EN
@@ -841,6 +910,7 @@ void convert_tuning_cfg_func(HW_U8 group_id, HW_U32 cfg_ids, unsigned char *cfg_
 			/* offset */
 			cfg_data += sizeof(struct isp_tuning_wdr_table_cfg);
 		}
+#endif
 #if (ISP_VERSION >= 521)
 		if(cfg_ids & HW_ISP_CFG_TUNING_LCA_TBL){
 			DD("tuning lca: ");
@@ -862,6 +932,40 @@ void convert_tuning_cfg_func(HW_U8 group_id, HW_U32 cfg_ids, unsigned char *cfg_
 			//cfg_data += sizeof(struct isp_tuning_lca_pf_satu_lut);
 			/* offset */
 			cfg_data += sizeof(struct isp_tuning_lca_gf_satu_lut);
+		}
+		if (cfg_ids & HW_ISP_CFG_TUNING_MSC) {
+			DD("tuning msc: ");
+			// 1. mff_mod, msc_mode
+			int_ptr = (HW_S32 *)cfg_data;
+			for (i = 0; i < 2; i++, int_ptr++) {
+				*int_ptr = cvt_long(*int_ptr);
+			}
+			// 2. msc_blw_lut, msc_blh_lut
+			int_ptr = (HW_S32 *)int_ptr;
+			attr_len = ISP_MSC_TBL_LUT_SIZE + ISP_MSC_TBL_LUT_SIZE;
+			for (i = 0; i < attr_len; i++, int_ptr++) {
+				*int_ptr = cvt_long(*int_ptr);
+			}
+			// 3. msc_blw_dlt_lut, msc_blh_dlt_lut
+			int_ptr = (HW_S32 *)int_ptr;
+			attr_len = ISP_MSC_TBL_LUT_DLT_SIZE + ISP_MSC_TBL_LUT_DLT_SIZE;
+			for (i = 0; i < attr_len; i++, int_ptr++) {
+				*int_ptr = cvt_long(*int_ptr);
+			}
+			// 4. value
+			ushort_ptr = (HW_U16 *)int_ptr;
+			attr_len = (ISP_MSC_TEMP_NUM + ISP_MSC_TEMP_NUM) *ISP_MSC_TBL_LENGTH;
+			for (i = 0; i < attr_len; i++, ushort_ptr++) {
+				*ushort_ptr = cvt_short(*ushort_ptr);
+			}
+			// 5. temp.
+			for (i = 0; i < 6; i++, ushort_ptr++) {
+				*ushort_ptr = cvt_short(*ushort_ptr);
+			}
+
+			DD("\n");
+			/* offset */
+			cfg_data += sizeof(struct isp_tuning_msc_table_cfg);
 		}
 #endif
 		break;
@@ -1079,7 +1183,7 @@ void output_3a_info(const void *stat_info, int type)
 		int i = 0, j = 0;
 		if (SOCK_CMD_STAT_AE == type) {
 			const struct isp_ae_stats_s *ae_info = (const struct isp_ae_stats_s *)stat_info;
-			index += sprintf(&buf[index], "ae stat: win_pix_n %lu\n", ae_info->win_pix_n);
+			index += sprintf(&buf[index], "ae stat: win_pix_n %u\n", ae_info->win_pix_n);
 			// accum_r
 			index += sprintf(&buf[index], "-------------- accum_r ----------------\n");
 			for (i = 0; i < ISP_AE_ROW; i++) {
@@ -1208,7 +1312,7 @@ void output_3a_info(const void *stat_info, int type)
 			index += sprintf(&buf[index], "-------------- af_count ----------------\n");
 			for (i = 0; i < ISP_AF_ROW; i++) {
 				for (j = 0; j < ISP_AF_COL; j++) {
-					index += sprintf(&buf[index], "%06u, ", af_info->af_count[i][j]);
+					index += sprintf(&buf[index], "%06lu, ", (long unsigned int)af_info->af_count[i][j]);
 				}
 				index += sprintf(&buf[index], "\n");
 			}
@@ -1216,7 +1320,7 @@ void output_3a_info(const void *stat_info, int type)
 			index += sprintf(&buf[index], "-------------- af_h_d1 ----------------\n");
 			for (i = 0; i < ISP_AF_ROW; i++) {
 				for (j = 0; j < ISP_AF_COL; j++) {
-					index += sprintf(&buf[index], "%06u, ", af_info->af_h_d1[i][j]);
+					index += sprintf(&buf[index], "%06lu, ", (long unsigned int)af_info->af_h_d1[i][j]);
 				}
 				index += sprintf(&buf[index], "\n");
 			}
@@ -1224,7 +1328,7 @@ void output_3a_info(const void *stat_info, int type)
 			index += sprintf(&buf[index], "-------------- af_h_d2 ----------------\n");
 			for (i = 0; i < ISP_AF_ROW; i++) {
 				for (j = 0; j < ISP_AF_COL; j++) {
-					index += sprintf(&buf[index], "%06u, ", af_info->af_h_d2[i][j]);
+					index += sprintf(&buf[index], "%06lu, ", (long unsigned int)af_info->af_h_d2[i][j]);
 				}
 				index += sprintf(&buf[index], "\n");
 			}
@@ -1232,7 +1336,7 @@ void output_3a_info(const void *stat_info, int type)
 			index += sprintf(&buf[index], "-------------- af_v_d1 ----------------\n");
 			for (i = 0; i < ISP_AF_ROW; i++) {
 				for (j = 0; j < ISP_AF_COL; j++) {
-					index += sprintf(&buf[index], "%06u, ", af_info->af_v_d1[i][j]);
+					index += sprintf(&buf[index], "%06lu, ", (long unsigned int)af_info->af_v_d1[i][j]);
 				}
 				index += sprintf(&buf[index], "\n");
 			}
@@ -1240,7 +1344,7 @@ void output_3a_info(const void *stat_info, int type)
 			index += sprintf(&buf[index], "-------------- af_v_d2 ----------------\n");
 			for (i = 0; i < ISP_AF_ROW; i++) {
 				for (j = 0; j < ISP_AF_COL; j++) {
-					index += sprintf(&buf[index], "%06u, ", af_info->af_v_d2[i][j]);
+					index += sprintf(&buf[index], "%06lu, ", (long unsigned int)af_info->af_v_d2[i][j]);
 				}
 				index += sprintf(&buf[index], "\n");
 			}
@@ -1281,7 +1385,7 @@ void hton_3a_info(void *stat_info, int type)
 			// accum_b
 			ptr_u32 = &ae_stat->accum_b[0][0];
 			for (i = 0; i < ISP_AE_ROW * ISP_AE_COL; i++, ptr_u32++) {
-				*ptr_u32 = htonl(*ptr_u64);
+				*ptr_u32 = htonl(*ptr_u32);
 			}
 			// avg
 			ptr_u32 = &ae_stat->avg[0];
@@ -1338,29 +1442,29 @@ void hton_3a_info(void *stat_info, int type)
 		} else if (SOCK_CMD_STAT_AF == type) {
 			struct isp_af_stats_s *af_stat = (struct isp_af_stats_s *)stat_info;
 			// af_count
-			ptr_u32 = &af_stat->af_count[0][0];
-			for (i = 0; i < ISP_AF_ROW * ISP_AF_COL; i++, ptr_u32++) {
-				*ptr_u32 = htonl(*ptr_u32);
+			ptr_u64 = &af_stat->af_count[0][0];
+			for (i = 0; i < ISP_AF_ROW * ISP_AF_COL; i++, ptr_u64++) {
+				*ptr_u64 = htonl(*ptr_u64);
 			}
 			// af_h_d1
-			ptr_u32 = &af_stat->af_h_d1[0][0];
-			for (i = 0; i < ISP_AF_ROW * ISP_AF_COL; i++, ptr_u32++) {
-				*ptr_u32 = htonl(*ptr_u32);
+			ptr_u64 = &af_stat->af_h_d1[0][0];
+			for (i = 0; i < ISP_AF_ROW * ISP_AF_COL; i++, ptr_u64++) {
+				*ptr_u64 = htonl(*ptr_u64);
 			}
 			// af_h_d2
-			ptr_u32 = &af_stat->af_h_d2[0][0];
-			for (i = 0; i < ISP_AF_ROW * ISP_AF_COL; i++, ptr_u32++) {
-				*ptr_u32 = htonl(*ptr_u32);
+			ptr_u64 = &af_stat->af_h_d2[0][0];
+			for (i = 0; i < ISP_AF_ROW * ISP_AF_COL; i++, ptr_u64++) {
+				*ptr_u64 = htonl(*ptr_u64);
 			}
 			// af_v_d1
-			ptr_u32 = &af_stat->af_v_d1[0][0];
-			for (i = 0; i < ISP_AF_ROW * ISP_AF_COL; i++, ptr_u32++) {
-				*ptr_u32 = htonl(*ptr_u32);
+			ptr_u64 = &af_stat->af_v_d1[0][0];
+			for (i = 0; i < ISP_AF_ROW * ISP_AF_COL; i++, ptr_u64++) {
+				*ptr_u64 = htonl(*ptr_u64);
 			}
 			// af_v_d2
-			ptr_u32 = &af_stat->af_v_d2[0][0];
-			for (i = 0; i < ISP_AF_ROW * ISP_AF_COL; i++, ptr_u32++) {
-				*ptr_u32 = htonl(*ptr_u32);
+			ptr_u64 = &af_stat->af_v_d2[0][0];
+			for (i = 0; i < ISP_AF_ROW * ISP_AF_COL; i++, ptr_u64++) {
+				*ptr_u64 = htonl(*ptr_u64);
 			}
 		}
 	}
@@ -1445,29 +1549,29 @@ void ntoh_3a_info(void *stat_info, int type)
 		} else if (SOCK_CMD_STAT_AF == type) {
 			struct isp_af_stats_s *af_stat = (struct isp_af_stats_s *)stat_info;
 			// af_count
-			ptr_u32 = &af_stat->af_count[0][0];
-			for (i = 0; i < ISP_AF_ROW * ISP_AF_COL; i++, ptr_u32++) {
-				*ptr_u32 = ntohl(*ptr_u32);
+			ptr_u64 = &af_stat->af_count[0][0];
+			for (i = 0; i < ISP_AF_ROW * ISP_AF_COL; i++, ptr_u64++) {
+				*ptr_u64 = ntohl(*ptr_u64);
 			}
 			// af_h_d1
-			ptr_u32 = &af_stat->af_h_d1[0][0];
-			for (i = 0; i < ISP_AF_ROW * ISP_AF_COL; i++, ptr_u32++) {
-				*ptr_u32 = ntohl(*ptr_u32);
+			ptr_u64 = &af_stat->af_h_d1[0][0];
+			for (i = 0; i < ISP_AF_ROW * ISP_AF_COL; i++, ptr_u64++) {
+				*ptr_u64 = ntohl(*ptr_u64);
 			}
 			// af_h_d2
-			ptr_u32 = &af_stat->af_h_d2[0][0];
-			for (i = 0; i < ISP_AF_ROW * ISP_AF_COL; i++, ptr_u32++) {
-				*ptr_u32 = ntohl(*ptr_u32);
+			ptr_u64 = &af_stat->af_h_d2[0][0];
+			for (i = 0; i < ISP_AF_ROW * ISP_AF_COL; i++, ptr_u64++) {
+				*ptr_u64 = ntohl(*ptr_u64);
 			}
 			// af_v_d1
-			ptr_u32 = &af_stat->af_v_d1[0][0];
-			for (i = 0; i < ISP_AF_ROW * ISP_AF_COL; i++, ptr_u32++) {
-				*ptr_u32 = ntohl(*ptr_u32);
+			ptr_u64 = &af_stat->af_v_d1[0][0];
+			for (i = 0; i < ISP_AF_ROW * ISP_AF_COL; i++, ptr_u64++) {
+				*ptr_u64 = ntohl(*ptr_u64);
 			}
 			// af_v_d2
-			ptr_u32 = &af_stat->af_v_d2[0][0];
-			for (i = 0; i < ISP_AF_ROW * ISP_AF_COL; i++, ptr_u32++) {
-				*ptr_u32 = ntohl(*ptr_u32);
+			ptr_u64 = &af_stat->af_v_d2[0][0];
+			for (i = 0; i < ISP_AF_ROW * ISP_AF_COL; i++, ptr_u64++) {
+				*ptr_u64 = ntohl(*ptr_u64);
 			}
 		}
 	}

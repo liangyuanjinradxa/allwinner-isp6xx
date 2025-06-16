@@ -27,7 +27,7 @@ int init_raw_flow(const capture_format *raw_fmt, int queue_length)
 		LOG("%s: invalid params\n", __FUNCTION__);
 		return ERR_RAW_FLOW_INVALID_PARAMS;
 	}
-	
+
 	exit_raw_flow();
 
 	if (raw_fmt->format == V4L2_PIX_FMT_SBGGR8 ||
@@ -40,7 +40,7 @@ int init_raw_flow(const capture_format *raw_fmt, int queue_length)
 	}
 	g_raw_queue_length = queue_length;
 	g_raw_queue = (capture_format *)malloc(sizeof(capture_format) * g_raw_queue_length);
-	
+
 	for (i = 0, node = g_raw_queue; i < g_raw_queue_length; i++, node++) {
 		memset(node, 0, sizeof(capture_format));
 		node->width = raw_fmt->width;
@@ -54,7 +54,7 @@ int init_raw_flow(const capture_format *raw_fmt, int queue_length)
 	g_raw_queue_tail = 0;
 
 	pthread_mutex_init(&g_raw_queue_locker, NULL);
-	
+
 	return ERR_RAW_FLOW_NONE;
 }
 
@@ -90,7 +90,7 @@ int queue_raw_flow(const capture_format *node)
 		LOG("%s: invalid params\n", __FUNCTION__);
 		return ERR_RAW_FLOW_INVALID_PARAMS;
 	}
-	
+
 	if (g_raw_queue_length > 0) {
 		pthread_mutex_lock(&g_raw_queue_locker);
 		head_node = g_raw_queue + g_raw_queue_head;
@@ -126,7 +126,7 @@ int queue_raw_flow(const capture_format *node)
 				LOG("%s: all write done\n", __FUNCTION__);
 			}
 #endif
-			
+
 			pthread_mutex_unlock(&g_raw_queue_locker);
 			return ERR_RAW_FLOW_QUEUE_FULL;
 		}
@@ -140,14 +140,14 @@ int queue_raw_flow(const capture_format *node)
 		head_node->width_stride[1] = node->width_stride[1];
 		head_node->width_stride[2] = node->width_stride[2];
 		memcpy(head_node->buffer, node->buffer, node->length);
-		
+
 		LOG("%s: queue done(head:%d->%d, tail:%d)\n", __FUNCTION__,
 			g_raw_queue_head, head, g_raw_queue_tail);
 		g_raw_queue_head = head;
 		pthread_mutex_unlock(&g_raw_queue_locker);
-		return ERR_RAW_FLOW_NONE;		
+		return ERR_RAW_FLOW_NONE;
 	}
-	
+
 	LOG("%s: queue not init\n", __FUNCTION__);
 	return ERR_RAW_FLOW_NOT_INIT;
 }
@@ -156,7 +156,7 @@ int dequeue_raw_flow(capture_format *node)
 {
 	int tail = 0;
 	capture_format *tail_node = NULL;
-	
+
 	if (g_raw_queue_length > 0) {
 		LOG("%s: %d\n", __FUNCTION__, __LINE__);
 		pthread_mutex_lock(&g_raw_queue_locker);
@@ -168,7 +168,7 @@ int dequeue_raw_flow(capture_format *node)
 			pthread_mutex_unlock(&g_raw_queue_locker);
 			return ERR_RAW_FLOW_QUEUE_EMPTY;
 		}
-		
+
 		if (node) {
 			node->width = tail_node->width;
 			node->height = tail_node->height;
@@ -180,13 +180,13 @@ int dequeue_raw_flow(capture_format *node)
 			node->length = tail_node->length;
 			memcpy(node->buffer, tail_node->buffer, tail_node->length);
 		}
-		
+
 		tail = (g_raw_queue_tail + 1) % g_raw_queue_length;
 		LOG("%s: dequeue done(head:%d, tail:%d->%d)\n", __FUNCTION__,
 			g_raw_queue_head, g_raw_queue_tail, tail);
 		g_raw_queue_tail = tail;
 		pthread_mutex_unlock(&g_raw_queue_locker);
-		return ERR_RAW_FLOW_NONE;		
+		return ERR_RAW_FLOW_NONE;
 	}
 
 	LOG("%s: queue not init\n", __FUNCTION__);

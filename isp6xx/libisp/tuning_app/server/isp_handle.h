@@ -64,6 +64,8 @@ HW_S32 ini_tuning_update_cfg(void);
 
 HW_S32 ini_tuning_get_frame(capture_format *cap_fmt, sock_packet *comm_packet, int sock_fd);
 
+HW_S32 ini_tuning_get_raw(capture_format *cap_fmt, sock_packet *comm_packet, int sock_fd);
+
 HW_S32 ini_tuning_get_encpp_frame(capture_format *cap_fmt, sock_packet *comm_packet, int sock_fd);
 
 HW_S32 ini_tuning_get_3a_stat(struct isp_stats_context *stats_ctx);

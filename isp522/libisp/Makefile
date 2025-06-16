@@ -81,14 +81,18 @@ $(WHOLE_LIB):
 	+$(MAKE) -C ./out all CPU_VARIANT="$(CPU_VARIANT)" C_LIB_TYPE="$(C_LIB_TYPE)"
 
 $(TARGET_awTuningApp): $(OBJ_TOOLS)
-	$(CC) $(CFLAGS) -o $@ $< $(LDFLAGS) $(LIBS) -fPIC -shared -g -L./ -lisp_dev -lisp_base -lisp_math -lisp_ae -lisp_af -lisp_afs -lisp_awb \
+	$(CC) $(CFLAGS) -o $@ $^ $(LDFLAGS) $(LIBS) -g -L./ -lisp_dev -lisp_base -lisp_math -lisp_ae -lisp_af -lisp_afs -lisp_awb \
 			-lisp_md -lisp_iso -lisp_gtm -lisp_pltm -lisp_rolloff -lisp_ini -liniparser  -lpthread -lrt -lm
 
-all: $(TARGET) $(TARGET_awTuningApp) install
+all: $(TARGET_awTuningApp) install
 
-clean:
-	-rm $(OBJS) $(TARGET)
+
 install: $(TARGET)
 	mkdir -p $(INSTALL_PREFIX)/usr/lib
 	install -m0755 $(TARGET) $(INSTALL_PREFIX)/usr/lib
 	install -m0755 *.so $(SUBLIB_DIR)
+	mkdir -p $(INSTALL_PREFIX)/usr/bin
+	install -m0755 $(TARGET_awTuningApp) $(INSTALL_PREFIX)/usr/bin
+
+clean:
+	-rm $(OBJS) $(TARGET)

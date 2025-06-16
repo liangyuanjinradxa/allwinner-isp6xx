@@ -36,7 +36,7 @@ extern int adb_close(int fd);
 /*
  * init mini shell
  * mini shell will use stdin/stdout/stderr for shell interactive,
- * so DON'T USE stdin/stdout/stderr during using mini shell and 
+ * so DON'T USE stdin/stdout/stderr during using mini shell and
  * use mini_shell_stdin/mini_shell_stdout/mini_shell_stderr instead
  * log_file: log file to save shell
  * returns 0 if OK, others if something went wrong

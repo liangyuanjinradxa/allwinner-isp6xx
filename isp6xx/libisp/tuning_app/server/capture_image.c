@@ -384,6 +384,12 @@ static void *frame_loop_thread(void *params)
 				if (ret < 0) {
 					LOG("%s: failed to get frame(channel %d, %d)\n", __FUNCTION__, cap_pa->priv_cap.vich, failed_times);
 					failed_times++;
+#if (ISP_VERSION == 603)
+					if (cap_pa->priv_cap.vi_fmt.ptn_en) {
+						pthread_mutex_unlock(&cap_pa->locker);
+						continue;
+					}
+#endif
 					if (failed_times >= 10) {
 						disable_video(g_media_dev, cap_pa->priv_cap.vich);
 						exit_video(g_media_dev, cap_pa->priv_cap.vich);
@@ -395,7 +401,7 @@ static void *frame_loop_thread(void *params)
 					}
 				} else {
 					failed_times = 0;
-					#if 0
+#if 0
 					if (CAP_RAW_FLOW_START & cap_pa->status) {
 						cap_fmt.width = cap_pa->priv_cap.vi_fmt.format.width;
 						cap_fmt.height = cap_pa->priv_cap.vi_fmt.format.height;
@@ -422,7 +428,7 @@ static void *frame_loop_thread(void *params)
 					} else {
 						cap_pa->status &= ~CAP_RAW_FLOW_RUNNING;
 					}
-					#endif
+#endif
 					cap_pa->status &= ~CAP_RAW_FLOW_RUNNING;
 					release_video_frame(g_media_dev, cap_pa->priv_cap.vich, &cap_pa->priv_cap.vi_frame_info);
 				}

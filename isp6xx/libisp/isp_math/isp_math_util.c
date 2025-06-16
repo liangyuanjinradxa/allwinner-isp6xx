@@ -621,3 +621,33 @@ void cat32X24TableTo16X16Table(float *srcTbl, float *dstTbl)
 		}
 	}
 }
+
+void cat32X24TableToTwo16X16Table(float *srcTbl, float *dstTbl_l, float *dstTbl_r)
+{
+	int i = 0, j = 0, p1 = 0, p3 = 0;
+	for (i = 0; i < 16; i+=2) {
+		for (j = 0; j < 16; j++) {
+			p1 = (i / 2 + i) * 32 + j;
+			p3 = p1 + 32;
+			dstTbl_l[i*16+j] = 0.66666666667f * srcTbl[p1] + 0.33333333333f * srcTbl[p3];
+		}
+		for (j = 16; j < 32; j++) {
+			p1 = (i / 2 + i) * 32 + j;
+			p3 = p1 + 32;
+			dstTbl_r[i*16+j] = 0.66666666667f * srcTbl[p1] + 0.33333333333f * srcTbl[p3];
+		}
+	}
+	for (i = 1; i < 16; i+=2) {
+		for (j = 0; j < 16; j++) {
+			p1 = (i / 2 + i) * 32 + j;
+			p3 = p1 + 32;
+			dstTbl_l[i*16+j] = 0.33333333333f * srcTbl[p1] + 0.66666666667f * srcTbl[p3];
+		}
+		for (j = 16; j < 32; j++) {
+			p1 = (i / 2 + i) * 32 + j;
+			p3 = p1 + 32;
+			dstTbl_r[i*16+j] = 0.33333333333f * srcTbl[p1] + 0.66666666667f * srcTbl[p3];
+		}
+	}
+}
+

@@ -127,6 +127,7 @@ void spline_interp_u16(unsigned short x[], unsigned short y[], int n,
 				unsigned short x2[], unsigned short y2[], int n2);
 void gaussianSmooth(float *srcTbl, int RowNum, int ColNum);
 void cat32X24TableTo16X16Table(float *srcTbl, float *dstTbl);
+void cat32X24TableToTwo16X16Table(float *srcTbl, float *dstTbl_l, float *dstTbl_r);
 
 #endif /*_ISP_MATH_UTIL_H_*/
 

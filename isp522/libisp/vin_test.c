@@ -57,7 +57,7 @@ static void *loop_cap(void *pArg)
 	printf("current vi channel is = %d\n", privCap->Chn);
 
 	if (privCap->Chn >= HW_VIDEO_DEVICE_NUM || NULL == media->video_dev[privCap->Chn]) {
-		ISP_ERR("vi channel number is invalid!\n", privCap->Chn);
+		ISP_ERR("vi channel number %d is invalid!\n", privCap->Chn);
 		return NULL;
 	} else {
 		video = media->video_dev[privCap->Chn];
@@ -149,6 +149,7 @@ disablech:
 	if (video_free_buffers(video) < 0)
 		return NULL;
 	buffers_pool_delete(video);
+	goto vi_exit;
 vi_exit:
 	return NULL;
 }

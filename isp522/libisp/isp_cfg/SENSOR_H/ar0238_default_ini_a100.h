@@ -4327,7 +4327,7 @@ struct isp_tunning_param ar0238_default_a100_isp_tuning_settings = {
 		0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
 		0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00
 	},
-	.isp_wdr_table = { 0 }
+	//.isp_wdr_table = { 0 }
 };
 struct isp_cfg_pt ar0238_default_ini_a100 = {
 	.isp_test_settings = &ar0238_default_a100_isp_test_settings,

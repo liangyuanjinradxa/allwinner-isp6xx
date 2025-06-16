@@ -2187,6 +2187,251 @@ skip_frame:
 	return CAP_ERR_NONE;
 }
 
+HW_S32 ini_tuning_get_raw(capture_format *cap_fmt, sock_packet *comm_packet, int sock_fd)
+{
+	char isp_cfg_path[128], buf[50];
+	int i, ret, cnt = 0, pic_size = 0, size_act = 0, width_act = 0, height_act = 0, src_bit = 0, tools_bit = 0, define_path, thread_status;
+	FILE *fd = NULL;
+	struct ToolsIniTuning_cfg ini_cfg = GetIniTuningEn();
+	memset(isp_cfg_path, 0, sizeof(isp_cfg_path));
+	memset(buf, 0, sizeof(buf));
+	thread_status = CheckThreadsStatus();
+
+	if (strcmp(ini_cfg.base_path, ini_cfg.capture_path) == 0) {
+		define_path = 0;
+	} else {
+		define_path = 1;
+	}
+
+	sprintf(isp_cfg_path, "%sisp%d_%d_%d_%d_%d/raw/", ini_cfg.base_path, ini_cfg.sensor_cfg.isp, ini_cfg.sensor_cfg.width, ini_cfg.sensor_cfg.height,
+					ini_cfg.sensor_cfg.fps, ini_cfg.sensor_cfg.wdr);
+	if (access(isp_cfg_path, F_OK) != 0) {
+#ifndef ANDROID_TUNING
+		sprintf(isp_cfg_path, "mkdir %sisp%d_%d_%d_%d_%d/raw/", ini_cfg.base_path, ini_cfg.sensor_cfg.isp, ini_cfg.sensor_cfg.width, ini_cfg.sensor_cfg.height,
+					ini_cfg.sensor_cfg.fps, ini_cfg.sensor_cfg.wdr);
+		ret = system(isp_cfg_path);
+		if (ret) {
+			ISP_ERR("system run error!!! (command: %s, ret: %d)\n", isp_cfg_path, ret);
+			return CAP_ERR_GET_FRAME;
+		}
+#else
+		ISP_ERR("path %s is invalid\n", isp_cfg_path);
+		return CAP_ERR_GET_FRAME;
+#endif
+	}
+
+	sprintf(isp_cfg_path, "%sisp%d_%d_%d_%d_%d/raw/raw_flag", ini_cfg.base_path, ini_cfg.sensor_cfg.isp, ini_cfg.sensor_cfg.width, ini_cfg.sensor_cfg.height,
+					ini_cfg.sensor_cfg.fps, ini_cfg.sensor_cfg.wdr);
+	cnt = 0;
+	if (access(isp_cfg_path, F_OK) != 0) {
+		while(1) {
+			fd = fopen(isp_cfg_path, "w+");
+			if (fd == NULL) {
+				cnt++;
+			} else {
+				break;
+			}
+			usleep(1 << 10);
+			if (cnt > 100) {
+				ISP_ERR("cannot open %s, open timeout\n", isp_cfg_path);
+				return CAP_ERR_GET_FRAME;
+			}
+		}
+		if (define_path) {
+			sprintf(isp_cfg_path, "%s", ini_cfg.capture_path);
+		} else {
+			sprintf(isp_cfg_path, "%sisp%d_%d_%d_%d_%d/raw/", ini_cfg.base_path, ini_cfg.sensor_cfg.isp, ini_cfg.sensor_cfg.width, ini_cfg.sensor_cfg.height,
+					ini_cfg.sensor_cfg.fps, ini_cfg.sensor_cfg.wdr);
+		}
+		fputs(isp_cfg_path, fd);
+		fclose(fd);
+		fd = NULL;
+	}
+
+	sprintf(isp_cfg_path, "%sisp%d_%d_%d_%d_%d/raw/raw_flag", ini_cfg.base_path, ini_cfg.sensor_cfg.isp, ini_cfg.sensor_cfg.width, ini_cfg.sensor_cfg.height,
+					ini_cfg.sensor_cfg.fps, ini_cfg.sensor_cfg.wdr);
+	cnt = 0;
+	while(1) {
+		if (access(isp_cfg_path, F_OK) != 0) {
+			break;
+		} else {
+			if ((thread_status & TH_STATUS_STATISTICS) && cnt > 60) {
+				ISP_ERR("cannot get frame, skip!!!\n");
+				goto skip_frame;
+			}
+			cnt++;
+		}
+		usleep(1 << 10);
+		if (cnt > 5000) {
+			ISP_ERR("get frame timeout\n");
+			return CAP_ERR_GET_FRAME;
+		}
+	}
+
+	usleep(1 << 20);//wait raw_frame write done
+
+	if (define_path) {
+		sprintf(isp_cfg_path, "%sraw_width", ini_cfg.capture_path);
+	} else {
+		sprintf(isp_cfg_path, "%sisp%d_%d_%d_%d_%d/raw/raw_width", ini_cfg.base_path, ini_cfg.sensor_cfg.isp, ini_cfg.sensor_cfg.width, ini_cfg.sensor_cfg.height,
+						ini_cfg.sensor_cfg.fps, ini_cfg.sensor_cfg.wdr);
+	}
+	fd = fopen(isp_cfg_path, "r");
+	if (fd != NULL) {
+		if (fgets(buf, 50, fd) != NULL) {
+			width_act = atoi(buf);
+		}
+		fclose(fd);
+		fd = NULL;
+	} else {
+		ISP_ERR("%s open failed\n", isp_cfg_path);
+		return CAP_ERR_GET_FRAME;
+	}
+
+	if (define_path) {
+		sprintf(isp_cfg_path, "%sraw_height", ini_cfg.capture_path);
+	} else {
+		sprintf(isp_cfg_path, "%sisp%d_%d_%d_%d_%d/raw/raw_height", ini_cfg.base_path, ini_cfg.sensor_cfg.isp, ini_cfg.sensor_cfg.width, ini_cfg.sensor_cfg.height,
+						ini_cfg.sensor_cfg.fps, ini_cfg.sensor_cfg.wdr);
+	}
+	fd = fopen(isp_cfg_path, "r");
+	if (fd != NULL) {
+		if (fgets(buf, 50, fd) != NULL) {
+			height_act = atoi(buf);
+		}
+		fclose(fd);
+		fd = NULL;
+	} else {
+		ISP_ERR("%s open failed\n", isp_cfg_path);
+		return CAP_ERR_GET_FRAME;
+	}
+
+	if (width_act != cap_fmt->width || height_act != cap_fmt->height) {
+		LOG("%s: resolution error ------ raw source = %d x %d, tools = %d x %d\n", __FUNCTION__, width_act, height_act, cap_fmt->width, cap_fmt->height);
+		return CAP_ERR_GET_FRAME;
+	}
+
+	if (cap_fmt->format == V4L2_PIX_FMT_SBGGR8 || cap_fmt->format == V4L2_PIX_FMT_SGBRG8 ||
+		cap_fmt->format == V4L2_PIX_FMT_SGRBG8 || cap_fmt->format == V4L2_PIX_FMT_SRGGB8) {
+		tools_bit = 8;
+	} else if (cap_fmt->format == V4L2_PIX_FMT_SBGGR10 || cap_fmt->format == V4L2_PIX_FMT_SGBRG10 ||
+				cap_fmt->format == V4L2_PIX_FMT_SGRBG10 || cap_fmt->format == V4L2_PIX_FMT_SRGGB10 ||
+				cap_fmt->format == V4L2_PIX_FMT_SBGGR12 || cap_fmt->format == V4L2_PIX_FMT_SGBRG12 ||
+				cap_fmt->format == V4L2_PIX_FMT_SGRBG12 || cap_fmt->format == V4L2_PIX_FMT_SRGGB12) {
+		tools_bit = 16;
+	} else {
+		LOG("%s: cap_fmt->format = %d error!!!\n", __FUNCTION__, cap_fmt->format);
+		return CAP_ERR_GET_FRAME;
+	}
+
+	if (define_path) {
+		sprintf(isp_cfg_path, "%sraw_frame", ini_cfg.capture_path);
+	} else {
+		sprintf(isp_cfg_path, "%sisp%d_%d_%d_%d_%d/raw/raw_frame", ini_cfg.base_path, ini_cfg.sensor_cfg.isp, ini_cfg.sensor_cfg.width, ini_cfg.sensor_cfg.height,
+						ini_cfg.sensor_cfg.fps, ini_cfg.sensor_cfg.wdr);
+	}
+	fd = fopen(isp_cfg_path, "r");
+	if (fd != NULL) {
+		fseek(fd, 0, SEEK_END);
+		cap_fmt->length = ftell(fd);
+		rewind(fd);
+		if (cap_fmt->length < width_act * height_act) {
+			src_bit = -1; //LBC
+		} else if ((cap_fmt->length >= (width_act * height_act)) && (cap_fmt->length < (width_act * height_act * 2))) {
+			src_bit = 8;
+		} else if (cap_fmt->length == (width_act * height_act * 2)) {
+			src_bit = 16;
+		} else {
+			LOG("%s: cap_fmt->length = %d > %d * %d * 2 error!!!\n", __FUNCTION__, cap_fmt->length, width_act, height_act);
+			fclose(fd);
+			fd = NULL;
+			return CAP_ERR_GET_FRAME;
+		}
+
+		if (src_bit != -1 && src_bit != tools_bit) {
+			LOG("%s: bit error -------- src_bit = %d, tools_bit = %d\n", __FUNCTION__, src_bit, tools_bit);
+			fclose(fd);
+			fd = NULL;
+			return CAP_ERR_GET_FRAME;
+		}
+
+		if (src_bit == 8)
+			cap_fmt->length = width_act * height_act;
+		else if (src_bit == 16)
+			cap_fmt->length = width_act * height_act * 2;
+
+		if (!cap_fmt->framecount) {
+			pic_size = cap_fmt->length;
+			cnt = fread(cap_fmt->buffer, 1, pic_size, fd);
+			size_act += cnt;
+		} else {
+			pic_size = cap_fmt->length / cap_fmt->framecount + 1;
+			comm_packet->data_length = htonl(cap_fmt->length);
+			comm_packet->reserved[0] = htonl(cap_fmt->format);
+			comm_packet->reserved[1] = htonl((cap_fmt->width << 16) | (cap_fmt->height & 0x0000ffff));
+			comm_packet->reserved[2] = htonl((cap_fmt->width_stride[0] << 16) | (cap_fmt->width_stride[1] & 0x0000ffff));
+			comm_packet->reserved[3] = htonl((cap_fmt->width_stride[2] << 16));
+			ret = sock_write_check_packet(__FUNCTION__, sock_fd, comm_packet, SOCK_CMD_PREVIEW, SOCK_DEFAULT_TIMEOUT);
+			if (SOCK_RW_CHECK_OK == ret) {
+				for (i = 0; i < cap_fmt->framecount; i++) {
+					cnt = fread(cap_fmt->buffer, 1, pic_size, fd);
+					size_act += cnt;
+					if (size_act > cap_fmt->length) {
+						cnt -= size_act - cap_fmt->length;
+						size_act -= size_act - cap_fmt->length;
+					}
+					sock_write(sock_fd, (const void *)cap_fmt->buffer, cnt, SOCK_DEFAULT_TIMEOUT);
+				}
+			}
+		}
+
+		if (size_act != cap_fmt->length)
+			LOG("%s: get frame error, size_act:%d != length:%d\n", __FUNCTION__, size_act, cap_fmt->length);
+
+		fclose(fd);
+		fd = NULL;
+	} else {
+		ISP_ERR("%s open failed\n", isp_cfg_path);
+		return CAP_ERR_GET_FRAME;
+	}
+
+	return CAP_ERR_NONE;
+
+skip_frame:
+	if (cap_fmt->format == V4L2_PIX_FMT_SBGGR8 || cap_fmt->format == V4L2_PIX_FMT_SGBRG8 ||
+		cap_fmt->format == V4L2_PIX_FMT_SGRBG8 || cap_fmt->format == V4L2_PIX_FMT_SRGGB8) {
+		cap_fmt->length = cap_fmt->width * cap_fmt->height;
+	} else if (cap_fmt->format == V4L2_PIX_FMT_SBGGR10 || cap_fmt->format == V4L2_PIX_FMT_SGBRG10 ||
+		cap_fmt->format == V4L2_PIX_FMT_SGRBG10 || cap_fmt->format == V4L2_PIX_FMT_SRGGB10 ||
+		cap_fmt->format == V4L2_PIX_FMT_SBGGR12 || cap_fmt->format == V4L2_PIX_FMT_SGBRG12 ||
+		cap_fmt->format == V4L2_PIX_FMT_SGRBG12 || cap_fmt->format == V4L2_PIX_FMT_SRGGB12) {
+		cap_fmt->length = cap_fmt->width * cap_fmt->height * 2;
+	}
+	if (!cap_fmt->framecount) {
+		memset(cap_fmt->buffer, 0, cap_fmt->length);
+	} else {
+		pic_size = cap_fmt->length / cap_fmt->framecount + 1;
+		comm_packet->data_length = htonl(cap_fmt->length);
+		comm_packet->reserved[0] = htonl(cap_fmt->format);
+		comm_packet->reserved[1] = htonl((cap_fmt->width << 16) | (cap_fmt->height & 0x0000ffff));
+		comm_packet->reserved[2] = htonl((cap_fmt->width_stride[0] << 16) | (cap_fmt->width_stride[1] & 0x0000ffff));
+		comm_packet->reserved[3] = htonl((cap_fmt->width_stride[2] << 16));
+		ret = sock_write_check_packet(__FUNCTION__, sock_fd, comm_packet, SOCK_CMD_PREVIEW, SOCK_DEFAULT_TIMEOUT);
+		if (SOCK_RW_CHECK_OK == ret) {
+			for (i = 0; i < cap_fmt->framecount; i++) {
+				memset(cap_fmt->buffer, 0, pic_size);
+				size_act += pic_size;
+				if (size_act > cap_fmt->length) {
+					sock_write(sock_fd, (const void *)cap_fmt->buffer, pic_size - (size_act - cap_fmt->length), SOCK_DEFAULT_TIMEOUT);
+				} else {
+					sock_write(sock_fd, (const void *)cap_fmt->buffer, pic_size, SOCK_DEFAULT_TIMEOUT);
+				}
+			}
+		}
+	}
+	return CAP_ERR_NONE;
+}
+
 HW_S32 ini_tuning_get_encpp_frame(capture_format *cap_fmt, sock_packet *comm_packet, int sock_fd)
 {
 	char isp_cfg_path[128];

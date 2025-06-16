@@ -22,11 +22,11 @@ static char                  g_log_time_buffer[32];
 
 
 int init_log(const char *log_file, const char *mode)
-{	
+{
 	if (!log_file || !mode) {
     	return -1;
     }
-	
+
 	if (!g_log_locker_init_flag) {
 		pthread_mutex_init(&g_log_locker, NULL);
 		g_log_locker_init_flag = 1;
@@ -42,7 +42,7 @@ int init_log(const char *log_file, const char *mode)
 		printf("%s: failed to open %s\n", __FUNCTION__, log_file);
 		return -2;
 	}
-	
+
 	return 0;
 }
 
@@ -56,7 +56,7 @@ void write_log(const char *format, ...)
 		va_start(ap, format);
 		g_log_buffer_length += vsprintf((g_log_buffer + g_log_buffer_length), format, ap);
 		va_end(ap);
-			
+
 		fwrite(g_log_buffer, g_log_buffer_length, 1, g_log_file);
 		fflush(g_log_file);
 		pthread_mutex_unlock(&g_log_locker);

@@ -27,7 +27,7 @@
 
 #include "dictionary.h"
 
-#if ISP_LIB_USE_INIPARSER
+//#if ISP_LIB_USE_INIPARSER
 
 /*-------------------------------------------------------------------------*/
 /**
@@ -337,6 +337,6 @@ dictionary * iniparser_load(const char * ininame);
 /*--------------------------------------------------------------------------*/
 void iniparser_freedict(dictionary * d);
 
-#endif
+//#endif
 
 #endif

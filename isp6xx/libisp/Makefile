@@ -26,8 +26,9 @@ OBJ_TOOLS := tuning_app/awTuningApp.o tuning_app/log_handle.o tuning_app/socket_
 		tuning_app/server/capture_image.o tuning_app/server/isp_handle.o tuning_app/server/mini_shell.o \
 		tuning_app/server/server.o tuning_app/server/server_api.o tuning_app/server/server_core.o \
 		tuning_app/server/register_opt.o tuning_app/server/raw_flow_opt.o \
-		isp.o isp_events/events.o isp_tuning/isp_tuning.o isp_manage/isp_manage.o isp_manage/isp_helper.o
+		isp.o isp_cfg/isp_ini_parse.o isp_events/events.o isp_tuning/isp_tuning.o isp_manage/isp_manage.o isp_manage/isp_helper.o
 
+OBJ_TOOLS += isp_vencode/ispSimpleCode.o
 INIPARSER_TARGET := libiniparser.a
 ISP_DEV_TARGET := libisp_dev.a
 ISP_MATH_TARGET := libisp_math.a
@@ -59,7 +60,7 @@ $(ISP_ALGO_TARGET):
 	+$(MAKE) -C ./out all
 
 $(TARGET_awTuningApp): $(OBJ_TOOLS) install
-	$(CC) $(CFLAGS) -o $@ $(OBJ_TOOLS) -static -lisp_algo -lisp_dev -lisp_math -lisp_ini -liniparser $(LDFLAGS)
+	$(CC) $(CFLAGS) -o $@ $(OBJ_TOOLS) -static -lisp_algo -lisp_dev -lisp_math -liniparser -ldl $(LDFLAGS)
 
 install: $(TARGET)
 	-@mkdir -p $(INSTALL_PREFIX)/usr/lib

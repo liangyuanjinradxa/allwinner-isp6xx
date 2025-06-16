@@ -121,7 +121,7 @@ struct isp_3a_param {
 	HW_S32 ae_touch_dist_ind;
 	HW_S32 ae_iso2gain_ratio;
 	HW_S32 ae_fno_step[16];
-	HW_S32 wdr_cfg[3];
+	HW_S32 wdr_cfg[ISP_WDR_CFG_MAX];
 	//HW_S32 ae_table_length[SCENE_MODE_MAX];
 	HW_S32 gain_ratio;
 
@@ -227,6 +227,8 @@ typedef struct isp_param_triger {
 	enum isp_triger_type color_denoise_triger;
 	enum isp_triger_type ae_cfg_triger;
 	enum isp_triger_type gtm_cfg_triger;
+	enum isp_triger_type shading_triger;
+
 #if  (ISP_VERSION >= 521)
 	enum isp_triger_type lca_cfg_triger;
 #endif
@@ -255,12 +257,17 @@ struct isp_tunning_param {
 	HW_S32 gtm_type;
 	HW_S32 gamma_type;
 	HW_S32 auto_alpha_en;
-	HW_S16 plum_var[9][9];
+	HW_S32 hist_pix_cnt;
+	HW_S32 dark_minval;
+	HW_S32 bright_minval;
+	HW_S16 plum_var[GTM_LUM_IDX_NUM][GTM_VAR_IDX_NUM];
 
 	/*cfa param*/
 	HW_S32 cfa_dir_th;
+#if (ISP_VERSION >= 521)
 	HW_S32 cfa_interp_mode;
 	HW_S32 cfa_zig_zag;
+#endif
 
 	/*cross talk param*/
 	HW_U16 ctc_th_max;
@@ -287,6 +294,8 @@ struct isp_tunning_param {
 	HW_S32 mff_mod;
 	HW_S32 msc_blw_lut[ISP_MSC_TBL_LUT_SIZE];
 	HW_S32 msc_blh_lut[ISP_MSC_TBL_LUT_SIZE];
+	HW_S32 msc_blw_dlt_lut[ISP_MSC_TBL_LUT_DLT_SIZE];
+	HW_S32 msc_blh_dlt_lut[ISP_MSC_TBL_LUT_DLT_SIZE];
 	HW_U16 msc_trig_cfg[ISP_MSC_TEMP_NUM]; //Color temp trigger points
 	HW_U16 msc_tbl[ISP_MSC_TEMP_NUM+ISP_MSC_TEMP_NUM][ISP_MSC_TBL_LENGTH];
 #endif

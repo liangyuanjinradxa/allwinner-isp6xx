@@ -98,9 +98,9 @@ static int __ae_done(struct isp_lib_context *lib,
 #if (HW_ISP_DEVICE_NUM > 1)
 	int count = (media_params.isp_sync_mode >> 16) & 0xff;
 	if (count > 1) {
-		if (lib->isp_id != 0) {
-			*result = isp_ctx[0].ae_entity_ctx.ae_result;
-			ISP_LIB_LOG(ISP_LOG_AE, "merge mode : isp0 ae result -> isp%d ae result\n", lib->isp_id);
+		if (lib->isp_id != 1 && (media_params.isp_sync_mode & (0x1 << lib->isp_id))) {
+			*result = isp_ctx[1].ae_entity_ctx.ae_result;
+			ISP_LIB_LOG(ISP_LOG_AE, "merge mode : isp1 ae result -> isp%d ae result\n", lib->isp_id);
 			return 1;
 		}
 	}
@@ -114,18 +114,10 @@ static int __af_done(struct isp_lib_context *lib,
 #if (HW_ISP_DEVICE_NUM > 1)
 	int count = (media_params.isp_sync_mode >> 16) & 0xff;
 	if (count > 1) {
-		if (lib->stitch_mode == STITCH_2IN1_LINNER) {
-			if (lib->isp_id != 1) {
-				*result = isp_ctx[1].af_entity_ctx.af_result;
-				ISP_LIB_LOG(ISP_LOG_AF, "large image mode : isp1 af result -> isp%d af result\n", lib->isp_id);
-				return 1;
-			}
-		} else {
-			if (lib->isp_id != 0) {
-				*result = isp_ctx[0].af_entity_ctx.af_result;
-				ISP_LIB_LOG(ISP_LOG_AF, "merge mode : isp0 af result -> isp%d af result\n", lib->isp_id);
-				return 1;
-			}
+		if (lib->isp_id != 1 && (media_params.isp_sync_mode & (0x1 << lib->isp_id))) {
+			*result = isp_ctx[1].af_entity_ctx.af_result;
+			ISP_LIB_LOG(ISP_LOG_AF, "large image mode : isp1 af result -> isp%d af result\n", lib->isp_id);
+			return 1;
 		}
 	}
 #endif
@@ -150,9 +142,9 @@ static int __awb_done(struct isp_lib_context *lib,
 			return 1;
 		}
 	} else if (count > 1) {
-		if (lib->isp_id != 0) {
-			*result = isp_ctx[0].awb_entity_ctx.awb_result;
-			ISP_LIB_LOG(ISP_LOG_AWB, "merge mode : isp0 awb result -> isp%d awb result\n", lib->isp_id);
+		if (lib->isp_id != 1 && (media_params.isp_sync_mode & (0x1 << lib->isp_id))) {
+			*result = isp_ctx[1].awb_entity_ctx.awb_result;
+			ISP_LIB_LOG(ISP_LOG_AWB, "merge mode : isp1 awb result -> isp%d awb result\n", lib->isp_id);
 			return 1;
 		}
 	}
@@ -166,9 +158,9 @@ static int __afs_done(struct isp_lib_context *lib,
 #if (HW_ISP_DEVICE_NUM > 1)
 	int count = (media_params.isp_sync_mode >> 16) & 0xff;
 	if (count > 1) {
-		if (lib->isp_id != 0) {
-			*result = isp_ctx[0].afs_entity_ctx.afs_result;
-			ISP_LIB_LOG(ISP_LOG_AFS, "merge mode : isp0 afs result -> isp%d afs result\n", lib->isp_id);
+		if (lib->isp_id != 1 && (media_params.isp_sync_mode & (0x1 << lib->isp_id))) {
+			*result = isp_ctx[1].afs_entity_ctx.afs_result;
+			ISP_LIB_LOG(ISP_LOG_AFS, "merge mode : isp1 afs result -> isp%d afs result\n", lib->isp_id);
 			return 1;
 		}
 	}
@@ -190,9 +182,9 @@ static int __pltm_done(struct isp_lib_context *lib,
 #if (HW_ISP_DEVICE_NUM > 1)
 	int count = (media_params.isp_sync_mode >> 16) & 0xff;
 	if (count > 1) {
-		if (lib->isp_id != 0) {
-			*result = isp_ctx[0].pltm_entity_ctx.pltm_result;
-			ISP_LIB_LOG(ISP_LOG_PLTM, "merge mode : isp0 pltm result -> isp%d pltm result\n", lib->isp_id);
+		if (lib->isp_id != 1 && (media_params.isp_sync_mode & (0x1 << lib->isp_id))) {
+			*result = isp_ctx[1].pltm_entity_ctx.pltm_result;
+			ISP_LIB_LOG(ISP_LOG_PLTM, "merge mode : isp1 pltm result -> isp%d pltm result\n", lib->isp_id);
 			return 1;
 		}
 	}
@@ -207,10 +199,13 @@ static int __gtm_done(struct isp_lib_context *lib,
 #if (HW_ISP_DEVICE_NUM > 1)
 	int count = (media_params.isp_sync_mode >> 16) & 0xff;
 	if (count > 1) {
-		result->ldci_merge_mode = 1;
-		if (lib->isp_id != 0) {
+		if (lib->stitch_mode == STITCH_NONE)
+			result->ldci_merge_mode = 1;
+		else
+			result->ldci_merge_mode = 0;
+		if (lib->isp_id != 1 && (media_params.isp_sync_mode & (0x1 << lib->isp_id))) {
 			//memcpy(&lib->module_cfg.drc_cfg.drc_table[0], &isp_ctx[0].module_cfg.drc_cfg.drc_table[0], ISP_DRC_TBL_SIZE*sizeof(unsigned short));
-			memcpy(&lib->module_cfg.drc_cfg.drc_table[0], &isp_ctx[0].gtm_entity_ctx.gtm_result.drc_table_output[0], ISP_DRC_TBL_SIZE*sizeof(unsigned short));
+			memcpy(&lib->module_cfg.drc_cfg.drc_table[0], &isp_ctx[1].gtm_entity_ctx.gtm_result.drc_table_output[0], ISP_DRC_TBL_SIZE*sizeof(unsigned short));
 			ISP_LIB_LOG(ISP_LOG_GTM, "merge mode : isp0 drc_table -> isp%d drc_table\n", lib->isp_id);
 			return 1;
 		}
@@ -649,7 +644,7 @@ static void __isp_stats_process(struct hw_isp_device *isp, const void *buffer)
 	ctx->isp_stat_buf = buffer;
 #if (HW_ISP_DEVICE_NUM > 1)
 	if (media_params.isp_sync_mode) {
-		if (((media_params.isp_sync_mode >> 16) & 0xff) > 1) {
+		if ((((media_params.isp_sync_mode >> 16) & 0xff) > 1) && (media_params.isp_sync_mode & (0x1 << isp->id))) {
 			for (i = 0; i < HW_ISP_DEVICE_NUM; i++) {
 				if (media_params.isp_sync_mode & (0x1 << i)) {
 					if (buffer0 == NULL)
@@ -687,10 +682,10 @@ static void __isp_stats_process(struct hw_isp_device *isp, const void *buffer)
 	if (ctx->isp_ini_cfg.isp_test_settings.af_en || ctx->isp_ini_cfg.isp_test_settings.isp_test_focus) {
 		if (af_result->last_code_output != af_result->real_code_output) {
 #if (HW_ISP_DEVICE_NUM > 1)
-			/*isp0 and isp1 are opened and have same head sensor, so we only use isp0 control af*/
+			/*isp0 and isp1 are opened and have same head sensor, so we only use isp1 control af*/
 			if (isp->id == 0 && media_params.isp_dev[0] != NULL && media_params.isp_dev[1] != NULL &&
 			    !strcmp(media_params.isp_dev[0]->sensor.info.name, media_params.isp_dev[1]->sensor.info.name)) {
-				ISP_DEV_LOG(ISP_LOG_ISP, "isp0 and isp1 are opened and have same head, so we only use isp0 to do af!\n");
+				ISP_DEV_LOG(ISP_LOG_ISP, "isp0 and isp1 are opened and have same head, so we only use isp1 to do af!\n");
 			} else {
 				isp_act_set_pos(isp, af_result->real_code_output);
 			}
@@ -704,10 +699,10 @@ static void __isp_stats_process(struct hw_isp_device *isp, const void *buffer)
 
 #if ISP_LIB_USE_FLASH
 #if (HW_ISP_DEVICE_NUM > 1)
-	/*isp0 and isp1 are opened and have same head sensor, so we only use isp0 control flash*/
+	/*isp0 and isp1 are opened and have same head sensor, so we only use isp1 control flash*/
 	if (isp->id == 0 && media_params.isp_dev[0] != NULL && media_params.isp_dev[1] != NULL &&
 	    !strcmp(media_params.isp_dev[0]->sensor.info.name, media_params.isp_dev[1]->sensor.info.name)) {
-		ISP_DEV_LOG(ISP_LOG_ISP, "isp0 and isp1 are opened and have same head, so we only use isp0 to set flash!\n");
+		ISP_DEV_LOG(ISP_LOG_ISP, "isp0 and isp1 are opened and have same head, so we only use isp1 to set flash!\n");
 	} else {
 		isp_flash_update_status(isp);
 	}
@@ -747,16 +742,6 @@ static void __isp_stats_process(struct hw_isp_device *isp, const void *buffer)
 
 	isp_ctx_rear_algo_run(ctx);
 
-#if (HW_ISP_DEVICE_NUM > 1)
-	if (((media_params.isp_sync_mode >> 16) & 0xff) > 1) {
-		ctx->module_cfg.rgb2yuv = isp_ctx[0].module_cfg.rgb2yuv;
-		ctx->module_cfg.bdnf_cfg = isp_ctx[0].module_cfg.bdnf_cfg;
-		ctx->module_cfg.tdf_cfg = isp_ctx[0].module_cfg.tdf_cfg;
-		ctx->module_cfg.sharp_cfg = isp_ctx[0].module_cfg.sharp_cfg;
-		ctx->module_cfg.gamma_cfg = isp_ctx[0].module_cfg.gamma_cfg;
-	}
-#endif
-
 	FUNCTION_LOG;
 
 	isp_log_save_run(ctx);
@@ -772,7 +757,10 @@ static void __isp_fsync_process(struct hw_isp_device *isp, struct v4l2_event *ev
 
 	if(ctx->sensor_info.color_space != event->u.data[1]) {
 		ctx->sensor_info.color_space = event->u.data[1];
-		ctx->isp_3a_change_flags |= ISP_SET_HUE;
+		if (ctx->tune.effect == ISP_COLORFX_NONE)
+			ctx->isp_3a_change_flags |= ISP_SET_HUE;
+		else
+			ctx->isp_3a_change_flags |= ISP_SET_EFFECT;
 	}
 
 	isp_lib_log_param = (event->u.data[3] << 8) | event->u.data[2] | ctx->isp_ini_cfg.isp_test_settings.isp_log_param;
@@ -785,6 +773,9 @@ static void isp_ctrl_process_run(struct isp_lib_context *isp_gen, HW_U32 ctrl_id
 {
 	HW_S32 iso_qmenu[] = { 100, 200, 400, 800, 1600, 3200, 6400};
 	HW_S32 exp_bias_qmenu[] = { -4, -3, -2, -1, 0, 1, 2, 3, 4, };
+
+	if (isp_gen == NULL)
+		return;
 
 	switch(ctrl_id) {
 	case V4L2_CID_BRIGHTNESS:
@@ -1389,6 +1380,14 @@ int isp_exit(int dev_id)
 	/*wait to exit until the thread is finished*/
 	pthread_join(media_params.isp_tid[dev_id], NULL);
 
+	isp_log_save_exit(&isp_ctx[dev_id]);
+	isp_stat_save_exit(&isp_ctx[dev_id]);
+	isp_ctx_save_exit(&isp_ctx[dev_id]);
+	isp_tuning_exit(isp);
+	isp_ctx_algo_exit(&isp_ctx[dev_id]);
+	isp_sensor_otp_exit(isp);
+	isp_dev_close(&media_params, dev_id);
+
 	/*clear stitch info*/
 	isp_ctx[dev_id].stitch_mode = STITCH_NONE;
 	media_params.isp_sync_mode = 0;
@@ -1401,13 +1400,6 @@ int isp_exit(int dev_id)
 	isp_ctx[dev_id].module_cfg.wb_gain_cfg.wb_gain.b_gain = 0;
 	memset(&isp_ctx[dev_id].awb_entity_ctx.awb_result, 0, sizeof(awb_result_t));
 
-	isp_log_save_exit(&isp_ctx[dev_id]);
-	isp_stat_save_exit(&isp_ctx[dev_id]);
-	isp_ctx_save_exit(&isp_ctx[dev_id]);
-	isp_tuning_exit(isp);
-	isp_ctx_algo_exit(&isp_ctx[dev_id]);
-	isp_sensor_otp_exit(isp);
-	isp_dev_close(&media_params, dev_id);
 	ISP_DEV_LOG(ISP_LOG_ISP, "isp%d exit end!!!\n", dev_id);
 
 	return 0;
@@ -1844,6 +1836,15 @@ static void isp_set_attr_cfg_run(struct isp_lib_context *isp_gen, HW_U32 ctrl_id
 		case ISP_CTRL_NPU_NR_PARAM:
 			isp_gen->npu_nr_cfg = *(struct npu_face_nr_config *)value;
 			break;
+		case ISP_CTRL_SET_AE_TARGER:
+			isp_gen->isp_ini_cfg.isp_test_settings.ae_forced = ((struct target_val *)value)->ae_forced;
+			isp_gen->isp_ini_cfg.isp_test_settings.lum_forced = ((struct target_val *)value)->lum_forced;
+			isp_ctx_config_update(isp_gen);
+			break;
+		case ISP_CTRL_SET_AE_WEIGHT:
+			memcpy(&isp_gen->isp_ini_cfg.isp_3a_settings.ae_win_weight[0], (HW_S32 *)value, 64 * sizeof(int));
+			isp_ctx_config_update(isp_gen);
+			break;
 		default:
 			ISP_ERR("Unknown ctrl.\n");
 			break;
@@ -1887,6 +1888,109 @@ HW_S32 isp_set_attr_cfg(int dev_id, HW_U32 ctrl_id, void *value)
 		}
 	} else {
 		isp_set_attr_cfg_run(isp_gen, ctrl_id, value);
+	}
+	return 0;
+}
+
+static void isp_set_initial_cfg_run(struct isp_lib_context *isp_gen, HW_U32 ctrl_id, void *value)
+{
+	HW_S32 exp_bias_qmenu[] = { -4, -3, -2, -1, 0, 1, 2, 3, 4, };
+	HW_S32 iso_qmenu[] = { 100, 200, 400, 800, 1600, 3200, 6400};
+
+	switch(ctrl_id) {
+		case ISP_INITIAL_AUTO_N_PRESET_WHITE_BALANCE:
+			isp_gen->initial_cfg.enable.wb_mode_en = true;
+			isp_gen->initial_cfg.wb_mode = *(HW_S32 *)value;
+			break;
+		case ISP_INITIAL_WB_MGAIN:
+			isp_gen->initial_cfg.enable.wb_mgain_en = true;
+			isp_gen->initial_cfg.wb_gain_manual = *(struct isp_wb_gain *)value;
+			break;
+		case ISP_INITIAL_EXPOSURE_AUTO:
+			isp_gen->initial_cfg.enable.exp_mode_en = true;
+			isp_gen->initial_cfg.exp_mode = *(HW_S32 *)value;
+			break;
+		case ISP_INITIAL_ISO_SENSITIVITY_AUTO:
+		case ISP_INITIAL_AUTOGAIN:
+			isp_gen->initial_cfg.enable.iso_mode_en = true;
+			isp_gen->initial_cfg.iso_mode = *(HW_S32 *)value;
+			break;
+		case ISP_INITIAL_AUTO_EXPOSURE_BIAS:
+			isp_gen->initial_cfg.enable.exp_compensation_en = true;
+			isp_gen->initial_cfg.exp_compensation = exp_bias_qmenu[*(HW_S32 *)value];
+			break;
+		case ISP_INITIAL_ISO_SENSITIVITY:
+			isp_gen->initial_cfg.enable.iso_sensitivity_en = true;
+			isp_gen->initial_cfg.iso_sensitivity = iso_qmenu[*(HW_S32 *)value];
+			break;
+		case ISP_INITIAL_EXPOSURE_METERING:
+			isp_gen->initial_cfg.enable.exposure_metering_en = true;
+			isp_gen->initial_cfg.ae_metering_mode = *(HW_S32 *)value;
+			break;
+		case ISP_INITIAL_EXPOSURE_ABSOLUTE:
+			isp_gen->initial_cfg.enable.exp_absolute_en = true;
+			isp_gen->initial_cfg.exp_absolute = *(HW_S32 *)value;
+			break;
+		case ISP_INITIAL_GAIN:
+			isp_gen->ae_settings.sensor_gain = *(HW_S32 *)value;
+			break;
+		case ISP_INITIAL_POWER_LINE_FREQUENCY:
+			isp_gen->initial_cfg.enable.flicker_mode_en = true;
+			isp_gen->initial_cfg.flicker_mode = *(HW_S32 *)value;
+			break;
+		case ISP_INITIAL_BRIGHTNESS:
+			isp_gen->initial_cfg.enable.brightness_level_en = true;
+			isp_gen->initial_cfg.brightness_level = *(HW_S32 *)value;
+			break;
+		case ISP_INITIAL_CONTRAST:
+			isp_gen->initial_cfg.enable.contrast_level_en = true;
+			isp_gen->initial_cfg.contrast_level = *(HW_S32 *)value;
+			break;
+		case ISP_INITIAL_SATURATION:
+			isp_gen->initial_cfg.enable.saturation_level_en = true;
+			isp_gen->initial_cfg.saturation_level = *(HW_S32 *)value;
+			break;
+		case ISP_INITIAL_SHARPNESS:
+			isp_gen->initial_cfg.enable.sharpness_level_en = true;
+			isp_gen->initial_cfg.sharpness_level = *(HW_S32 *)value;
+			break;
+		case ISP_INITIAL_SCENE_MODE:
+			isp_gen->ae_settings.scene_mode = *(HW_S32 *)value;
+			break;
+		case ISP_INITIAL_COLOR_EFFECT:
+			isp_gen->initial_cfg.enable.effect_en = true;
+			isp_gen->initial_cfg.effect = *(HW_S32 *)value;
+			break;
+		case ISP_INITIAL_AI_SCENE:
+			isp_gen->initial_cfg.enable.ai_scene_en = true;
+			isp_gen->initial_cfg.ai_scene = *(HW_S32 *)value;
+			break;
+		default:
+			ISP_ERR("Unknown ctrl.\n");
+			break;
+	}
+}
+
+HW_S32 isp_set_initial_cfg(int dev_id, HW_U32 ctrl_id, void *value)
+{
+	struct isp_lib_context *isp_gen = NULL;
+	int i, mode, count = (media_params.isp_sync_mode >> 16) & 0xff;
+
+	if (dev_id >= HW_ISP_DEVICE_NUM)
+		return -1;
+
+	isp_gen = &isp_ctx[dev_id];
+
+	if (count > 1) {
+		mode = media_params.isp_sync_mode & 0xffff;
+		for (i = 0; i < HW_ISP_DEVICE_NUM; i++) {
+			if (mode & (0x1 << i)) {
+				isp_gen = &isp_ctx[i];
+				isp_set_initial_cfg_run(isp_gen, ctrl_id, value);
+			}
+		}
+	} else {
+		isp_set_initial_cfg_run(isp_gen, ctrl_id, value);
 	}
 	return 0;
 }
@@ -2014,25 +2118,25 @@ HW_S32 isp_get_debug_msg(int dev_id, void* msg)
 	memcpy(ptr, &isp_gen->module_cfg, sizeof(struct isp_module_config));
 	ptr += sizeof(struct isp_module_config);
 
-	memcpy(ptr, &isp_gen->otp_enable, sizeof(int));
-	ptr += sizeof(int);
+	memcpy(ptr, &isp_gen->sensor_otp.otp_enable, sizeof(unsigned char));
+	ptr += sizeof(unsigned char);
 
 	// shading msc rgb tbl 16x16x3
-	if (isp_gen->pmsc_table) {
-		memcpy(ptr, isp_gen->pmsc_table, 16*16*3*sizeof(unsigned short));
+	if (isp_gen->sensor_otp.pmsc_table) {
+		memcpy(ptr, isp_gen->sensor_otp.pmsc_table, 16*16*3*sizeof(unsigned short));
 		ptr += 16*16*3*sizeof(unsigned short);
 	}
 
 	// wb otp & golden data
-	if (isp_gen->pwb_table) {
-		memcpy(ptr, isp_gen->pwb_table, 4*2*sizeof(unsigned short));
+	if (isp_gen->sensor_otp.pwb_table) {
+		memcpy(ptr, isp_gen->sensor_otp.pwb_table, 4*2*sizeof(unsigned short));
 		ptr += 4*2*sizeof(unsigned short);
 	}
 
 	isp_debug_msg_size = sizeof(iso_result_t) +
 		sizeof(iso_param_t) +
 		sizeof(struct isp_module_config) +
-		sizeof(int) +
+		sizeof(unsigned char) +
 		16*16*3*sizeof(unsigned short) +
 		4*2*sizeof(unsigned short);
 
@@ -2876,7 +2980,7 @@ int stein(int x, int y)
 	return 1;
 }
 
-HW_S32 isp_get_exp_time(int dev_id, unsigned int *num, unsigned int *den)
+HW_S32 isp_get_exp_time(int dev_id, unsigned int* num, unsigned int* den)
 {
 	HW_S32 exp_time_value = 0;
 	HW_S32 greatest_com_divisor = 0;
@@ -3077,7 +3181,7 @@ HW_S32 isp_sensor_mipi_switch_get_awb_comp(struct isp_lib_context *isp_gen, HW_U
 					MIPI_SWITCH_AWB_RG_MIN, MIPI_SWITCH_AWB_RG_MAX, MIPI_SWITCH_AWB_BG_MIN, MIPI_SWITCH_AWB_BG_MAX, precision) &&
 				isGrayBlock(b_awb_stats->awb_avg_r[row][col], b_awb_stats->awb_avg_g[row][col], b_awb_stats->awb_avg_b[row][col],
 					MIPI_SWITCH_AWB_RG_MIN, MIPI_SWITCH_AWB_RG_MAX, MIPI_SWITCH_AWB_BG_MIN, MIPI_SWITCH_AWB_BG_MAX, precision) &&
-				(abs(a_awb_stats->awb_avg_g[row][col] - b_awb_stats->awb_avg_g[row][col]) < MIPI_SWITCH_AWB_STATS_DIFF)) {
+			(abs((HW_S32)a_awb_stats->awb_avg_g[row][col] - (HW_S32)b_awb_stats->awb_avg_g[row][col]) < MIPI_SWITCH_AWB_STATS_DIFF)) {
 				/* get stats before awb */
 				a_awb_stats->awb_avg_r[row][col] = div_round(a_awb_stats->awb_avg_r[row][col] << 8, rgain);
 				a_awb_stats->awb_avg_b[row][col] = div_round(a_awb_stats->awb_avg_b[row][col] << 8, bgain);

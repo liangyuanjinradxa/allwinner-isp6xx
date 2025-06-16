@@ -58,7 +58,7 @@ int read_file_opt(const char *file_name, void *data, int *data_length)
  */
 int set_reg_opt(const char *sensor_name, int addr_width, int data_width)
 {
-	char buffer[256];
+	char buffer[288];
 	//int length = 0;
 
 	if (sensor_name) {
@@ -70,7 +70,7 @@ int set_reg_opt(const char *sensor_name, int addr_width, int data_width)
 		g_reg_addr_width = addr_width;
 		g_reg_data_width = data_width;
 
-		// addr width 
+		// addr width
 		//length = sprintf(buffer, "%x", g_reg_addr_width);
 		//if (write_file_opt(g_fd_addr_width, buffer, length)) {
 		//	return -1;
@@ -95,9 +95,9 @@ int set_reg_opt(const char *sensor_name, int addr_width, int data_width)
  * read register
  * returns data, -1 if something went wrong
  */
-int read_reg(int reg_addr)
+int read_reg(int reg_addr, int data_width)
 {
-	char buffer[256];
+	char buffer[288];
 	int length = 0;
 
 	// set read flag
@@ -121,10 +121,10 @@ int read_reg(int reg_addr)
 	if (read_file_opt(g_fd_read_value, buffer, &length)) {
 		return -1;
 	}
-	buffer[length] = '\0';
+	buffer[data_width/4 + 2] = '\0';
 	length = strtol(buffer, NULL, 16);
 	//LOG("%s: read data %s, %d\n", __FUNCTION__, buffer, length);
-	
+
 	return length;
 }
 
@@ -134,7 +134,7 @@ int read_reg(int reg_addr)
  */
 int write_reg(int reg_addr, int reg_data)
 {
-	char buffer[256];
+	char buffer[288];
 	//int length = 0;
 
 	// set read flag
@@ -152,7 +152,7 @@ int write_reg(int reg_addr, int reg_data)
 	//}
 	sprintf(buffer, "echo %04x%04x > %s", reg_addr, reg_data, g_fd_cci_client);
 	system(buffer);
-	
+
 	return 0;
 }
 

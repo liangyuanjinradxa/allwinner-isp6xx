@@ -28,7 +28,7 @@ int exit_isp_module();
  * select isp node
  * returns 0 if init success, <0 if something went wrong
  */
-int select_isp(int id);
+int select_isp(int id, int init_flag);
 
 /*
  * convert tuning configs from network to local

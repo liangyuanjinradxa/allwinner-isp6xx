@@ -21,7 +21,6 @@
 
 #include <linux/types.h>
 #include <linux/videodev2.h>
-
 #include <stdbool.h>
 
 /*  Flags for 'capability' and 'capturemode' fields */
@@ -47,6 +46,7 @@ struct v4l2_win_coordinate {
 #define V4L2_FLASH_LED_MODE_RED_EYE		(V4L2_FLASH_LED_MODE_TORCH + 2)
 
 struct v4l2_win_setting {
+	__s32 metering_mode;
 	struct v4l2_win_coordinate coor;
 };
 
@@ -121,10 +121,10 @@ typedef union {
 	struct {
 		unsigned int af_sharp:16;
 		unsigned int hdr_cnt:4;
-		unsigned int flash_ok:1;
+		unsigned int flash_ok:2;
 		unsigned int capture_ok:1;
 		unsigned int fast_capture_ok:1;
-		unsigned int res0:9;
+		unsigned int res0:8;
 	} bits;
 } IMAGE_FLAG_t;
 
@@ -165,6 +165,21 @@ enum v4l2_sensor_type {
 #define  V4L2_CID_AF_WIN_Y1		(V4L2_CID_USER_SUNXI_CAMERA_BASE + 20)
 #define  V4L2_CID_AF_WIN_X2		(V4L2_CID_USER_SUNXI_CAMERA_BASE + 21)
 #define  V4L2_CID_AF_WIN_Y2		(V4L2_CID_USER_SUNXI_CAMERA_BASE + 22)
+
+static const char *const flash_led_mode_v1[] = {
+	"Off",
+	"Auto",
+	"Red Eye",
+	NULL,
+};
+
+enum v4l2_flash_led_mode_v1{
+	V4L2_FLASH_MODE_NONE = 0,
+	V4L2_FLASH_MODE_AUTO,
+	V4L2_FLASH_MODE_RED_EYE,
+};
+
+#define	V4L2_CID_FLASH_LED_MODE_V1		(V4L2_CID_USER_SUNXI_CAMERA_BASE + 23)
 
 /*
  *	PRIVATE IOCTRLS
@@ -297,6 +312,9 @@ struct vin_vsync_event_data {
 #define VIDIOC_VIN_ISP_STAT_EN \
 	_IOWR('V', BASE_VIDIOC_PRIVATE + 33, unsigned int)
 
+#define ISP_MSC_TBL_SIZE	484
+#define ISP_MSC_TBL_LENGTH			(3*ISP_MSC_TBL_SIZE)
+
 struct sensor_config {
 	int width;
 	int height;
@@ -313,6 +331,11 @@ struct sensor_config {
 	unsigned int gain_max;	/*sensor gain max, Q4               */
 	unsigned int mbus_code;	/*media bus code                    */
 	unsigned int wdr_mode;	/*isp wdr mode                    */
+#if 0
+	/* otp information*/
+	int otp_enable;
+	void * pmsc_table;		/*msc table  22x22x3 = ISP_MSC_TBL_LENGTH, default mode using 16x16x3  */
+#endif
 };
 
 struct sensor_exp_gain {
@@ -347,6 +370,10 @@ struct flash_para {
 	unsigned int mode; //enum v4l2_flash_led_mode mode;
 };
 
+struct msc_para {
+	unsigned char data[4096];
+};
+
 /*
  * Camera Sensor IOCTLs
  */
@@ -376,6 +403,12 @@ struct flash_para {
 
 #define VIDIOC_VIN_ISP_TABLE2_MAP \
 	_IOWR('V', BASE_VIDIOC_PRIVATE + 72, struct isp_table_reg_map)
+
+#define VIDIOC_VIN_GET_SENSOR_CODE \
+	_IOWR('V', BASE_VIDIOC_PRIVATE + 73, int)
+
+#define VIDIOC_VIN_GET_SENSOR_OTP_INFO \
+        _IOWR('V', BASE_VIDIOC_PRIVATE + 74, struct msc_para)
 
 #endif /*_SUNXI_CAMERA_H_*/
 

@@ -7,7 +7,7 @@ struct disp_smbl;
 struct disp_enhance;
 struct disp_capture;
 
-#define bool signed char
+//#define bool signed char
 
 typedef signed char         __s8;
 typedef unsigned char       __u8;

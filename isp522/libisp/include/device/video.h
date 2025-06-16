@@ -43,6 +43,7 @@ struct video_fmt {
 	unsigned int use_current_win;
 	unsigned int wdr_mode;
 	unsigned int drop_frame_num;
+	int index;
 };
 
 struct osd_fmt {
@@ -107,6 +108,7 @@ int video_free_buffers(struct isp_video_device *video);
 int video_wait_buffer(struct isp_video_device *video, int timeout);
 int video_dequeue_buffer(struct isp_video_device *video,	struct video_buffer *buffer);
 int video_queue_buffer(struct isp_video_device *video, unsigned int buf_id);
+int video_s_selection(struct isp_video_device *video, int t, int l, int w, int h);
 int video_stream_on(struct isp_video_device *video);
 int video_stream_off(struct isp_video_device *video);
 

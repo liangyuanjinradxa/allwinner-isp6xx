@@ -12,6 +12,7 @@
 #include <fcntl.h>
 #include <pthread.h>
 #include <errno.h>
+#include "../isp_version.h"
 
 #define SOCK_DEFAULT_TIMEOUT 30  // s
 
@@ -22,8 +23,11 @@ typedef struct sock_comm_packet_s
 	unsigned char cmd_ids[8];    // 1 byte - command, 1 byte - group id, 4 bytes - cfg ids
 	int           ret;
 	int           data_length;
-	int           reserved[4]; 
+	int           reserved[4];
 	int	      framecount;
+#if(ISP_VERSION >= 522)
+	int	      index;
+#endif
 } sock_packet;
 
 typedef enum sock_command_code_e
@@ -111,13 +115,27 @@ typedef enum sock_command_code_e
 	/*
 	* VENC
 	*/
-	SOCK_CMD_VENC_GET,		//get venc configure 
+	SOCK_CMD_VENC_GET,		//get venc configure
 	SOCK_CMD_VENC_SET,		//set venc configure
 	SOCK_CMD_VENC_UPDATE_CFG,//update venc configure
 	SOCK_CMD_VENC_SEL,		//select venc
 
 	/* isp version*/
 	SOCK_CMD_ISP_VERSION,
+
+	/*
+	* preview vencode
+	*/
+	SOCK_CMD_VENCODE,			//preview vencode
+	SOCK_CMD_VENCODE_PPSSPS,	//get pps sps data
+	SOCK_CMD_VENCODE_STREAM,	//get h264 stream
+	SOCK_CMD_VENCODE_STOP,		//stop vencode
+	/*
+	*for gray block info
+	*/
+	SOCK_CMD_BLOCKINFO,
+	SOCK_CMD_SET_REGION,
+	SOCK_CMD_GET_BLOCKINFO,
 
 	SOCK_CMD_COUNT
 } sock_command_code;
@@ -140,6 +158,8 @@ typedef enum sock_type_e {
 	SOCK_TYPE_RAW_FLOW,
 	SOCK_TYPE_VENC_TUNING,
 	SOCK_TYPE_ISP_VERSION,
+	SOCK_TYPE_PREVIEW_VENCODE,
+	SOCK_TYPE_BLOCK_INFO,
 } sock_type;
 
 /*
@@ -201,9 +221,9 @@ typedef enum sock_rw_check_ret_e {
  * timeout: timeout in seconds
  * returns sock_rw_check_ret
  */
-int sock_read_check_packet(const char *func_name, int sock_fd, sock_packet *comm_packet, 
+int sock_read_check_packet(const char *func_name, int sock_fd, sock_packet *comm_packet,
 	sock_command_code sock_cmd, int timeout);
-int sock_write_check_packet(const char *func_name, int sock_fd, sock_packet *comm_packet, 
+int sock_write_check_packet(const char *func_name, int sock_fd, sock_packet *comm_packet,
 	sock_command_code sock_cmd, int timeout);
 
 

@@ -9,7 +9,7 @@
 #include <ctype.h>
 #include "iniparser.h"
 
-#if ISP_LIB_USE_INIPARSER
+//#if ISP_LIB_USE_INIPARSER
 
 /*---------------------------- Defines -------------------------------------*/
 #define ASCIILINESZ         (4096*2)
@@ -662,13 +662,13 @@ static line_status iniparser_line(
         sta = LINE_COMMENT ;
     } else if (line[0]=='[' && line[len-1]==']') {
         /* Section name */
-        sscanf(line, "[%[^]]", section);
+        sscanf(line, "[%ASCIILINESZ[^]]", section);
         strcpy(section, strstrip(section));
         strcpy(section, strlwc(section));
         sta = LINE_SECTION ;
-    } else if (sscanf (line, "%[^=] = \"%[^\"]\"", key, value) == 2
-           ||  sscanf (line, "%[^=] = '%[^\']'",   key, value) == 2
-           ||  sscanf (line, "%[^=] = %[^;#]",     key, value) == 2) {
+    } else if (sscanf (line, "%ASCIILINESZ[^=] = \"%ASCIILINESZ[^\"]\"", key, value) == 2
+           ||  sscanf (line, "%ASCIILINESZ[^=] = '%ASCIILINESZ[^\']'",   key, value) == 2
+           ||  sscanf (line, "%ASCIILINESZ[^=] = %ASCIILINESZ[^;#]",     key, value) == 2) {
         /* Usual key=value, with or without comments */
         strcpy(key, strstrip(key));
         strcpy(key, strlwc(key));
@@ -681,8 +681,8 @@ static line_status iniparser_line(
             value[0]=0 ;
         }
         sta = LINE_VALUE ;
-    } else if (sscanf(line, "%[^=] = %[;#]", key, value)==2
-           ||  sscanf(line, "%[^=] %[=]", key, value) == 2) {
+    } else if (sscanf(line, "%ASCIILINESZ[^=] = %ASCIILINESZ[;#]", key, value)==2
+           ||  sscanf(line, "%ASCIILINESZ[^=] %ASCIILINESZ[=]", key, value) == 2) {
         /*
          * Special cases:
          * key=
@@ -721,7 +721,7 @@ dictionary * iniparser_load(const char * ininame)
     char line    [ASCIILINESZ+1] ;
     char section [ASCIILINESZ+1] ;
     char key     [ASCIILINESZ+1] ;
-    char tmp     [ASCIILINESZ+1] ;
+    char tmp     [2 * ASCIILINESZ+2] ;
     char val     [ASCIILINESZ+1] ;
 
     int  last=0 ;
@@ -769,6 +769,9 @@ dictionary * iniparser_load(const char * ininame)
             line[len]=0 ;
             len-- ;
         }
+	if (len < 0) {
+	    continue;
+	}
         /* Detect multi-line */
         if (line[len]=='\\') {
             /* Multi-line value */
@@ -835,4 +838,4 @@ void iniparser_freedict(dictionary * d)
 
 /* vim: set ts=4 et sw=4 tw=75 */
 
-#endif
+//#endif

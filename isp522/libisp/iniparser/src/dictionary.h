@@ -14,7 +14,7 @@
 #ifndef _DICTIONARY_H_
 #define _DICTIONARY_H_
 
-#define ISP_LIB_USE_INIPARSER 0
+//#define ISP_LIB_USE_INIPARSER 0
 
 /*---------------------------------------------------------------------------
                                 Includes
@@ -25,7 +25,7 @@
 #include <string.h>
 #include <unistd.h>
 
-#if ISP_LIB_USE_INIPARSER
+//#if ISP_LIB_USE_INIPARSER
 
 /*---------------------------------------------------------------------------
                                 New types
@@ -166,6 +166,6 @@ void dictionary_unset(dictionary * d, const char * key);
 /*--------------------------------------------------------------------------*/
 void dictionary_dump(dictionary * d, FILE * out);
 
-#endif
+//#endif
 
 #endif

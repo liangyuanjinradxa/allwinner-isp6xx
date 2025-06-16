@@ -40,6 +40,8 @@ typedef enum isp_gtm_type {
 	ISP_GTM_DYNAMIC_DRC,
 	ISP_GTM_DYNAMIC_GAMMA,
 	ISP_GTM_KEEP_LUM_DRC,
+	ISP_GTM_LDCI,
+	ISP_GTM_ERMHE,
 	ISP_GTM_TYPE_MAX,
 } gtm_type_t;
 
@@ -54,6 +56,9 @@ typedef struct isp_gtm_ini_cfg {
 	gtm_type_t gtm_type;
 	gtm_gamma_type_t gamma_type;
 	HW_U32 AutoAlphaEn;//if enable, Need BrightPixellValue DarkPixelValue;
+	HW_S32 hist_pix_cnt;
+	HW_S32 bright_minval;
+	HW_S32 dark_minval;
 	HW_S16 plum_var[9][9];
 	HW_S32 gtm_cfg[GTM_HEQ_MAX];
 }gtm_ini_cfg_t;
@@ -77,14 +82,34 @@ typedef struct isp_gtm_param {
 
 	int contrast;	//for interface
 	int brightness; 	//for interface
+	int gtm_bit_offset;
+	bool wdr_en;
 
 	int BrightPixellValue;
 	int DarkPixelValue;
+
+	int bkgBrightness;
+	int lastBkgBrightness;
+	int Qi;
+	int Qo;
+	int QoTar;
+	int tarClip;
+	int curClip;
+	int wdr_mode;
 
 	unsigned short *gamma_tbl; // for hardware
 	unsigned short *drc_table;
 	unsigned short *drc_table_last;
 	gtm_test_config_t test_cfg;
+
+	HW_U8 ldci_entity_id;
+	HW_U8 ldci_work_en;
+	HW_U8 ldci_work_cnt;
+	HW_U16 ldci_video_chn;
+	HW_U8 ldci_video_init_en;
+	HW_U16 current_colorspace;
+
+	HW_U8 awb_en;
 } gtm_param_t;
 
 typedef struct isp_gtm_stats {
@@ -95,8 +120,11 @@ typedef struct isp_gtm_result {
 	HW_U16 Hist_MaxVal;
 	HW_U16 avg_lum;
 	HW_U16 avg_var;
+	HW_U16 hist_div;
 	double hratio_last;
+	HW_U8 ldci_merge_mode;
 	HW_S32 hdr_req;
+	HW_U16 drc_table_output[ISP_DRC_TBL_SIZE];
 } gtm_result_t;
 
 typedef struct isp_gtm_core_ops {

@@ -31,7 +31,7 @@
 #include "video.h"
 #include "isp_dev.h"
 
-#include "drv_display.h"
+#include "sunxi_display2.h"
 
 #define MAX_VIDEO_NUM 	4
 #define ISP_SERVER_STOP 0
@@ -62,7 +62,7 @@ struct disp_screen {
 };
 
 int dispfh;
-unsigned int arg[3];
+unsigned long arg[4];
 disp_layer_config config;
 
 static struct disp_screen get_disp_screen(int w1, int h1, int w2, int h2)
@@ -96,6 +96,7 @@ static int disp_exit(void)
 	arg[0] = 0;
 	arg[1] = (unsigned long)&config;
 	arg[2] = 1;
+	arg[3] = 0;
 	ioctl(dispfh, DISP_LAYER_SET_CONFIG, (void *)arg);
 
 	//1.close layer channel 2
@@ -106,7 +107,10 @@ static int disp_exit(void)
 	arg[0] = 0;
 	arg[1] = (unsigned long)&config;
 	arg[2] = 1;
+	arg[3] = 0;
 	ioctl(dispfh, DISP_LAYER_SET_CONFIG, (void *)arg);
+
+	return 0;
 }
 
 static void terminate(int sig_no)
@@ -151,6 +155,7 @@ static int disp_init(int width, int height)
 	arg[0] = 0;
 	arg[1] = (unsigned long)&config;
 	arg[2] = (unsigned long)1;
+	arg[3] = 0;
 	ioctl(dispfh, DISP_LAYER_GET_CONFIG, (void *)arg);
 	config.info.fb.format = DISP_FORMAT_YUV420_P;
 	config.info.mode	  = LAYER_MODE_BUFFER;
@@ -211,6 +216,7 @@ static int disp_set_addr(u32 width, u32 height, u32 addr0, u32 addr1, u32 addr2)
 	arg[0] = 0;
 	arg[1] = (unsigned long)&config;
 	arg[2] = 1;
+	arg[3] = 0;
 	return ioctl(dispfh, DISP_LAYER_SET_CONFIG, (void *)arg);
 }
 
@@ -222,7 +228,7 @@ int osd_set_fmt(int ViCh)
 	int i, j, bitmap_size = 0, *databuf = NULL;
 
 	if (ViCh >= HW_VIDEO_DEVICE_NUM || NULL == media->video_dev[ViCh]) {
-		ISP_ERR("vi channel number is invalid!\n", ViCh);
+		ISP_ERR("vi channel number %d is invalid!\n", ViCh);
 		return -1;
 	} else {
 		video = media->video_dev[ViCh];
@@ -288,7 +294,9 @@ int osd_set_fmt(int ViCh)
 
 		ofmt.bitmap[i] = NULL;
 
-		ofmt.rgb_cover[i] = 0xff000000 | (0xff << ((i % 3) * 8));
+		if(i < 8){
+			ofmt.rgb_cover[i] = 0xff000000 | (0xff << ((i % 3) * 8));
+		}
 	}
 	ofmt.width = 2;
 	overlay_set_fmt(video, &ofmt);
@@ -299,7 +307,7 @@ int osd_update(int ViCh, int on_off)
 {
 	struct isp_video_device *video = NULL;
 	if (ViCh >= HW_VIDEO_DEVICE_NUM || NULL == media->video_dev[ViCh]) {
-		ISP_ERR("vi channel number is invalid!\n", ViCh);
+		ISP_ERR("vi channel number %d is invalid!\n", ViCh);
 		return -1;
 	} else {
 		video = media->video_dev[ViCh];
@@ -347,7 +355,7 @@ static void *loop_cap(void *pArg)
 	osd_update(privCap->Chn, 1);
 
 	if (privCap->Chn >= HW_VIDEO_DEVICE_NUM || NULL == media->video_dev[privCap->Chn]) {
-		ISP_ERR("vi channel number is invalid!\n", privCap->Chn);
+		ISP_ERR("vi channel number %d is invalid!\n", privCap->Chn);
 		return NULL;
 	} else {
 		video = media->video_dev[privCap->Chn];
@@ -436,8 +444,12 @@ static void *loop_cap(void *pArg)
 		//video_set_control(video, V4L2_CID_SHARPNESS, i % 32 - 16);
 
 #if ISP_FLASH_TEST
+#if 0
 		video_set_control(video, V4L2_CID_FLASH_LED_MODE, FLASH_MODE_TORCH);
-		//video_set_control(video, V4L2_CID_FLASH_LED_MODE, FLASH_MODE_AUTO);
+#else
+		//video_set_control(video, V4L2_CID_FLASH_LED_MODE, FLASH_MODE_AUTO); /*linux-4.9*/
+		video_set_control(video, V4L2_CID_FLASH_LED_MODE_V1, V4L2_FLASH_MODE_AUTO);/*linux-5.4*/
+#endif
 		video_set_control(video, V4L2_CID_TAKE_PICTURE, V4L2_TAKE_PICTURE_FLASH);
 
 		isp_get_imageparams(privCap->isp_id, &isp_image_params);
@@ -471,6 +483,7 @@ disablech:
 	if (video_free_buffers(video) < 0)
 		return NULL;
 	buffers_pool_delete(video);
+	goto vi_exit;
 vi_exit:
 	return NULL;
 }

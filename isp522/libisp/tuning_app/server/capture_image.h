@@ -1,6 +1,10 @@
 #ifndef _CAPTURE_IMAGE_H_V100_
 #define _CAPTURE_IMAGE_H_V100_
 
+#ifdef ANDROID_VENCODE
+#include "../../isp_vencode/include/ispSimpleCode.h"
+#endif
+
 typedef enum _capture_error_e {
 	CAP_ERR_NONE               = 0x00,
 	CAP_ERR_MPI_INIT,
@@ -20,6 +24,9 @@ typedef enum _capture_error_e {
 	CAP_ERR_STOP_RAW_FLOW,
 	CAP_ERR_RAW_FLOW_NOT_RUN,
 	CAP_ERR_GET_RAW_FLOW,
+	CAP_ERR_VENCODE_PPSSPS,
+	CAP_ERR_VENCODE_STREAM,
+	CAP_ERR_VENCODE_FREEBUFFER,
 } capture_error;
 
 typedef struct _capture_format_s {
@@ -34,6 +41,7 @@ typedef struct _capture_format_s {
 	int                      planes_count; // planes count
 	int			 framecount;//frame count
 	int                      width_stride[3]; // width stride for each plane
+	int						index; //rear:0 front:1
 } capture_format;
 
 typedef struct _sensor_input_s {
@@ -43,8 +51,16 @@ typedef struct _sensor_input_s {
 	int                      height;
 	int                      fps;
 	int                      wdr;
+	int						index; //rear:0 front:1
 } sensor_input;
 
+typedef struct _region_s
+{
+	int                                   left;
+	int                                   top;
+	int                                   right;
+	int                                   bottom;
+} SRegion, *pSRegion;
 
 /*
  * init
@@ -73,6 +89,28 @@ int set_sensor_input(const sensor_input *sensor_in);
  * returns capture_error code
  */
 int get_capture_buffer(capture_format *cap_fmt);
+
+/*
+ * get capture blockinfo
+ * cap_fmt->buffer should alloc in advance
+ * returns capture_error code
+ */
+int get_capture_blockinfo(capture_format *cap_fmt, int GrayBlocksFlag, SRegion *region);
+
+#ifdef ANDROID_VENCODE
+/*
+ * update vencode config
+ * return capture_error code
+ */
+int set_vencode_config(capture_format *cap_fmt, encode_param_t *encode_param);
+/*
+ * get capture-video encoder buffer
+ * cap_fmt->buffer should alloc in advance
+ * returns capture_error code
+ */
+int get_capture_vencode_buffer(capture_format *cap_fmt, encode_param_t *encode_param, int type);
+#endif
+
 /*
  * get capture buffer to transfer
  * cap_fmt->buffer should alloc in advance

@@ -30,26 +30,32 @@ typedef struct iso_test_config {
 typedef struct isp_lib_iso_param {
 	iso_param_type_t type;
 
-	HW_S32 isp_platform_id;
-	HW_S32 iso_frame_id;
-
-	HW_U32 cnr_adjust;
-	HW_U32 sharpness_adjust;
-	HW_U32 saturation_adjust;
-	HW_U32 contrast_adjust;
-	HW_U32 brightness_adjust;
-	HW_U32 cem_ratio_adjust;
-	HW_U32 denoise_adjust;
-	HW_U32 sensor_offset_adjust;
-	HW_U32 black_level_adjust;
-	HW_U32 dpc_adjust;
-	HW_U32 defog_value_adjust;
-	HW_U32 pltm_dynamic_cfg_adjust;
-	HW_U32 tdnr_adjust;
-	HW_U32 ae_cfg_adjust;
-	HW_U32 gtm_cfg_adjust;
-	HW_U32 lca_cfg_adjust;
-
+	HW_S32	isp_platform_id;
+	HW_S32	iso_frame_id;
+	HW_U16	cem_color2gray_th;
+	HW_U16	cem_color2gray_delta_min;
+	HW_U16	cem_color2gray_delta_max;
+	HW_U32	cnr_adjust;
+	HW_U32	sharpness_adjust;
+	HW_U32	saturation_adjust;
+	HW_U32	contrast_adjust;
+	HW_U32	brightness_adjust;
+	HW_U32	cem_ratio_adjust;
+	HW_U32	denoise_adjust;
+	HW_U32	sensor_offset_adjust;
+	HW_U32	black_level_adjust;
+	HW_U32	dpc_adjust;
+	HW_U32	defog_value_adjust;
+	HW_U32	pltm_dynamic_cfg_adjust;
+	HW_U32	tdnr_adjust;
+	HW_U32	ae_cfg_adjust;
+	HW_U32	gtm_cfg_adjust;
+	HW_U32	lca_cfg_adjust;
+	HW_U32	isp_denoise_lp0_np_core_retio;
+	HW_U32	isp_denoise_lp1_np_core_retio;
+	HW_U32	isp_denoise_lp2_np_core_retio;
+	HW_U32	isp_denoise_lp3_np_core_retio;
+	HW_U32	af_cfg_adjust;
 	struct isp_lib_context *isp_gen;
 	iso_test_config_t test_cfg;
 } iso_param_t;

@@ -53,6 +53,7 @@ HW_S32 isp_stats_req(int dev_id, struct isp_stats_context *stats_ctx);
 HW_S32 isp_set_fps(int dev_id, int sensor_fps);
 HW_S32 isp_set_attr_cfg(int dev_id, HW_U32 ctrl_id, void *value);
 HW_S32 isp_get_attr_cfg(int dev_id, HW_U32 ctrl_id, void *value);
+HW_S32 isp_set_initial_cfg(int dev_id, HW_U32 ctrl_id, void *value);
 HW_S32 isp_set_saved_ctx(int dev_id);
 HW_S32 isp_get_sensor_info(int dev_id, struct sensor_config *cfg);
 HW_S32 isp_set_ae_flicker_comp(int dev_id, HW_S16 enable);

@@ -38,6 +38,7 @@
 #include "tools.h"
 
 #define ENTITY_SUNXI_VIDEO "vin_video"
+
 #define MEDIA_DEVICE "/dev/media0"
 #define SUNXI_VIDEO "vin_video"
 #define SUNXI_ISP "sunxi_isp"
@@ -97,6 +98,7 @@ struct isp_cid isp_cid_array[] = {
 #if ISP_LIB_USE_FLASH
 	{ "V4L2_CID_TAKE_PICTURE", V4L2_CID_TAKE_PICTURE, },
 	{ "V4L2_CID_FLASH_LED_MODE", V4L2_CID_FLASH_LED_MODE, },
+	{ "V4L2_CID_FLASH_LED_MODE_V1", V4L2_CID_FLASH_LED_MODE_V1, },
 #endif
 	{ "AE windows x1", V4L2_CID_AE_WIN_X1, },
 	{ "AE windows y1", V4L2_CID_AE_WIN_Y1, },
@@ -153,7 +155,7 @@ static int isp_subdev_open(struct hw_isp_device *isp)
 	struct hw_isp_media_dev *media = isp->priv;
 	char name[32];
 
-	snprintf(name, sizeof(name), SUNXI_ISP".%d", isp->id);
+	snprintf(name, sizeof(name), SUNXI_ISP".%u", isp->id);
 	entity = media_get_entity_by_name(media->mdev, name);
 	if (entity == NULL)
 		return -ENOENT;
@@ -161,6 +163,11 @@ static int isp_subdev_open(struct hw_isp_device *isp)
 	isp->subdev = *entity;
 
 	return v4l2_subdev_open(&isp->subdev);
+}
+
+static void isp_subdev_close(struct hw_isp_device *isp)
+{
+	v4l2_subdev_close(&isp->subdev);
 }
 
 int isp_get_isp_id(int video_id)
@@ -171,8 +178,7 @@ int isp_get_isp_id(int video_id)
 	int ret = -1;
 	int isp_id = 0;
 
-	if(media_dev_isp!=NULL)
-	{
+	if (media_dev_isp != NULL) {
 		ISP_PRINT("mpi_vi already init\n");
 		return 0;
 	}
@@ -208,6 +214,7 @@ int isp_get_isp_id(int video_id)
 	video->entity = media_get_entity_by_name(media_dev_isp->mdev, name);
 	if (video->entity == NULL) {
 		ISP_ERR("can not get entity by name %s\n", name);
+		free(video);
 		return -ENOENT;
 	}
 	isp_id = media_video_to_isp_id(video->entity);
@@ -216,11 +223,6 @@ int isp_get_isp_id(int video_id)
 	free(video);
 
 	return isp_id;
-}
-
-static void isp_subdev_close(struct hw_isp_device *isp)
-{
-	v4l2_subdev_close(&isp->subdev);
 }
 
 static int isp_sensor_open(struct hw_isp_device *isp)
@@ -309,7 +311,7 @@ static int isp_stat_open(struct hw_isp_device *isp)
 	struct hw_isp_media_dev *media = isp->priv;
 	char name[32];
 
-	snprintf(name, sizeof(name), SUNXI_H3A".%d", isp->id);
+	snprintf(name, sizeof(name), SUNXI_H3A".%u", isp->id);
 	ISP_DEV_LOG(ISP_LOG_SUBDEV, "stats device name is %s\n", name);
 	entity = media_get_entity_by_name(media->mdev, name);
 	if (entity == NULL)
@@ -329,7 +331,7 @@ int isp_dev_open(struct hw_isp_media_dev *isp_md, int id)
 {
 	int ret = -1;
 	struct hw_isp_device *isp;
-	struct media_entity *entity = NULL;
+	//struct media_entity *entity = NULL;
 
 	if (id >= HW_ISP_DEVICE_NUM)
 		return ret;
@@ -524,7 +526,7 @@ int isp_video_to_sensor_name(int video_id, char *sensor_name)
 	struct media_entity *entity = NULL, *head = NULL;
 	struct media_device *mdev = NULL;
 	char name[32];
-	int isp_id = 0;
+	//int isp_id = 0;
 
 	if (video_id >= HW_VIDEO_DEVICE_NUM)
 		return -1;
@@ -554,7 +556,7 @@ int isp_video_to_sensor_name(int video_id, char *sensor_name)
 
 int isp_dev_start(struct hw_isp_device *isp)
 {
-	enum v4l2_buf_type type = V4L2_BUF_TYPE_VIDEO_CAPTURE_MPLANE;
+	//enum v4l2_buf_type type = V4L2_BUF_TYPE_VIDEO_CAPTURE_MPLANE;
 	struct v4l2_event_subscription esub;
 	unsigned int enable = 1;
 	int i, ret;
@@ -614,7 +616,7 @@ int isp_dev_start(struct hw_isp_device *isp)
 
 int isp_dev_stop(struct hw_isp_device *isp)
 {
-	enum v4l2_buf_type type = V4L2_BUF_TYPE_VIDEO_CAPTURE_MPLANE;
+	//enum v4l2_buf_type type = V4L2_BUF_TYPE_VIDEO_CAPTURE_MPLANE;
 	struct v4l2_event_subscription esub;
 	unsigned int enable = 0;
 
@@ -793,11 +795,14 @@ int isp_sensor_get_configs(struct hw_isp_device *isp,
 int isp_sensor_set_exp_gain(struct hw_isp_device *isp, struct sensor_exp_gain *exp_gain)
 {
 	int ret;
+	static unsigned char cnt = 0;
 	static struct sensor_exp_gain exp_gain_save[HW_ISP_DEVICE_NUM];
 
-	if (memcmp(&exp_gain_save[isp->id], exp_gain, sizeof(struct sensor_exp_gain))) {
+	if (memcmp(&exp_gain_save[isp->id], exp_gain, sizeof(struct sensor_exp_gain)) || cnt > 5) {
+		cnt = 0;
 		exp_gain_save[isp->id] = *exp_gain;
 	} else {
+		cnt++;
 		return 0;
 	}
 

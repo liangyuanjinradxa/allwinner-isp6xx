@@ -299,8 +299,15 @@ void *sock_handle_preview_thread(void *params)
 					cap_fmt.format == V4L2_PIX_FMT_LBC_1_0X || cap_fmt.format == V4L2_PIX_FMT_LBC_1_5X ||
 					cap_fmt.format == V4L2_PIX_FMT_LBC_2_0X || cap_fmt.format == V4L2_PIX_FMT_LBC_2_5X) {
 					ret = ini_tuning_get_frame(&cap_fmt, &comm_packet, sock_fd);
+				} else if (cap_fmt.format == V4L2_PIX_FMT_SBGGR8 || cap_fmt.format == V4L2_PIX_FMT_SGBRG8 ||
+					cap_fmt.format == V4L2_PIX_FMT_SGRBG8 || cap_fmt.format == V4L2_PIX_FMT_SRGGB8 ||
+					cap_fmt.format == V4L2_PIX_FMT_SBGGR10 || cap_fmt.format == V4L2_PIX_FMT_SGBRG10 ||
+					cap_fmt.format == V4L2_PIX_FMT_SGRBG10 || cap_fmt.format == V4L2_PIX_FMT_SRGGB10 ||
+					cap_fmt.format == V4L2_PIX_FMT_SBGGR12 || cap_fmt.format == V4L2_PIX_FMT_SGBRG12 ||
+					cap_fmt.format == V4L2_PIX_FMT_SGRBG12 || cap_fmt.format == V4L2_PIX_FMT_SRGGB12) {
+					ret = ini_tuning_get_raw(&cap_fmt, &comm_packet, sock_fd);
 				} else {
-					LOG("%s: ini_tuning_get_frame only support NV12,NV21,LBC(1_0~2_5)\n", __FUNCTION__);
+					LOG("%s: ini_tuning_get_frame only support NV12,NV21,LBC(1_0~2_5),bayer_raw(8~12bit)\n", __FUNCTION__);
 					ret = CAP_ERR_GET_FRAME;
 				}
 			}
@@ -1511,6 +1518,12 @@ void *sock_handle_set_input_thread(void *params)
 				if (ret) {
 					ISP_ERR("system run error!!! (command: %s, ret: %d)\n", path, ret);
 				}
+				sprintf(path, "mkdir %sisp%d_%d_%d_%d_%d/raw/", ini_cfg.base_path, ini_cfg.sensor_cfg.isp, ini_cfg.sensor_cfg.width, ini_cfg.sensor_cfg.height,
+							ini_cfg.sensor_cfg.fps, ini_cfg.sensor_cfg.wdr);
+				ret = system(path);
+				if (ret) {
+					ISP_ERR("system run error!!! (command: %s, ret: %d)\n", path, ret);
+				}
 				sprintf(path, "mkdir %sisp%d_%d_%d_%d_%d/encpp/", ini_cfg.base_path, ini_cfg.sensor_cfg.isp, ini_cfg.sensor_cfg.width, ini_cfg.sensor_cfg.height,
 							ini_cfg.sensor_cfg.fps, ini_cfg.sensor_cfg.wdr);
 				ret = system(path);
@@ -1763,6 +1776,19 @@ void *sock_handle_preview_vencode_thread(void *params)
 	{
 		LOG("malloc cap_fmt.buffer fail, please check the total free memory\n");
 		return 0;
+	}
+#endif
+
+#if (ISP_VERSION == 603)
+	//V821 encpp output bug
+	FILE *fd = NULL;
+	if (access("/etc/cedarc.conf", F_OK)) {
+		fd = fopen("/etc/cedarc.conf", "w+");
+		fputs("########### paramter ############\n", fd);
+		fputs("[paramter]\n", fd);
+		fputs("cdc_log_level = 5\n", fd);
+		fclose(fd);
+		fd = NULL;
 	}
 #endif
 	while (1) {

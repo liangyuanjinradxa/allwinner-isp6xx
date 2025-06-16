@@ -191,7 +191,9 @@ int EncoderSetCallbacks(encode_param_t *encode_param, EncoderCbType* pCallbacks,
 
 int EncoderSetParamSharpConfig(encode_param_t *encode_param, sEncppSharpParam* pSharpParam);
 
+#if (ISP_VERSION == 600)
 int EncoderSetParam3DFliter(encode_param_t *encode_param, s3DfilterParam *p3dFilterParam);
+#endif
 
 int EncoderSetParam2DFliter(encode_param_t *encode_param, s2DfilterParam *p2dFilterParam);
 

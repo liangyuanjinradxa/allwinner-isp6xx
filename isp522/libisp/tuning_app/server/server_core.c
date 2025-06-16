@@ -8,12 +8,14 @@
 #include "mini_shell.h"
 #include "isp_handle.h"
 #include "register_opt.h"
-
+#ifdef ANDROID_VENCODE
+#include "ispSimpleCode.h"
+#endif
 /*
  * read socket , then check and reply
  * returns sock_rw_check_ret
  */
-static int sock_read_check_reply(const char *func_name, int sock_fd, sock_packet *comm_packet, 
+static int sock_read_check_reply(const char *func_name, int sock_fd, sock_packet *comm_packet,
 	sock_command_code sock_cmd, int timeout)
 {
 	int ret = -1, ret1 = -1;
@@ -70,10 +72,35 @@ void *sock_handle_heart_jump_thread(void *params)
 	sock_packet comm_packet;
 	int sock_fd = (int)params;
 	int timeout_times = 0;
-	
+
 	LOG("%s: starts - %d\n", __FUNCTION__, sock_fd);
 	g_thread_stop_flag = 0;
 	g_thread_status |= TH_STATUS_HEART_JUMP;
+
+#ifdef ANDROID_VENCODE
+	/* malloc vencoder param buff */
+	vencoder_tuning_param = (vencoder_tuning_param_cfg_t *)malloc(sizeof(vencoder_tuning_param_cfg_t));
+	if (vencoder_tuning_param == NULL) {
+		LOG("%s:malloc vencoder param buff fail, please check the total free memory\n", __FUNCTION__);
+	} else {
+		memset(vencoder_tuning_param, 0, sizeof(vencoder_tuning_param_cfg_t));
+	}
+	vencoder_tuning_param->common_cfg.EncodeFormat = VENC_CODEC_H264;
+	vencoder_tuning_param->common_cfg.mBitRate = 2*1024*1024;
+	vencoder_tuning_param->common_cfg.MaxKeyInterval = 30;
+	vencoder_tuning_param->common_cfg.mMixQp = 10;
+	vencoder_tuning_param->common_cfg.mMaxQp = 50;
+
+	vencoder_tuning_param->proc_cfg.ProcEnable = 1;
+	vencoder_tuning_param->proc_cfg.ProcFreq = 30;
+	vencoder_tuning_param->proc_cfg.StatisBitRateTime = 1000;
+
+	vencoder_tuning_param->fixqp_cfg.mIQp = 35;
+	vencoder_tuning_param->fixqp_cfg.mPQp = 35;
+
+	vencoder_tuning_param->proc_cfg.ProcEnable = 1;
+	vencoder_tuning_param->proc_cfg.ProcFreq = 60;
+#endif
 	while (1) {
 		CHECK_THREAD_STOP();
 		//msleep(1000);  // check interval
@@ -98,6 +125,10 @@ void *sock_handle_heart_jump_thread(void *params)
 	}
 	close(sock_fd);
 	g_thread_status &= ~TH_STATUS_HEART_JUMP;
+#ifdef ANDROID_VENCODE
+	/* free vencoder param buff */
+	free(vencoder_tuning_param);
+#endif
 	//NOTIFY_ALL_STOPS();
 	LOG("%s: exits - %d\n", __FUNCTION__, sock_fd);
 
@@ -109,18 +140,19 @@ void *sock_handle_preview_thread(void *params)
 	int ret = 0;
 	sock_packet comm_packet;
 	int sock_fd = (int)params;
-	int timeout_times = 0, tmp = 0;
+	int timeout_times = 0, tmp = 0, init_flag = 0;
 	capture_format cap_fmt;
-	cap_fmt.buffer = (unsigned char *)malloc(1 << 24); // 16M
+	//cap_fmt.buffer = (unsigned char *)malloc(1 << 23); // 16M
 
 	LOG("%s: starts - %d\n", __FUNCTION__, sock_fd);
 	g_thread_status |= TH_STATUS_PREVIEW;
 	while (1) {
 		CHECK_THREAD_STOP();
-		ret = sock_read_check_packet(__FUNCTION__, sock_fd, &comm_packet, SOCK_CMD_PREVIEW, SOCK_DEFAULT_TIMEOUT);
+		ret = sock_read_check_packet(__FUNCTION__, sock_fd, &comm_packet, SOCK_CMD_PREVIEW, SOCK_DEFAULT_TIMEOUT/10);
 		if (SHOULD_CLOSE_SOCK(ret)) {
 			break;
 		} else if (SOCK_RW_CHECK_OK == ret) {
+			//g_thread_status |= TH_STATUS_PREVIEW;
 			timeout_times = 0;
 			cap_fmt.format = ntohl(comm_packet.reserved[0]);
 			tmp = ntohl(comm_packet.reserved[1]);
@@ -131,6 +163,9 @@ void *sock_handle_preview_thread(void *params)
 			cap_fmt.fps = (tmp >> 16) & 0x0000ffff;
 			cap_fmt.wdr = tmp & 0x0000ffff;
 			cap_fmt.length = 0;
+			#if(ISP_VERSION >= 522)
+			cap_fmt.index =  ntohl(comm_packet.index);
+			#endif
 			memset(cap_fmt.width_stride, 0, sizeof(cap_fmt.width_stride));
 			switch (cap_fmt.format) {
 			case V4L2_PIX_FMT_NV12:
@@ -150,6 +185,12 @@ void *sock_handle_preview_thread(void *params)
 			default:
 				cap_fmt.planes_count = 1;
 				break;
+			}
+			if (!init_flag) {
+				cap_fmt.buffer = (unsigned char *)malloc(((cap_fmt.width/16+1)*16) * ((cap_fmt.height/16+1)*16) * 2);
+				if(cap_fmt.buffer == NULL)
+					LOG("%s:malloc cap_fmt.buffer fail, please check the total free memory\n", __FUNCTION__);
+				init_flag = 1;
 			}
 			/*LOG("%s: ready to get preview - fmt:%d,%dx%d@%d,wdr:%d,ch:%d,planes:%d\n", __FUNCTION__,
 					cap_fmt.format, cap_fmt.width, cap_fmt.height,
@@ -179,7 +220,11 @@ void *sock_handle_preview_thread(void *params)
 		} else {
 			if (ETIMEDOUT == errno) {
 				timeout_times++;
-				if (timeout_times > SERVER_TIMEOUT_MAX) {
+				//if (timeout_times == 1) {
+				//	g_thread_status &= ~TH_STATUS_PREVIEW;
+					//LOG("%s: timeout, run loop_thread\n", __FUNCTION__);
+				//}
+				if (timeout_times > SERVER_TIMEOUT_MAX*10) {
 					LOG("%s: timeout too many times\n", __FUNCTION__);
 					break;
 				}
@@ -198,7 +243,7 @@ void *sock_handle_preview_thread(void *params)
 }
 
 //#define SAVE_FLOW
-#define TRANSFER_SIZE (1<<22) //4M
+//#define TRANSFER_SIZE (1<<22) //4M
 void *sock_handle_capture_thread(void *params)
 {
 	int ret = 0;
@@ -206,6 +251,7 @@ void *sock_handle_capture_thread(void *params)
 	int sock_fd = (int)params;
 	int timeout_times = 0, tmp = 0;
 	capture_format cap_fmt;
+	unsigned int TRANSFER_SIZE;
 	//cap_fmt.buffer = (unsigned char *)malloc(1 << 24); // 16M
 
 #ifdef SAVE_FLOW
@@ -233,8 +279,12 @@ void *sock_handle_capture_thread(void *params)
 			cap_fmt.wdr = tmp & 0x0000ffff;
 			cap_fmt.length = 0;
 			cap_fmt.framecount = ntohl(comm_packet.framecount);
+			#if(ISP_VERSION >= 522)
+			cap_fmt.index =  ntohl(comm_packet.index);
+			#endif
 			memset(cap_fmt.width_stride, 0, sizeof(cap_fmt.width_stride));
-			cap_fmt.buffer = (unsigned char *)malloc(TRANSFER_SIZE* cap_fmt.framecount); // 4M*cap_fmt.framecount
+			TRANSFER_SIZE = ((cap_fmt.width/16+1)*16) * ((cap_fmt.height/16+1)*16) * 2;
+			cap_fmt.buffer = (unsigned char *)malloc(TRANSFER_SIZE * cap_fmt.framecount); // 4M*cap_fmt.framecount
 			switch (cap_fmt.format) {
 			case V4L2_PIX_FMT_NV12:
 			case V4L2_PIX_FMT_NV21:
@@ -299,7 +349,7 @@ void *sock_handle_capture_thread(void *params)
 				LOG("%s: get capture - fmt:%d,%dx%d,length:%d,ch:%d[%d, %d, %d]\n", __FUNCTION__,
 					cap_fmt.format, cap_fmt.width, cap_fmt.height, cap_fmt.length, cap_fmt.channel,
 					cap_fmt.width_stride[0], cap_fmt.width_stride[1], cap_fmt.width_stride[2]);
-				
+
 				comm_packet.data_length = htonl(cap_fmt.length);
 				comm_packet.reserved[0] = htonl(cap_fmt.format);
 				comm_packet.reserved[1] = htonl((cap_fmt.width << 16) | (cap_fmt.height & 0x0000ffff));
@@ -313,16 +363,16 @@ void *sock_handle_capture_thread(void *params)
 					LOG("begin transfer......\n");
 					while((length > TRANSFER_SIZE) && (length > 0))
 					{
-						memset(buffer, 0, sizeof(buffer));
+						memset(buffer, 0, TRANSFER_SIZE * sizeof(unsigned char));
 						memcpy(buffer, &cap_fmt.buffer[len], TRANSFER_SIZE);
-						ret = sock_write(sock_fd, (const void *)buffer, 1<<22, SOCK_DEFAULT_TIMEOUT);
+						ret = sock_write(sock_fd, (const void *)buffer, TRANSFER_SIZE, SOCK_DEFAULT_TIMEOUT);
 						length -= TRANSFER_SIZE;
 						len += TRANSFER_SIZE;
 						msleep(1000);
 					}
 					if(length > 0)
 					{
-						memset(buffer, 0, sizeof(buffer));
+						memset(buffer, 0, TRANSFER_SIZE * sizeof(unsigned char));
 						memcpy(buffer, &cap_fmt.buffer[len], length);
 						ret = sock_write(sock_fd, (const void *)buffer, length, SOCK_DEFAULT_TIMEOUT);
 						len += length;
@@ -352,6 +402,158 @@ void *sock_handle_capture_thread(void *params)
 	//free(cap_fmt.buffer);
 	//cap_fmt.buffer = NULL;
 	g_thread_status &= ~TH_STATUS_CAPTURE;
+	LOG("%s: exits - %d\n", __FUNCTION__, sock_fd);
+
+	return 0;
+}
+
+void *sock_handle_blockinfo_thread(void *params)
+{
+	int ret = 0, i, total_buf;
+	sock_packet comm_packet;
+	int sock_fd = (int)params;
+	int timeout_times = 0, tmp = 0, init_flag = 0, type, m_GrayBlocksFlag = 0, block_sel, status, GrayBlocksFlag_current = 0, GrayBlocksFlag_last = 0;
+	capture_format cap_fmt;
+	SRegion region[20] = {0};
+	SRegion region_last[20] = {0};
+	//cap_fmt.buffer = (unsigned char *)malloc(1 << 23); // 16M
+	cap_fmt.buffer = NULL;
+
+	LOG("%s: starts - %d\n", __FUNCTION__, sock_fd);
+	g_thread_status |= TH_STATUS_BLOCK_INFO;
+	while (1) {
+		CHECK_THREAD_STOP();
+		ret = sock_read_check_packet(__FUNCTION__, sock_fd, &comm_packet, SOCK_CMD_BLOCKINFO, SOCK_DEFAULT_TIMEOUT);
+		if (SHOULD_CLOSE_SOCK(ret)) {
+			break;
+		} else if (SOCK_RW_CHECK_OK == ret) {
+			timeout_times = 0;
+			type = comm_packet.cmd_ids[1];
+			if (type == SOCK_CMD_SET_REGION) {
+				tmp = ntohl(comm_packet.reserved[0]);
+				block_sel = (tmp >> 16) & 0x0000ffff;
+				status = tmp & 0x0000ffff;
+				tmp = ntohl(comm_packet.reserved[1]);
+				m_GrayBlocksFlag = tmp & 0x000fffff;
+				tmp = ntohl(comm_packet.reserved[2]);
+				region[block_sel].left = (tmp >> 16) & 0x0000ffff;
+				region[block_sel].top = tmp & 0x0000ffff;
+				tmp = ntohl(comm_packet.reserved[3]);
+				region[block_sel].right = (tmp >> 16) & 0x0000ffff;
+				region[block_sel].bottom = tmp & 0x0000ffff;
+				if (status)
+					GrayBlocksFlag_current |= (1 << block_sel);
+				else
+					GrayBlocksFlag_current &= ~(1 << block_sel);
+
+				comm_packet.ret = htonl(SOCK_CMD_RET_OK);
+				//comm_packet.reserved[0] = htonl(GrayBlocksFlag_current);
+				ret = sock_write(sock_fd, (const void *)&comm_packet, sizeof(comm_packet), SOCK_DEFAULT_TIMEOUT);
+				LOG("%s:Set Block[%d] Region done.status %d.m_GrayBlocksFlag = 0x%08x, cur = 0x%08x(Region:%d, %d, %d, %d)\n", __FUNCTION__,
+					block_sel, status, m_GrayBlocksFlag, GrayBlocksFlag_current, region[block_sel].left, region[block_sel].top,
+					region[block_sel].right, region[block_sel].bottom);
+			} else if (type == SOCK_CMD_GET_BLOCKINFO) {
+				cap_fmt.format = ntohl(comm_packet.reserved[0]);
+				tmp = ntohl(comm_packet.reserved[1]);
+				cap_fmt.width = (tmp >> 16) & 0x0000ffff;
+				cap_fmt.height = tmp & 0x0000ffff;
+				cap_fmt.channel = ntohl(comm_packet.reserved[2]);
+				tmp = ntohl(comm_packet.reserved[3]);
+				cap_fmt.fps = (tmp >> 16) & 0x0000ffff;
+				cap_fmt.wdr = tmp & 0x0000ffff;
+				cap_fmt.length = 0;
+				#if(ISP_VERSION >= 522)
+				cap_fmt.index =  ntohl(comm_packet.index);
+				#endif
+				memset(cap_fmt.width_stride, 0, sizeof(cap_fmt.width_stride));
+				switch (cap_fmt.format) {
+				case V4L2_PIX_FMT_NV12:
+				case V4L2_PIX_FMT_NV21:
+				case V4L2_PIX_FMT_YUV420:
+				case V4L2_PIX_FMT_YVU420:
+					cap_fmt.planes_count = 1;
+					break;
+				case V4L2_PIX_FMT_NV12M:
+				case V4L2_PIX_FMT_NV21M:
+					cap_fmt.planes_count = 2;
+					break;
+				case V4L2_PIX_FMT_YUV420M:
+				case V4L2_PIX_FMT_YVU420M:
+					cap_fmt.planes_count = 3;
+					break;
+				default:
+					cap_fmt.planes_count = 1;
+					break;
+				}
+				//check tunningapp and pctools block num
+				if (GrayBlocksFlag_current != m_GrayBlocksFlag) {
+					LOG("%s: block num error - (0x%08x, 0x%08x)\n", __FUNCTION__, m_GrayBlocksFlag, GrayBlocksFlag_current);
+					comm_packet.ret = htonl(SOCK_CMD_RET_FAILED);
+					comm_packet.reserved[0] = htonl(GrayBlocksFlag_current);
+					ret = sock_write(sock_fd, (const void *)&comm_packet, sizeof(comm_packet), SOCK_DEFAULT_TIMEOUT);
+					continue;
+				}
+
+				if (cap_fmt.buffer != NULL && (memcmp(region, region_last, 20 * sizeof(SRegion)) || GrayBlocksFlag_last != GrayBlocksFlag_current)) {
+					LOG("%s: ready to re_malloc cap_fmt.buffer\n", __FUNCTION__);
+					free(cap_fmt.buffer);
+					init_flag = 0;
+				}
+
+				if (!init_flag) {
+					total_buf = 0;
+					for (i = 0; i < 20; i++) {
+						if (m_GrayBlocksFlag & (1 << i)) {
+							total_buf += (region[i].right - region[i].left + 1) * (region[i].bottom - region[i].top + 1);
+						}
+					}
+					cap_fmt.buffer = (unsigned char *)malloc(total_buf);
+					if(cap_fmt.buffer == NULL)
+						LOG("%s:malloc cap_fmt.buffer fail, please check the total free memory\n", __FUNCTION__);
+
+					memcpy(region_last, region, 20 * sizeof(SRegion));
+					GrayBlocksFlag_last = GrayBlocksFlag_current;
+					init_flag = 1;
+				}
+				/*LOG("%s: ready to get preview - fmt:%d,%dx%d@%d,wdr:%d,ch:%d,planes:%d\n", __FUNCTION__,
+						cap_fmt.format, cap_fmt.width, cap_fmt.height,
+						cap_fmt.fps, cap_fmt.wdr,
+						cap_fmt.channel, cap_fmt.planes_count);*/
+				ret = get_capture_blockinfo(&cap_fmt, GrayBlocksFlag_current, region);
+				if (CAP_ERR_NONE != ret) {
+					LOG("%s: failed to get blockinfo - fmt:%d,%dx%d,ch:%d,planes:%d\n", __FUNCTION__,
+						cap_fmt.format, cap_fmt.width, cap_fmt.height,
+						cap_fmt.channel, cap_fmt.planes_count);
+					comm_packet.ret = htonl(SOCK_CMD_RET_FAILED);
+					ret = sock_write(sock_fd, (const void *)&comm_packet, sizeof(comm_packet), SOCK_DEFAULT_TIMEOUT);
+				} else {
+					comm_packet.data_length = htonl(cap_fmt.length);
+					comm_packet.reserved[0] = htonl(cap_fmt.format);
+					comm_packet.reserved[1] = htonl((cap_fmt.width << 16) | (cap_fmt.height & 0x0000ffff));
+					comm_packet.reserved[2] = htonl((cap_fmt.width_stride[0] << 16) | (cap_fmt.width_stride[1] & 0x0000ffff));
+					comm_packet.reserved[3] = htonl((cap_fmt.width_stride[2] << 16));
+					ret = sock_write_check_packet(__FUNCTION__, sock_fd, &comm_packet, SOCK_CMD_BLOCKINFO, SOCK_DEFAULT_TIMEOUT);
+					if (SOCK_RW_CHECK_OK == ret) {
+						ret = sock_write(sock_fd, (const void *)cap_fmt.buffer, cap_fmt.length, SOCK_DEFAULT_TIMEOUT);
+					}
+				}
+			}
+		} else {
+			if (ETIMEDOUT == errno) {
+				timeout_times++;
+				if (timeout_times > SERVER_TIMEOUT_MAX) {
+					LOG("%s: timeout too many times\n", __FUNCTION__);
+					break;
+				}
+			} else {
+				timeout_times = 0;
+			}
+		}
+	}
+	close(sock_fd);
+	free(cap_fmt.buffer);
+	cap_fmt.buffer = NULL;
+	g_thread_status &= ~TH_STATUS_BLOCK_INFO;
 	LOG("%s: exits - %d\n", __FUNCTION__, sock_fd);
 
 	return 0;
@@ -387,7 +589,7 @@ void *sock_handle_tuning_thread(void *params)
 			isp_sel = ntohl(comm_packet.reserved[0]);
 			if (SOCK_CMD_GET_CFG == type) {
 				LOG("%s: get cfg(isp %d) - group:%02x, cfgs:%08x, length:%d\n", __FUNCTION__, isp_sel, group_id, cfg_ids, cfg_length);
-				ret = select_isp(isp_sel);
+				ret = select_isp(isp_sel, 0);
 				if (ret < 0) {
 					LOG("%s: failed to select isp - %d\n", __FUNCTION__, isp_sel);
 					comm_packet.ret = htonl(SOCK_CMD_RET_FAILED);
@@ -411,7 +613,7 @@ void *sock_handle_tuning_thread(void *params)
 				}
 			} else if (SOCK_CMD_SET_CFG == type) {
 				LOG("%s: set cfg(isp %d) - group:%02x, cfgs:%08x, length:%d\n", __FUNCTION__, isp_sel, group_id, cfg_ids, cfg_length);
-				ret = select_isp(isp_sel);
+				ret = select_isp(isp_sel, 0);
 				if (ret < 0) {
 					LOG("%s: failed to select isp - %d\n", __FUNCTION__, isp_sel);
 					comm_packet.ret = htonl(SOCK_CMD_RET_FAILED);
@@ -442,7 +644,7 @@ void *sock_handle_tuning_thread(void *params)
 				}
 			} else if (SOCK_CMD_UPDATE_CFG == type) {
 				LOG("%s: update isp - %d\n", __FUNCTION__, isp_sel);
-				ret = select_isp(isp_sel);
+				ret = select_isp(isp_sel, 0);
 				if (ret < 0) {
 					LOG("%s: failed to select isp - %d\n", __FUNCTION__, isp_sel);
 					comm_packet.ret = htonl(SOCK_CMD_RET_FAILED);
@@ -450,7 +652,7 @@ void *sock_handle_tuning_thread(void *params)
 					continue;
 				}
 				ret = isp_update(isp_sel);
-				if (ret < 0) { 
+				if (ret < 0) {
 					LOG("%s: failed to update isp - %d\n", __FUNCTION__, isp_sel);
 					comm_packet.ret = htonl(SOCK_CMD_RET_FAILED);
 				} else {
@@ -459,16 +661,16 @@ void *sock_handle_tuning_thread(void *params)
 				ret = sock_write(sock_fd, (const void *)&comm_packet, sizeof(comm_packet), SOCK_DEFAULT_TIMEOUT);
 			} else if (SOCK_CMD_ISP_SEL == type) {
 				LOG("%s: set isp - %d\n", __FUNCTION__, isp_sel);
-				ret = select_isp(isp_sel);
-				if (ret < 0) { 
+				ret = select_isp(isp_sel, 0);
+				if (ret < 0) {
 					LOG("%s: failed to select isp - %d\n", __FUNCTION__, isp_sel);
 					comm_packet.ret = htonl(SOCK_CMD_RET_FAILED);
 				} else {
 					comm_packet.ret = htonl(SOCK_CMD_RET_OK);
 				}
-				ret = sock_write(sock_fd, (const void *)&comm_packet, sizeof(comm_packet), SOCK_DEFAULT_TIMEOUT); 
+				ret = sock_write(sock_fd, (const void *)&comm_packet, sizeof(comm_packet), SOCK_DEFAULT_TIMEOUT);
 			} else {
-				LOG("%s: unknown cmd - %d, %d, %d, %d\n", __FUNCTION__, type, group_id, cfg_ids, cfg_length);
+				LOG("%s: unknown cmd - %d, %u, %u, %d\n", __FUNCTION__, type, group_id, cfg_ids, cfg_length);
 				comm_packet.ret = htonl(SOCK_CMD_RET_FAILED);
 				ret = sock_write(sock_fd, (const void *)&comm_packet, sizeof(comm_packet), SOCK_DEFAULT_TIMEOUT);
 			}
@@ -500,7 +702,7 @@ void *sock_handle_statistics_thread(void *params)
 	int sock_fd = (int)params;
 	int isp_sel = 0, type = 0, stats_length = 0;
 	void *stats_info = NULL;
-	struct isp_stats_context *stats_context = (struct isp_stats_context *)malloc(sizeof(struct isp_stats_context)); 
+	struct isp_stats_context *stats_context = (struct isp_stats_context *)malloc(sizeof(struct isp_stats_context));
 	int timeout_times = 0;
 
 	LOG("%s: starts - %d\n", __FUNCTION__, sock_fd);
@@ -517,7 +719,7 @@ void *sock_handle_statistics_thread(void *params)
 			isp_sel = ntohl(comm_packet.reserved[0]);
 
 			if (SOCK_CMD_STAT_AE == type || SOCK_CMD_STAT_AWB == type || SOCK_CMD_STAT_AF == type) {
-				ret = select_isp(isp_sel);
+				ret = select_isp(isp_sel, 0);
 				ret = isp_stats_req(isp_sel, stats_context);
 				if (ret >= 0) {   // get OK
 					if (SOCK_CMD_STAT_AE == type) {
@@ -535,7 +737,7 @@ void *sock_handle_statistics_thread(void *params)
 					}
 					//output_3a_info(stats_info, type);
 					hton_3a_info(stats_info, type);
-					
+
 					comm_packet.data_length = htonl(stats_length);
 					ret = sock_write_check_packet(__FUNCTION__, sock_fd, &comm_packet, SOCK_CMD_GET_STAT, SOCK_DEFAULT_TIMEOUT);
 					if (SOCK_RW_CHECK_OK == ret) {
@@ -654,7 +856,7 @@ void *sock_handle_script_thread(void *params)
 					}
 				}
 			}
-		} else { 
+		} else {
 			if (ETIMEDOUT == errno) {
 				timeout_times++;
 				if (timeout_times > SERVER_TIMEOUT_MAX) {
@@ -704,7 +906,7 @@ void *sock_handle_register_thread(void *params)
 			sensor_name_length = ntohl(comm_packet.data_length);
 			if (SOCK_CMD_REG_READ == type) {
 				LOG("%s: read 0x%04x\n", __FUNCTION__, reg_addr);
-				reg_data = read_reg(reg_addr);
+				reg_data = read_reg(reg_addr, data_width);
 				if (reg_data >= 0) { // read ok
 					comm_packet.reserved[3] = htonl(reg_data);
 					ret = sock_write(sock_fd, (const void *)&comm_packet, sizeof(comm_packet), SOCK_DEFAULT_TIMEOUT);
@@ -845,14 +1047,17 @@ void *sock_handle_set_input_thread(void *params)
 			tmp = ntohl(comm_packet.reserved[2]);
 			sensor_in.fps = (tmp >> 16) & 0x0000ffff;
 			sensor_in.wdr = tmp & 0x0000ffff;
-			LOG("%s: isp %d, vich %d, %dx%d@%d, wdr %d\n", __FUNCTION__,
+			#if(ISP_VERSION >= 522)
+			sensor_in.index =  ntohl(comm_packet.index);
+			#endif
+			LOG("%s: isp %d, vich %d, %dx%d@%d, wdr %d.\n", __FUNCTION__,
 				sensor_in.isp, sensor_in.channel,
 				sensor_in.width, sensor_in.height,
 				sensor_in.fps, sensor_in.wdr);
 			ret = set_sensor_input(&sensor_in);
 			if (CAP_ERR_NONE == ret) { // set ok
 				msleep(1000);
-				ret = select_isp(sensor_in.isp);
+				ret = select_isp(sensor_in.isp, 1);
 				ret = sock_write(sock_fd, (const void *)&comm_packet, sizeof(comm_packet), SOCK_DEFAULT_TIMEOUT);
 			} else {
 				LOG("%s: failed to set input(isp %d, ch %d)\n", __FUNCTION__,
@@ -909,6 +1114,9 @@ void *sock_handle_raw_flow_thread(void *params)
 			cap_fmt.height = tmp & 0x0000ffff;
 			cap_fmt.channel = ntohl(comm_packet.reserved[2]);
 			cap_fmt.length = 0;
+			#if(ISP_VERSION >= 522)
+			cap_fmt.index =  ntohl(comm_packet.index);
+			#endif
 			memset(cap_fmt.width_stride, 0, sizeof(cap_fmt.width_stride));
 			if (SOCK_CMD_RAW_FLOW_START == type) {
 				ret = start_raw_flow(&cap_fmt);
@@ -996,9 +1204,9 @@ void *sock_handle_isp_version_thread(void *params)
 		} else if (SOCK_RW_CHECK_OK == ret) {
 			get_isp_version(buffer);
 			LOG("isp version = %s, function = %s\n", buffer, __FUNCTION__);
-			ret = sock_write(sock_fd, (const void *)buffer, strlen(buffer), SOCK_DEFAULT_TIMEOUT);	
+			ret = sock_write(sock_fd, (const void *)buffer, strlen(buffer), SOCK_DEFAULT_TIMEOUT);
 			if(ret != strlen(buffer))
-			{	
+			{
 				LOG("%s: write isp version failed!, ret:%d\n", __FUNCTION__, ret);
 				break;
 			}
@@ -1019,4 +1227,171 @@ void *sock_handle_isp_version_thread(void *params)
 	buffer = NULL;
 	g_thread_status &= ~TH_STATUS_TUNING;
 	LOG("%s: exits - %d\n", __FUNCTION__, sock_fd);
+
+	return NULL;
 }
+
+#ifdef ANDROID_VENCODE
+void *sock_handle_preview_vencode_thread(void *params)
+{
+	int ret = 0, frame_count = 0;
+	sock_packet comm_packet;
+	int sock_fd = (int)params;
+	int timeout_times = 0, tmp = 0, encode_init = 0, type = 0;
+	capture_format cap_fmt;
+	encode_param_t encode_param;
+    unsigned char head_num;
+	LOG("%s: starts - %d\n", __FUNCTION__, sock_fd);
+	g_thread_status |= TH_STATUS_PREVIEW_VENCODE;
+#if 0
+	cap_fmt.buffer = (unsigned char *)malloc(1 << 24); // 16M
+	if(cap_fmt.buffer == NULL)
+	{
+		LOG("malloc cap_fmt.buffer fail, please check the total free memory\n");
+		return 0;
+	}
+#endif
+	while (1) {
+		CHECK_THREAD_STOP();
+		ret = sock_read_check_packet(__FUNCTION__, sock_fd, &comm_packet, SOCK_CMD_VENCODE, SOCK_DEFAULT_TIMEOUT);
+		if (SHOULD_CLOSE_SOCK(ret)) {
+			break;
+		} else if (SOCK_RW_CHECK_OK == ret) {
+			timeout_times = 0;
+			type = comm_packet.cmd_ids[1];
+			cap_fmt.format = ntohl(comm_packet.reserved[0]);
+			tmp = ntohl(comm_packet.reserved[1]);
+			cap_fmt.width = (tmp >> 16) & 0x0000ffff;
+			cap_fmt.height = tmp & 0x0000ffff;
+			cap_fmt.channel = ntohl(comm_packet.reserved[2]);
+			tmp = ntohl(comm_packet.reserved[3]);
+			cap_fmt.fps = (tmp >> 16) & 0x0000ffff;
+			cap_fmt.wdr = tmp & 0x0000ffff;
+			cap_fmt.length = 0;
+			#if(ISP_VERSION >= 522)
+			cap_fmt.index =  ntohl(comm_packet.index);
+			#endif
+			memset(cap_fmt.width_stride, 0, sizeof(cap_fmt.width_stride));
+			switch (cap_fmt.format) {
+			case V4L2_PIX_FMT_NV12:
+			case V4L2_PIX_FMT_NV21:
+			case V4L2_PIX_FMT_YUV420:
+			case V4L2_PIX_FMT_YVU420:
+				cap_fmt.planes_count = 1;
+				break;
+			case V4L2_PIX_FMT_NV12M:
+			case V4L2_PIX_FMT_NV21M:
+				cap_fmt.planes_count = 2;
+				break;
+			case V4L2_PIX_FMT_YUV420M:
+			case V4L2_PIX_FMT_YVU420M:
+				cap_fmt.planes_count = 3;
+				break;
+			default:
+				cap_fmt.planes_count = 1;
+				break;
+			}
+
+			//just need to init vencoder by 1 time
+			if (encode_init == 0) {
+				cap_fmt.buffer = (unsigned char *)malloc(((cap_fmt.width/16+1)*16) * ((cap_fmt.height/16+1)*16) * 2);
+				if(cap_fmt.buffer == NULL) {
+					LOG("%s:malloc cap_fmt.buffer fail, please check the total free memory\n", __FUNCTION__);
+					g_thread_status &= ~TH_STATUS_PREVIEW_VENCODE;
+					return 0;
+				}
+
+				ret = set_vencode_config(&cap_fmt, &encode_param);
+				if (ret) {
+					LOG("%s: update vencode config fail\n", __FUNCTION__);
+					comm_packet.ret = htonl(SOCK_CMD_RET_FAILED);
+					sock_write(sock_fd, (const void *)&comm_packet, sizeof(comm_packet), SOCK_DEFAULT_TIMEOUT);
+					continue;
+				}
+				ret = OpenEncoder(encode_param.encode_format);
+				if (ret) {
+					LOG("%s: detect openEnc error, exit progress@%d\n", __FUNCTION__, __LINE__);
+					CloseEncoder(&encode_param);
+					comm_packet.ret = htonl(SOCK_CMD_RET_FAILED);
+					sock_write(sock_fd, (const void *)&comm_packet, sizeof(comm_packet), SOCK_DEFAULT_TIMEOUT);
+					continue;
+				} else {
+					ret = PrepareEncoder(&encode_param);
+					if (ret) {
+						LOG("%s: detect prepareEnc error, exit progress@%d\n", __FUNCTION__, __LINE__);
+						CloseEncoder(&encode_param);
+						comm_packet.ret = htonl(SOCK_CMD_RET_FAILED);
+						sock_write(sock_fd, (const void *)&comm_packet, sizeof(comm_packet), SOCK_DEFAULT_TIMEOUT);
+						continue;
+					} else {
+						//vencoder init successfully
+						LOG("init video encoder successfully\n");
+						encode_init = 1;
+					}
+				}
+			}
+
+			if (encode_init == 1 && (type == SOCK_CMD_VENCODE_PPSSPS || type == SOCK_CMD_VENCODE_STREAM)) {
+				ret = get_capture_vencode_buffer(&cap_fmt, &encode_param, type);
+				if (CAP_ERR_NONE != ret) {
+					LOG("%s: ret=%d failed to get preview vencode - fmt:%d,%dx%d,ch:%d,planes:%d\n", __FUNCTION__, ret,
+						cap_fmt.format, cap_fmt.width, cap_fmt.height,
+						cap_fmt.channel, cap_fmt.planes_count);
+					comm_packet.ret = htonl(SOCK_CMD_RET_FAILED);
+					ret = sock_write(sock_fd, (const void *)&comm_packet, sizeof(comm_packet), SOCK_DEFAULT_TIMEOUT);
+				} else {
+					if(++frame_count % 50 == 0) {
+						LOG("%s: %d frames of ISP image have been encoded\n", __FUNCTION__, frame_count);
+					}
+					comm_packet.data_length = htonl(cap_fmt.length);
+					comm_packet.reserved[0] = htonl(cap_fmt.format);
+					comm_packet.reserved[1] = htonl((cap_fmt.width << 16) | (cap_fmt.height & 0x0000ffff));
+					comm_packet.reserved[2] = htonl((cap_fmt.width_stride[0] << 16) | (cap_fmt.width_stride[1] & 0x0000ffff));
+					comm_packet.reserved[3] = htonl((cap_fmt.width_stride[2] << 16));
+					/*LOG("%s: get preview - fmt:%d,%dx%d,length:%d,ch:%d[%d, %d, %d]\n", __FUNCTION__,
+						cap_fmt.format, cap_fmt.width, cap_fmt.height, cap_fmt.length, cap_fmt.channel,
+						cap_fmt.width_stride[0], cap_fmt.width_stride[1], cap_fmt.width_stride[2]);*/
+					ret = sock_write_check_packet(__FUNCTION__, sock_fd, &comm_packet, SOCK_CMD_VENCODE, SOCK_DEFAULT_TIMEOUT);
+					if (SOCK_RW_CHECK_OK == ret) {
+						/*LOG("%s: send cap_fmt.buffer to PC bufferdata = 0x%x 0x%x 0x%x\n", __FUNCTION__,
+										*(cap_fmt.buffer+3), *(cap_fmt.buffer+4), *(cap_fmt.buffer+5));*/
+						ret = sock_write(sock_fd, (const void *)cap_fmt.buffer, cap_fmt.length, SOCK_DEFAULT_TIMEOUT);
+					} else {
+						LOG("%s: fail to send cap_fmt.buffer to PC, ret=%d\n",__FUNCTION__, ret);
+					}
+				}
+			} else if(type == SOCK_CMD_VENCODE_STOP) {
+				LOG("reveive stop socket command, break loop and close vencoder\n");
+				comm_packet.ret = htonl(SOCK_CMD_RET_OK);
+				ret = sock_write(sock_fd, (const void *)&comm_packet, sizeof(comm_packet), SOCK_DEFAULT_TIMEOUT);
+				break;
+			} else {
+				LOG("%s: unknown cmd = %d vencode init status = %d\n", __FUNCTION__, type, encode_init);
+				comm_packet.ret = htonl(SOCK_CMD_RET_FAILED);
+				ret = sock_write(sock_fd, (const void *)&comm_packet, sizeof(comm_packet), SOCK_DEFAULT_TIMEOUT);
+			}
+
+		} else {
+			if (ETIMEDOUT == errno) {
+				timeout_times++;
+				if (timeout_times > SERVER_TIMEOUT_MAX) {
+					LOG("%s: timeout too many times\n", __FUNCTION__);
+					break;
+				}
+			} else {
+				timeout_times = 0;
+			}
+		}
+	}
+	if (encode_init == 1)
+		CloseEncoder(&encode_param);
+
+	close(sock_fd);
+	free(cap_fmt.buffer);
+	cap_fmt.buffer = NULL;
+	g_thread_status &= ~TH_STATUS_PREVIEW_VENCODE;
+	LOG("%s: exits - %d\n", __FUNCTION__, sock_fd);
+
+	return 0;
+}
+#endif

@@ -528,13 +528,17 @@
 #define ISP_LSC_TBL_LENGTH			(3*ISP_LENS_TBL_SIZE)
 
 #define ISP_MSC_TBL_LUT_DLT_SIZE	12
-#define ISP_MSC_TBL_LUT_SIZE	10
+#define ISP_MSC_TBL_LUT_SIZE	11
+#define ISP_AF_SQUARE_TBL_LUT_SIZE	16
 
 #define ISP_GAMMA_TRIGGER_POINTS	5
 
 #define ISP_CM_TEMP_NUM				3
 #define ISP_LSC_TEMP_NUM			6
 #define ISP_MSC_TEMP_NUM			6
+
+#define GTM_LUM_IDX_NUM 9
+#define GTM_VAR_IDX_NUM 9
 
 enum lensmode {
 	FF_MODE = 1,
@@ -621,10 +625,10 @@ enum isp_denoise_cfg {
 	ISP_DENOISE_LP0_NP_SIDE_RATIO = 7,
 	ISP_DENOISE_LP1_NP_SIDE_RATIO = 8,
 	ISP_DENOISE_LP2_NP_SIDE_RATIO = 9,
-	ISP_DENOISE_LP0_NP_CORE_RATIO = 10,
-	ISP_DENOISE_LP1_NP_CORE_RATIO = 11,
-	ISP_DENOISE_LP2_NP_CORE_RATIO = 12,
-	ISP_DENOISE_LP3_NP_CORE_RATIO = 13,
+	ISP_DENOISE_LP0_TH_RATIO = 10,
+	ISP_DENOISE_LP1_TH_RATIO = 11,
+	ISP_DENOISE_LP2_TH_RATIO = 12,
+	ISP_DENOISE_LP3_TH_RATIO = 13,
 	ISP_DENOISE_LP0_PCNT_RATIO = 14,
 	ISP_DENOISE_LP1_PCNT_RATIO = 15,
 	ISP_DENOISE_LP2_PCNT_RATIO = 16,
@@ -747,19 +751,22 @@ enum isp_pltm_comm_cfg {
 	ISP_PLTM_TOLERANCE = 15,
 	ISP_PLTM_SPEED = 16,
 	ISP_PLTM_STEP = 17,
+#if (ISP_VERSION >= 521)
 	ISP_PLTM_INTERVAL_FRAME = 18,
-
+#endif
 	ISP_PLTM_MAX,
 };
 
 enum isp_gca_cfg {
-	ISP_GCA_R_PARA0 = 0,
-	ISP_GCA_R_PARA1 = 1,
-	ISP_GCA_R_PARA2 = 2,
-	ISP_GCA_B_PARA0 = 3,
-	ISP_GCA_B_PARA1 = 4,
-	ISP_GCA_B_PARA2 = 5,
-	ISP_GCA_INT_CNS = 6,
+	ISP_GCA_CT_W = 0,
+	ISP_GCA_CT_H = 1,
+	ISP_GCA_R_PARA0 = 2,
+	ISP_GCA_R_PARA1 = 3,
+	ISP_GCA_R_PARA2 = 4,
+	ISP_GCA_B_PARA0 = 5,
+	ISP_GCA_B_PARA1 = 6,
+	ISP_GCA_B_PARA2 = 7,
+	ISP_GCA_INT_CNS = 8,
 	ISP_GCA_MAX,
 };
 
@@ -887,6 +894,19 @@ enum isp_input_seq {
 	ISP_RGGB = 5,
 	ISP_GBRG = 6,
 	ISP_GRBG = 7,
+};
+
+enum JUDGE_COMP_CFG {
+	STATUS_STATIC = 0,
+	STATUS_SUS_STATIC = 1,
+	STATUS_SUS_MOTION = 2,
+	STATUS_MOTION = 3,
+	STATUS_JUDGE_MAX,
+};
+
+enum pltm_algo_mode {
+	PLTM_ALGO_0 = 0,
+	PLTM_ALGO_1 = 1,
 };
 
 struct isp_ctc_config {
@@ -1145,7 +1165,65 @@ struct isp_dehaze_config {
 	unsigned short protect_dark_mean;
 	unsigned short protect_proj_mean;
 };
+#endif
 
+#if (ISP_VERSION >= 521)
+struct isp_af_en_config {
+	unsigned char af_iir0_en;
+	unsigned char af_fir0_en;
+	unsigned char af_iir0_sec0_en;
+	unsigned char af_iir0_sec1_en;
+	unsigned char af_iir0_sec2_en;
+	unsigned char af_iir0_ldg_en;
+	unsigned char af_fir0_ldg_en;
+	unsigned char af_iir_ds_en;
+	unsigned char af_fir_ds_en;
+	unsigned char af_offset_en;
+	unsigned char af_peak_en;
+	unsigned char af_squ_en;
+};
+
+struct isp_af_filter_config {
+	short af_iir0_g0;
+	short af_iir0_g1;
+	short af_iir0_g2;
+	short af_iir0_g3;
+	short af_iir0_g4;
+	short af_iir0_g5;
+	unsigned short af_iir0_s0;
+	unsigned short af_iir0_s1;
+	unsigned short af_iir0_s2;
+	unsigned short af_iir0_s3;
+	char af_fir0_g0;
+	char af_fir0_g1;
+	char af_fir0_g2;
+	char af_fir0_g3;
+	char af_fir0_g4;
+	unsigned char af_iir0_dilate;
+	unsigned char af_iir0_ldg_lgain;
+	unsigned char af_iir0_ldg_hgain;
+	unsigned char af_iir0_ldg_lth;
+	unsigned char af_iir0_ldg_hth;
+	unsigned char af_fir0_ldg_lgain;
+	unsigned char af_fir0_ldg_hgain;
+	unsigned char af_fir0_ldg_lth;
+	unsigned char af_fir0_ldg_hth;
+	unsigned char af_iir0_ldg_lslope;
+	unsigned char af_iir0_ldg_hslope;
+	unsigned char af_fir0_ldg_lslope;
+	unsigned char af_fir0_ldg_hslope;
+	unsigned char af_iir0_core_th;
+	unsigned char af_iir0_core_peak;
+	unsigned char af_fir0_core_th;
+	unsigned char af_fir0_core_peak;
+	unsigned char af_iir0_core_slope;
+	unsigned char af_fir0_core_slope;
+	unsigned char af_hlt_th;
+	short af_r_offset;
+	short af_g_offset;
+	short af_b_offset;
+};
+#else
 struct isp_af_en_config {
 	unsigned char af_iir0_en;
 	unsigned char af_iir1_en;

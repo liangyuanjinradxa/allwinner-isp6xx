@@ -28,6 +28,8 @@ typedef struct isp_pltm_param {
 
 	HW_S8 wdr_stitch_en;
 	HW_S32 wdr_ratio_real;
+	HW_U16 pltm_min_stren;
+	int ThreshValue;
 	isp_sensor_info_t sensor_info;
 } pltm_param_t;
 

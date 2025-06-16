@@ -36,7 +36,14 @@
 #include "SENSOR_H/s5k5e8_default_ini_a523.h"
 #elif (ISP_VERSION == 602)
 #include "SENSOR_H/ov13850_mipi_default_ini_a733.h"
+#include "SENSOR_H/ov13850_mipi_default_ini_video_a733.h"
+#include "SENSOR_H/ov13850_mipi_default_ini_capture_a733.h"
+#include "SENSOR_H/ov13b10_mipi_default_ini_a733.h"
+#include "SENSOR_H/ov13b10_mipi_default_ini_video_a733.h"
+#include "SENSOR_H/ov13b10_mipi_default_ini_capture_a733.h"
 #include "SENSOR_H/gc05a2_mipi_default_ini_a733.h"
+#include "SENSOR_H/gc030a_mipi_a733.h"
+#include "SENSOR_H/gc05a2_mipi_2_a733.h"
 #elif (ISP_VERSION == 603)
 #include "SENSOR_H/gc1084_mipi_default_ini_v821.h"
 #include "SENSOR_H/gc2053_mipi_default_ini_v821.h"
@@ -930,7 +937,14 @@ struct isp_cfg_array cfg_arr[] = {
 	{"imx319_mipi", "imx319_mipi_default_ini_a523", 3264, 2448, 30, 0, 0, &imx319_mipi_isp_cfg},
 #elif (ISP_VERSION == 602)
 	{"ov13850_mipi", "ov13850_mipi_default_ini_a733", 4224, 3136, 30, 0, 0, &ov13850_mipi_isp_cfg},
+	{"ov13850_mipi", "ov13850_mipi_default_ini_a733", 4224, 3136, 18, 0, 0, &ov13850_mipi_capture_isp_cfg},
+	{"ov13850_mipi", "ov13850_mipi_default_ini_a733", 2112, 1568, 30, 0, 0, &ov13850_mipi_video_isp_cfg},
+	{"ov13b10_mipi", "ov13b10_mipi_default_ini_a733", 4160, 3120, 30, 0, 0, &ov13b10_mipi_isp_cfg},
+	{"ov13b10_mipi", "ov13b10_mipi_default_ini_a733", 4160, 3120, 18, 0, 0, &ov13b10_mipi_capture_isp_cfg},
+	{"ov13b10_mipi", "ov13b10_mipi_default_ini_a733", 2104, 1560, 30, 0, 0, &ov13b10_mipi_video_isp_cfg},
 	{"gc05a2_mipi", "gc05a2_mipi_default_ini_a733", 2592, 1944, 30, 0, 0, &gc05a2_mipi_a733_isp_cfg},
+	{"gc05a2_mipi_2", "gc05a2_mipi_2_a733", 2592, 1944, 30, 0, 0, &gc05a2_mipi_2_a733_isp_cfg},
+	{"gc030a_mipi", "gc030a_mipi_isp_cfg", 640, 480, 30, 0, 0, &gc030a_mipi_isp_cfg},
 #elif (ISP_VERSION == 603)
 	{"gc1084_mipi", "gc1084_mipi_default_ini_v821", 1280, 720, 20, 0, 0, &gc1084_mipi_gj_color_isp_cfg},
 	{"gc2053_mipi", "gc2053_mipi_default_ini_v821", 1920, 1080, 20, 0, 0, &gc2053_mipi_v821_isp_cfg},
@@ -1261,7 +1275,7 @@ int parser_ini_info(struct isp_param_config *param, char *sensor_name,
 
 	//load header parameter
 	for (i = 0; i < array_size(cfg_arr); i++) {
-		if (!strncmp(sensor_name, cfg_arr[i].sensor_name, 6) &&
+		if (!strncmp(sensor_name, cfg_arr[i].sensor_name, 20) &&
 		    (w == cfg_arr[i].width) && (h == cfg_arr[i].height) &&
 		    (fps == cfg_arr[i].fps) && (wdr == cfg_arr[i].wdr) &&
 		    (ir == cfg_arr[i].ir)) {

@@ -27,7 +27,7 @@
 /* AE */
 #define AE_FNO_STEP	16
 #define ISP_AE_START_FRAME_NUM	3
-
+#define ISP_SAVE_SETTING_NUM 5
 /*
  *  Exposure metering
  */
@@ -94,17 +94,35 @@ struct ev_setting {
 	HW_U32 ev_digital_gain;
 	HW_U32 ev_total_gain;// ev_total_gain = ev_analog_gain x ev_digital_gain
 	HW_U32 ev_sensor_exp_line;
+	HW_U32 ev_sensor_true_exp_line;
 	HW_U32 ev_f_number;	//x100
 	HW_U32 ev_fno2;	//x10000
 
 	HW_U32 ev_av;
 	HW_U32 ev_tv;
 	HW_U32 ev_sv;
-	HW_U32 ev_lv;
+	HW_S32 ev_lv;
 	HW_U32 ev;
 
 	HW_S32 ev_idx;
 };
+
+typedef struct ev_setting_save {
+	/* AE_WDR_CHANGE */
+	HW_S32 wdr_ratio_hardware;
+	/* AE_DG_CHANGE */
+	HW_U32 ev_digital_gain;
+	HW_U32 ev_digital_gain_short;
+	/* gain_delay */
+	HW_U32 ev_analog_gain;
+	HW_U32 ev_analog_gain_short;
+	/* exp_delay */
+	HW_U32 ev_sensor_exp_line;
+	HW_U32 ev_sensor_exp_line_short;
+	HW_U32 ev_exposure_time;
+	HW_U32 ev_exposure_time_short;
+	HW_S32 wdr_ratio_sensor;
+} ev_setting_save_t;
 
 /*
  *
@@ -223,6 +241,14 @@ typedef struct isp_ae_param {
 	isp_sensor_info_t ae_sensor_info;
 	ae_test_config_t test_cfg;
 	int ae_target_comp;
+	int comanding_input_bits;
+	int comanding_output_bits;
+	bool nor_cmd_mode;
+#if (ISP_VERSION == 500 || ISP_VERSION == 520 || ISP_VERSION == 521)
+	bool use_dnr_update;
+#endif
+	bool ae_save_delay_en;
+	HW_U8 delay_max;
 } ae_param_t;
 
 typedef struct isp_ae_stats {
@@ -249,6 +275,7 @@ typedef struct isp_ae_result {
 	enum ae_status ae_status;
 	sensor_setting_t sensor_set;//[2] for wdr mode
 	sensor_setting_t sensor_set_short;
+	ev_setting_save_t ev_set_save[ISP_SAVE_SETTING_NUM];/*for isp&ae delay*/
 	HW_S32 BrightPixellValue;
 	HW_S32 DarkPixelValue;
 

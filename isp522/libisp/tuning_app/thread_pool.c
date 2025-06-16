@@ -198,7 +198,7 @@ int exit_thread_pool()
 {
 	int i = 0, status = 0;
 	work_thread_list_node *list_node = NULL, *list_node0 = NULL;
-	
+
 	LOG("%s: ready to exit\n", __FUNCTION__);
 
 	pthread_mutex_lock(&g_global_lock);

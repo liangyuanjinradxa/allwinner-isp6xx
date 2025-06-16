@@ -1,7 +1,7 @@
 #include "socket_protocol.h"
 #include "log_handle.h"
 
-#define BLOCK_MAX_LENGTH     4096
+#define BLOCK_MAX_LENGTH     (1<<15)
 
 /*
  * operate with timeout, not includes the real operation
@@ -156,7 +156,7 @@ int check_sock_packet(const sock_packet *packet, sock_command_code sock_cmd)
 		return -2;
 	}
 
-	return 0;	
+	return 0;
 }
 
 /*
@@ -178,7 +178,7 @@ void pack_packet(sock_packet *packet)
  * timeout: timeout in seconds
  * returns sock_rw_check_ret
  */
-int sock_read_check_packet(const char *func_name, int sock_fd, sock_packet *comm_packet, 
+int sock_read_check_packet(const char *func_name, int sock_fd, sock_packet *comm_packet,
 	sock_command_code sock_cmd, int timeout)
 {
 	int ret = -1;
@@ -190,7 +190,7 @@ int sock_read_check_packet(const char *func_name, int sock_fd, sock_packet *comm
 			//LOG("%s#%s: failed to read, try again\n", __FUNCTION__, func_name);
 			return SOCK_RW_TRY_AGAIN;
 		} else {
-			LOG("%s#%s: failed to read sock %d(%d, %s)\n", __FUNCTION__, func_name, 
+			LOG("%s#%s: failed to read sock %d(%d, %s)\n", __FUNCTION__, func_name,
 				sock_fd, errno, strerror(errno));
 			return SOCK_RW_READ_ERROR;
 		}
@@ -234,12 +234,12 @@ int sock_read_check_packet(const char *func_name, int sock_fd, sock_packet *comm
 	if (ret != SOCK_CMD_RET_OK) {
 		LOG("%s#%s: reply ret error(sock %d, %d)\n", __FUNCTION__, func_name, sock_fd, ret);
 		return SOCK_RW_RET_ERROR;
-	}	
+	}
 
 	return SOCK_RW_CHECK_OK;
 }
 
-int sock_write_check_packet(const char *func_name, int sock_fd, sock_packet *comm_packet, 
+int sock_write_check_packet(const char *func_name, int sock_fd, sock_packet *comm_packet,
 	sock_command_code sock_cmd, int timeout)
 {
 	int ret = -1;

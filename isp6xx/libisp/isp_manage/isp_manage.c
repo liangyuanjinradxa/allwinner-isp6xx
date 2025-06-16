@@ -20,10 +20,8 @@
 #include "../include/isp_debug.h"
 #include "../include/isp_base.h"
 #include "../isp_math/isp_math_util.h"
-
-#if ISP_LIB_USE_OTP
 #include "isp_otp_golden.h"
-#endif
+
 #if ISP_AI_SCENE_CONF
 #include "../include/ai_scene_param.h"
 #endif
@@ -242,6 +240,10 @@ void __isp_iso_set_params(struct isp_lib_context *isp_gen)
 void __isp_iso_run(struct isp_lib_context *isp_gen)
 {
 	isp_iso_entity_context_t *isp_iso_cxt = &isp_gen->iso_entity_ctx;
+
+	if (isp_gen->stitch_mode == STITCH_2IN1_LINNER && isp_gen->isp_id == 0) {
+		return;
+	}
 
 	isp_iso_cxt->ops->isp_iso_run(isp_iso_cxt->iso_entity, &isp_iso_cxt->iso_result);
 }
@@ -523,6 +525,10 @@ void __isp_set_scene_param(struct isp_lib_context *isp_gen)
 					ValueInterp(isp_gen->ai_scene.scene_frame_cnt, 0, blue_sky_tune_settings.isp_ai_smooth_frames, last_tune_settings.denoise_level, blue_sky_tune_settings.denoise_level);
 				isp_gen->tune.tdf_level =
 					ValueInterp(isp_gen->ai_scene.scene_frame_cnt, 0, blue_sky_tune_settings.isp_ai_smooth_frames, last_tune_settings.tdf_level, blue_sky_tune_settings.tdf_level);
+				isp_gen->isp_ini_cfg.isp_3a_settings.awb_rgain_favor =
+					ValueInterp(isp_gen->ai_scene.scene_frame_cnt, 0, blue_sky_tune_settings.isp_ai_smooth_frames, last_tune_settings.r_gain, blue_sky_tune_settings.r_gain);
+				isp_gen->isp_ini_cfg.isp_3a_settings.awb_bgain_favor =
+					ValueInterp(isp_gen->ai_scene.scene_frame_cnt, 0, blue_sky_tune_settings.isp_ai_smooth_frames, last_tune_settings.b_gain, blue_sky_tune_settings.b_gain);
 			}
 			if (isp_gen->ai_scene.scene_frame_cnt == blue_sky_tune_settings.isp_ai_smooth_frames) {
 				last_tune_settings.saturation_level = isp_gen->tune.saturation_level;
@@ -532,6 +538,8 @@ void __isp_set_scene_param(struct isp_lib_context *isp_gen)
 				last_tune_settings.denoise_level = isp_gen->tune.denoise_level;
 				last_tune_settings.brightness_level = isp_gen->tune.brightness_level;
 				last_tune_settings.tdf_level = isp_gen->tune.tdf_level;
+				last_tune_settings.r_gain = isp_gen->isp_ini_cfg.isp_3a_settings.awb_rgain_favor;
+				last_tune_settings.b_gain = isp_gen->isp_ini_cfg.isp_3a_settings.awb_bgain_favor;
 				// last_tune_settings.ae_table_night_length = blue_sky_tune_settings.ae_table_night_length;
 				// memcpy(&last_tune_settings.ae_ai_night_table[0], &blue_sky_tune_settings.ae_ai_night_table[0], 42*sizeof(int));
 				isp_gen->ai_scene.scene_change_flag = 0;
@@ -546,6 +554,8 @@ void __isp_set_scene_param(struct isp_lib_context *isp_gen)
 			isp_gen->tune.brightness_level = blue_sky_tune_settings.brightness_level;
 			isp_gen->tune.denoise_level = blue_sky_tune_settings.denoise_level;
 			isp_gen->tune.tdf_level = blue_sky_tune_settings.tdf_level;
+			isp_gen->isp_ini_cfg.isp_3a_settings.awb_rgain_favor = blue_sky_tune_settings.r_gain;
+			isp_gen->isp_ini_cfg.isp_3a_settings.awb_bgain_favor = blue_sky_tune_settings.b_gain;
 			isp_gen->ai_scene.scene_change_flag = 0;
 			isp_gen->ai_scene.scene_frame_cnt = 0;
 #endif
@@ -575,6 +585,10 @@ void __isp_set_scene_param(struct isp_lib_context *isp_gen)
 					ValueInterp(isp_gen->ai_scene.scene_frame_cnt, 0, night_view_tune_settings.isp_ai_smooth_frames, last_tune_settings.denoise_level, night_view_tune_settings.denoise_level);
 				isp_gen->tune.tdf_level =
 					ValueInterp(isp_gen->ai_scene.scene_frame_cnt, 0, night_view_tune_settings.isp_ai_smooth_frames, last_tune_settings.tdf_level, night_view_tune_settings.tdf_level);
+				isp_gen->isp_ini_cfg.isp_3a_settings.awb_rgain_favor =
+					ValueInterp(isp_gen->ai_scene.scene_frame_cnt, 0, night_view_tune_settings.isp_ai_smooth_frames, last_tune_settings.r_gain, night_view_tune_settings.r_gain);
+				isp_gen->isp_ini_cfg.isp_3a_settings.awb_bgain_favor =
+					ValueInterp(isp_gen->ai_scene.scene_frame_cnt, 0, night_view_tune_settings.isp_ai_smooth_frames, last_tune_settings.b_gain, night_view_tune_settings.b_gain);
 			}
 			if (isp_gen->ai_scene.scene_frame_cnt == night_view_tune_settings.isp_ai_smooth_frames) {
 				last_tune_settings.saturation_level = isp_gen->tune.saturation_level;
@@ -584,6 +598,8 @@ void __isp_set_scene_param(struct isp_lib_context *isp_gen)
 				last_tune_settings.denoise_level = isp_gen->tune.denoise_level;
 				last_tune_settings.brightness_level = isp_gen->tune.brightness_level;
 				last_tune_settings.tdf_level = isp_gen->tune.tdf_level;
+				last_tune_settings.r_gain = isp_gen->isp_ini_cfg.isp_3a_settings.awb_rgain_favor;
+				last_tune_settings.b_gain = isp_gen->isp_ini_cfg.isp_3a_settings.awb_bgain_favor;
 				last_tune_settings.ae_table_night_length =
 					night_view_tune_settings.ae_table_night_length;
 				memcpy(&last_tune_settings.ae_ai_night_table[0],
@@ -599,7 +615,8 @@ void __isp_set_scene_param(struct isp_lib_context *isp_gen)
 			isp_gen->tune.brightness_level = night_view_tune_settings.brightness_level;
 			isp_gen->tune.denoise_level = night_view_tune_settings.denoise_level;
 			isp_gen->tune.tdf_level = night_view_tune_settings.tdf_level;
-
+			isp_gen->isp_ini_cfg.isp_3a_settings.awb_rgain_favor = night_view_tune_settings.r_gain;
+			isp_gen->isp_ini_cfg.isp_3a_settings.awb_bgain_favor = night_view_tune_settings.b_gain;
 			isp_gen->ae_entity_ctx.ae_param->ae_setting.scene_mode = SCENE_MODE_CAPTURE;
 			isp_gen->ae_entity_ctx.ae_param->ae_ini.ae_tbl_scene[SCENE_MODE_CAPTURE].length =
 				night_view_tune_settings.ae_table_night_length;
@@ -617,19 +634,23 @@ void __isp_set_scene_param(struct isp_lib_context *isp_gen)
 			isp_gen->ae_entity_ctx.ae_param->ae_setting.scene_mode = SCENE_MODE_PREVIEW;
 			if (isp_gen->ai_scene.scene_frame_cnt <= portrait_tune_settings.isp_ai_smooth_frames) {
 				isp_gen->tune.saturation_level =
-					ValueInterp(isp_gen->scene_frame_cnt, 0, portrait_tune_settings.isp_ai_smooth_frames, last_tune_settings.saturation_level, portrait_tune_settings.saturation_level);
+					ValueInterp(isp_gen->ai_scene.scene_frame_cnt, 0, portrait_tune_settings.isp_ai_smooth_frames, last_tune_settings.saturation_level, portrait_tune_settings.saturation_level);
 				isp_gen->tune.hue_level =
-					ValueInterp(isp_gen->scene_frame_cnt, 0, portrait_tune_settings.isp_ai_smooth_frames, last_tune_settings.hue_level, portrait_tune_settings.hue_level);
+					ValueInterp(isp_gen->ai_scene.scene_frame_cnt, 0, portrait_tune_settings.isp_ai_smooth_frames, last_tune_settings.hue_level, portrait_tune_settings.hue_level);
 				isp_gen->tune.contrast_level =
-					ValueInterp(isp_gen->scene_frame_cnt, 0, portrait_tune_settings.isp_ai_smooth_frames, last_tune_settings.contrast_level, portrait_tune_settings.contrast_level);
+					ValueInterp(isp_gen->ai_scene.scene_frame_cnt, 0, portrait_tune_settings.isp_ai_smooth_frames, last_tune_settings.contrast_level, portrait_tune_settings.contrast_level);
 				isp_gen->tune.sharpness_level =
-					ValueInterp(isp_gen->scene_frame_cnt, 0, portrait_tune_settings.isp_ai_smooth_frames, last_tune_settings.sharpness_level, portrait_tune_settings.sharpness_level);
+					ValueInterp(isp_gen->ai_scene.scene_frame_cnt, 0, portrait_tune_settings.isp_ai_smooth_frames, last_tune_settings.sharpness_level, portrait_tune_settings.sharpness_level);
 				isp_gen->tune.brightness_level =
-					ValueInterp(isp_gen->scene_frame_cnt, 0, portrait_tune_settings.isp_ai_smooth_frames, last_tune_settings.brightness_level, portrait_tune_settings.brightness_level);
+					ValueInterp(isp_gen->ai_scene.scene_frame_cnt, 0, portrait_tune_settings.isp_ai_smooth_frames, last_tune_settings.brightness_level, portrait_tune_settings.brightness_level);
 				isp_gen->tune.denoise_level =
-					ValueInterp(isp_gen->scene_frame_cnt, 0, portrait_tune_settings.isp_ai_smooth_frames, last_tune_settings.denoise_level, portrait_tune_settings.denoise_level);
+					ValueInterp(isp_gen->ai_scene.scene_frame_cnt, 0, portrait_tune_settings.isp_ai_smooth_frames, last_tune_settings.denoise_level, portrait_tune_settings.denoise_level);
 				isp_gen->tune.tdf_level =
-					ValueInterp(isp_gen->scene_frame_cnt, 0, portrait_tune_settings.isp_ai_smooth_frames, last_tune_settings.tdf_level, portrait_tune_settings.tdf_level);
+					ValueInterp(isp_gen->ai_scene.scene_frame_cnt, 0, portrait_tune_settings.isp_ai_smooth_frames, last_tune_settings.tdf_level, portrait_tune_settings.tdf_level);
+				isp_gen->isp_ini_cfg.isp_3a_settings.awb_rgain_favor =
+					ValueInterp(isp_gen->ai_scene.scene_frame_cnt, 0, portrait_tune_settings.isp_ai_smooth_frames, last_tune_settings.r_gain, portrait_tune_settings.r_gain);
+				isp_gen->isp_ini_cfg.isp_3a_settings.awb_bgain_favor =
+					ValueInterp(isp_gen->ai_scene.scene_frame_cnt, 0, portrait_tune_settings.isp_ai_smooth_frames, last_tune_settings.b_gain, portrait_tune_settings.b_gain);
 			}
 			if(isp_gen->ai_scene.scene_frame_cnt == portrait_tune_settings.isp_ai_smooth_frames) {
 				last_tune_settings.saturation_level = isp_gen->tune.saturation_level;
@@ -639,6 +660,8 @@ void __isp_set_scene_param(struct isp_lib_context *isp_gen)
 				last_tune_settings.denoise_level = isp_gen->tune.denoise_level;
 				last_tune_settings.brightness_level = isp_gen->tune.brightness_level;
 				last_tune_settings.tdf_level = isp_gen->tune.tdf_level;
+				last_tune_settings.r_gain = isp_gen->isp_ini_cfg.isp_3a_settings.awb_rgain_favor;
+				last_tune_settings.b_gain = isp_gen->isp_ini_cfg.isp_3a_settings.awb_bgain_favor;
 				last_tune_settings.ae_table_night_length = portrait_tune_settings.ae_table_night_length;
 				memcpy(&last_tune_settings.ae_ai_night_table[0], &portrait_tune_settings.ae_ai_night_table[0], 42*sizeof(int));
 				isp_gen->ai_scene.scene_change_flag = 0;
@@ -652,6 +675,8 @@ void __isp_set_scene_param(struct isp_lib_context *isp_gen)
 			isp_gen->tune.brightness_level = portrait_tune_settings.brightness_level;
 			isp_gen->tune.denoise_level = portrait_tune_settings.denoise_level;
 			isp_gen->tune.tdf_level = portrait_tune_settings.tdf_level;
+			isp_gen->isp_ini_cfg.isp_3a_settings.awb_rgain_favor = portrait_tune_settings.r_gain;
+			isp_gen->isp_ini_cfg.isp_3a_settings.awb_bgain_favor = portrait_tune_settings.b_gain;
 			isp_gen->ai_scene.scene_change_flag = 0;
 			isp_gen->ai_scene.scene_frame_cnt = 0;
 #endif
@@ -660,27 +685,31 @@ void __isp_set_scene_param(struct isp_lib_context *isp_gen)
 		if (isp_gen->ai_scene.cur_scene == NORMAL) {
 #ifdef AI_SCENE_SMOOTH
 			isp_gen->ae_entity_ctx.ae_param->ae_setting.scene_mode = SCENE_MODE_PREVIEW;
-			if (isp_gen->scene_frame_cnt == 1) {
+			if (isp_gen->ai_scene.scene_frame_cnt == 1) {
 				if (memcpy(&isp_gen->ae_entity_ctx.ae_param->ae_ini.ae_tbl_scene[SCENE_MODE_PREVIEW].ae_tbl[0],
 					&normal_tune_settings.ae_ai_night_table[0], 42*sizeof(int))) {
 					isp_ae_set_params_helper(&isp_gen->ae_entity_ctx, ISP_AE_UPDATE_AE_TABLE);
 				}
 			}
-			if (isp_gen->scene_frame_cnt <= normal_tune_settings.isp_ai_smooth_frames) {
+			if (isp_gen->ai_scene.scene_frame_cnt <= normal_tune_settings.isp_ai_smooth_frames) {
 				isp_gen->tune.saturation_level =
-					ValueInterp(isp_gen->scene_frame_cnt, 0, normal_tune_settings.isp_ai_smooth_frames, last_tune_settings.saturation_level, normal_tune_settings.saturation_level);
+					ValueInterp(isp_gen->ai_scene.scene_frame_cnt, 0, normal_tune_settings.isp_ai_smooth_frames, last_tune_settings.saturation_level, normal_tune_settings.saturation_level);
 				isp_gen->tune.hue_level =
-					ValueInterp(isp_gen->scene_frame_cnt, 0, normal_tune_settings.isp_ai_smooth_frames, last_tune_settings.hue_level, normal_tune_settings.hue_level);
+					ValueInterp(isp_gen->ai_scene.scene_frame_cnt, 0, normal_tune_settings.isp_ai_smooth_frames, last_tune_settings.hue_level, normal_tune_settings.hue_level);
 				isp_gen->tune.contrast_level =
-					ValueInterp(isp_gen->scene_frame_cnt, 0, normal_tune_settings.isp_ai_smooth_frames, last_tune_settings.contrast_level, normal_tune_settings.contrast_level);
+					ValueInterp(isp_gen->ai_scene.scene_frame_cnt, 0, normal_tune_settings.isp_ai_smooth_frames, last_tune_settings.contrast_level, normal_tune_settings.contrast_level);
 				isp_gen->tune.sharpness_level =
-					ValueInterp(isp_gen->scene_frame_cnt, 0, normal_tune_settings.isp_ai_smooth_frames, last_tune_settings.sharpness_level, normal_tune_settings.sharpness_level);
+					ValueInterp(isp_gen->ai_scene.scene_frame_cnt, 0, normal_tune_settings.isp_ai_smooth_frames, last_tune_settings.sharpness_level, normal_tune_settings.sharpness_level);
 				isp_gen->tune.brightness_level =
-					ValueInterp(isp_gen->scene_frame_cnt, 0, normal_tune_settings.isp_ai_smooth_frames, last_tune_settings.brightness_level, normal_tune_settings.brightness_level);
+					ValueInterp(isp_gen->ai_scene.scene_frame_cnt, 0, normal_tune_settings.isp_ai_smooth_frames, last_tune_settings.brightness_level, normal_tune_settings.brightness_level);
 				isp_gen->tune.denoise_level =
-					ValueInterp(isp_gen->scene_frame_cnt, 0, normal_tune_settings.isp_ai_smooth_frames, last_tune_settings.denoise_level, normal_tune_settings.denoise_level);
+					ValueInterp(isp_gen->ai_scene.scene_frame_cnt, 0, normal_tune_settings.isp_ai_smooth_frames, last_tune_settings.denoise_level, normal_tune_settings.denoise_level);
 				isp_gen->tune.tdf_level =
-					ValueInterp(isp_gen->scene_frame_cnt, 0, normal_tune_settings.isp_ai_smooth_frames, last_tune_settings.tdf_level, normal_tune_settings.tdf_level);
+					ValueInterp(isp_gen->ai_scene.scene_frame_cnt, 0, normal_tune_settings.isp_ai_smooth_frames, last_tune_settings.tdf_level, normal_tune_settings.tdf_level);
+				isp_gen->isp_ini_cfg.isp_3a_settings.awb_rgain_favor =
+					ValueInterp(isp_gen->ai_scene.scene_frame_cnt, 0, normal_tune_settings.isp_ai_smooth_frames, last_tune_settings.r_gain, normal_tune_settings.r_gain);
+				isp_gen->isp_ini_cfg.isp_3a_settings.awb_bgain_favor =
+					ValueInterp(isp_gen->ai_scene.scene_frame_cnt, 0, normal_tune_settings.isp_ai_smooth_frames, last_tune_settings.b_gain, normal_tune_settings.b_gain);
 			}
 			if (isp_gen->ai_scene.scene_frame_cnt == normal_tune_settings.isp_ai_smooth_frames) {
 				last_tune_settings.saturation_level = isp_gen->tune.saturation_level;
@@ -690,6 +719,8 @@ void __isp_set_scene_param(struct isp_lib_context *isp_gen)
 				last_tune_settings.denoise_level = isp_gen->tune.denoise_level;
 				last_tune_settings.brightness_level = isp_gen->tune.brightness_level;
 				last_tune_settings.tdf_level = isp_gen->tune.tdf_level;
+				last_tune_settings.r_gain = isp_gen->isp_ini_cfg.isp_3a_settings.awb_rgain_favor;
+				last_tune_settings.b_gain = isp_gen->isp_ini_cfg.isp_3a_settings.awb_bgain_favor;
 				last_tune_settings.ae_table_night_length = normal_tune_settings.ae_table_night_length;
 				memcpy(&last_tune_settings.ae_ai_night_table[0], &normal_tune_settings.ae_ai_night_table[0], 42*sizeof(int));
 				isp_gen->ai_scene.scene_change_flag = 0;
@@ -704,6 +735,8 @@ void __isp_set_scene_param(struct isp_lib_context *isp_gen)
 			isp_gen->tune.brightness_level = normal_tune_settings.brightness_level;
 			isp_gen->tune.denoise_level = normal_tune_settings.denoise_level;
 			isp_gen->tune.tdf_level = normal_tune_settings.tdf_level;
+			isp_gen->isp_ini_cfg.isp_3a_settings.awb_rgain_favor = normal_tune_settings.r_gain;
+			isp_gen->isp_ini_cfg.isp_3a_settings.awb_bgain_favor = normal_tune_settings.b_gain;
 			memcpy(&isp_gen->ae_entity_ctx.ae_param->ae_ini.ae_tbl_scene[SCENE_MODE_PREVIEW].ae_tbl[0],
 				&normal_tune_settings.ae_ai_night_table[0], 42*sizeof(int));
 			isp_ae_set_params_helper(&isp_gen->ae_entity_ctx, ISP_AE_UPDATE_AE_TABLE);
@@ -730,6 +763,10 @@ void __isp_set_scene_param(struct isp_lib_context *isp_gen)
 					ValueInterp(isp_gen->ai_scene.scene_frame_cnt, 0, green_plants_tune_settings.isp_ai_smooth_frames, last_tune_settings.denoise_level, green_plants_tune_settings.denoise_level);
 				isp_gen->tune.tdf_level =
 					ValueInterp(isp_gen->ai_scene.scene_frame_cnt, 0, green_plants_tune_settings.isp_ai_smooth_frames, last_tune_settings.tdf_level, green_plants_tune_settings.tdf_level);
+				isp_gen->isp_ini_cfg.isp_3a_settings.awb_rgain_favor =
+					ValueInterp(isp_gen->ai_scene.scene_frame_cnt, 0, green_plants_tune_settings.isp_ai_smooth_frames, last_tune_settings.r_gain, green_plants_tune_settings.r_gain);
+				isp_gen->isp_ini_cfg.isp_3a_settings.awb_bgain_favor =
+					ValueInterp(isp_gen->ai_scene.scene_frame_cnt, 0, green_plants_tune_settings.isp_ai_smooth_frames, last_tune_settings.b_gain, green_plants_tune_settings.b_gain);
 			}
 			if (isp_gen->ai_scene.scene_frame_cnt == green_plants_tune_settings.isp_ai_smooth_frames) {
 				last_tune_settings.saturation_level = isp_gen->tune.saturation_level;
@@ -739,6 +776,8 @@ void __isp_set_scene_param(struct isp_lib_context *isp_gen)
 				last_tune_settings.denoise_level = isp_gen->tune.denoise_level;
 				last_tune_settings.brightness_level = isp_gen->tune.brightness_level;
 				last_tune_settings.tdf_level = isp_gen->tune.tdf_level;
+				last_tune_settings.r_gain = isp_gen->isp_ini_cfg.isp_3a_settings.awb_rgain_favor;
+				last_tune_settings.b_gain = isp_gen->isp_ini_cfg.isp_3a_settings.awb_bgain_favor;
 				last_tune_settings.ae_table_night_length = green_plants_tune_settings.ae_table_night_length;
 				memcpy(&last_tune_settings.ae_ai_night_table[0],
 					&green_plants_tune_settings.ae_ai_night_table[0], 42*sizeof(int));
@@ -754,16 +793,18 @@ void __isp_set_scene_param(struct isp_lib_context *isp_gen)
 			isp_gen->tune.brightness_level = green_plants_tune_settings.brightness_level;
 			isp_gen->tune.denoise_level = green_plants_tune_settings.denoise_level;
 			isp_gen->tune.tdf_level = green_plants_tune_settings.tdf_level;
+			isp_gen->isp_ini_cfg.isp_3a_settings.awb_rgain_favor = green_plants_tune_settings.r_gain;
+			isp_gen->isp_ini_cfg.isp_3a_settings.awb_bgain_favor = green_plants_tune_settings.b_gain;
 			isp_gen->ai_scene.scene_change_flag = 0;
 			isp_gen->ai_scene.scene_frame_cnt = 0;
 #endif
 		}
-
-		ISP_PRINT("#### cur_scene_frame_cnt:%d saturation_level:%d hue_level:%d contrast_level:%d "
-			"sharpness_level:%d denoise_level:%d brightness_level:%d tdf_level:%d scene_mode:%d \n",
-			isp_gen->ai_scene.scene_frame_cnt, isp_gen->tune.saturation_level,isp_gen->tune.hue_level,
-			isp_gen->tune.contrast_level,isp_gen->tune.sharpness_level, isp_gen->tune.denoise_level,
-			isp_gen->tune.brightness_level, isp_gen->tune.tdf_level, isp_gen->ae_settings.scene_mode);
+		__isp_ctx_update_awb_cfg(isp_gen);
+		ISP_PRINT("#### cur_scene_frame_cnt:%d saturation_level:%d hue_level:%d contrast_level:%d sharpness_level:%d"
+		          " denoise_level:%d brightness_level:%d tdf_level:%d r_gain:%d b_gain:%d scene_mode:%d \n",
+			      isp_gen->ai_scene.scene_frame_cnt, isp_gen->tune.saturation_level,isp_gen->tune.hue_level,isp_gen->tune.contrast_level,
+			      isp_gen->tune.sharpness_level, isp_gen->tune.denoise_level,isp_gen->tune.brightness_level, isp_gen->tune.tdf_level,
+			      isp_gen->isp_ini_cfg.isp_3a_settings.awb_rgain_favor, isp_gen->isp_ini_cfg.isp_3a_settings.awb_bgain_favor, isp_gen->ae_settings.scene_mode);
 	}
 }
 #endif
@@ -868,7 +909,13 @@ void __isp_gtm_set_params(struct isp_lib_context *isp_gen)
 	else
 		isp_gen->gtm_entity_ctx.gtm_param->ldci_work_en = 1;
 	isp_gen->gtm_entity_ctx.gtm_param->current_colorspace = isp_gen->sensor_info.color_space;
-	isp_gen->gtm_entity_ctx.gtm_param->ldci_video_chn = LDCI_VIDEO_CHN + isp_gen->isp_id;
+	if (isp_gen->stitch_mode == STITCH_NONE) {
+		isp_gen->gtm_entity_ctx.gtm_param->ldci_video_chn = LDCI_VIDEO_CHN + isp_gen->isp_id;
+		isp_gen->gtm_entity_ctx.gtm_param->ldci_large_dma_merge = 0;
+	} else {
+		isp_gen->gtm_entity_ctx.gtm_param->ldci_video_chn = LDCI_VIDEO_CHN + 1;
+		isp_gen->gtm_entity_ctx.gtm_param->ldci_large_dma_merge = 1;
+	}
 	isp_gen->gtm_entity_ctx.gtm_param->ldci_entity_id = isp_gen->isp_id;
 	memcpy(&isp_gen->gtm_entity_ctx.gtm_param->gtm_ini.plum_var[0], &isp_gen->isp_ini_cfg.isp_tunning_settings.plum_var[0], GTM_LUM_IDX_NUM*GTM_VAR_IDX_NUM*sizeof(HW_S16));
 	memcpy(&isp_gen->gtm_entity_ctx.gtm_param->gtm_ini.gtm_cfg[0], &isp_gen->ae_settings.ae_hist_eq_cfg[0], ISP_GTM_HEQ_MAX*sizeof(HW_S16));
@@ -882,6 +929,9 @@ void __isp_gtm_run(struct isp_lib_context *isp_gen)
 	if (isp_gen->ops->gtm_done) {
 		isp_gen->ops->gtm_done(isp_gen, &isp_gtm_cxt->gtm_result);
 	}
+
+	if (isp_gen->stitch_mode == STITCH_2IN1_LINNER && isp_gen->isp_id != 1)
+		return;
 
 	isp_gtm_cxt->ops->isp_gtm_run(isp_gtm_cxt->gtm_entity,
 				&isp_gtm_cxt->gtm_stats,
@@ -967,28 +1017,6 @@ void __isp_ctx_cfg_lib(struct isp_lib_context *isp_gen)
 	isp_gen->awb_settings.wb_gain_manual.gb_gain = 256;
 	isp_gen->awb_settings.wb_gain_manual.b_gain = 256;
 
-#if ISP_AI_SCENE_CONF
-	// for ai scene param
-	isp_gen->ai_scene.last_tune_settings.contrast_level = isp_gen->tune.contrast_level;
-	isp_gen->ai_scene.last_tune_settings.saturation_level = isp_gen->tune.saturation_level;
-	isp_gen->ai_scene.last_tune_settings.brightness_level = isp_gen->tune.brightness_level;
-	isp_gen->ai_scene.last_tune_settings.sharpness_level = isp_gen->tune.sharpness_level;
-	isp_gen->ai_scene.last_tune_settings.tdf_level = isp_gen->tune.tdf_level;
-	isp_gen->ai_scene.last_tune_settings.denoise_level = isp_gen->tune.denoise_level;
-	isp_gen->ai_scene.last_tune_settings.hue_level = isp_gen->tune.hue_level;
-	normal_tune_settings.contrast_level = isp_gen->tune.contrast_level;
-	normal_tune_settings.saturation_level = isp_gen->tune.saturation_level;
-	normal_tune_settings.brightness_level = isp_gen->tune.brightness_level;
-	normal_tune_settings.sharpness_level = isp_gen->tune.sharpness_level;
-	normal_tune_settings.tdf_level = isp_gen->tune.tdf_level;
-	normal_tune_settings.denoise_level = isp_gen->tune.denoise_level;
-	normal_tune_settings.hue_level = isp_gen->tune.hue_level;
-	isp_gen->ai_scene.scene_frame_cnt = 0;
-	isp_gen->ai_scene.scene_change_flag = 0;
-	isp_gen->ai_scene.cur_scene = NORMAL;
-	isp_gen->ae_settings.scene_mode = SCENE_MODE_PREVIEW;
-#endif
-
 	// exp settings
 	isp_gen->ae_settings.exp_mode = EXP_AUTO;
 	isp_gen->ae_settings.exp_metering_mode = AE_METERING_MODE_MATRIX;
@@ -1000,6 +1028,7 @@ void __isp_ctx_cfg_lib(struct isp_lib_context *isp_gen)
 	isp_gen->ae_settings.exposure_lock = false;
 	isp_gen->ae_settings.exp_compensation = 0;
 	isp_gen->ae_settings.ae_face_for_detect_flag = 1;
+	isp_gen->ae_settings.exp_absolute = 250000; /* default max exp for exp manual */
 
 	// af settings
 	isp_gen->af_settings.af_mode = AUTO_FOCUS_CONTINUEOUS;
@@ -1010,11 +1039,10 @@ void __isp_ctx_cfg_lib(struct isp_lib_context *isp_gen)
 	// awb settings
 	isp_gen->awb_settings.wb_mode = WB_AUTO;
 	isp_gen->awb_settings.white_balance_lock = false;
-
-	isp_gen->awb_settings.awb_coor.x1 = H3A_PIC_OFFSET;
-	isp_gen->awb_settings.awb_coor.y1 = H3A_PIC_OFFSET;
-	isp_gen->awb_settings.awb_coor.x2 = H3A_PIC_SIZE + H3A_PIC_OFFSET;
-	isp_gen->awb_settings.awb_coor.y2 = H3A_PIC_SIZE + H3A_PIC_OFFSET;
+	//isp_gen->awb_settings.awb_coor.x1 = H3A_PIC_OFFSET;
+	//isp_gen->awb_settings.awb_coor.y1 = H3A_PIC_OFFSET;
+	//isp_gen->awb_settings.awb_coor.x2 = H3A_PIC_SIZE + H3A_PIC_OFFSET;
+	//isp_gen->awb_settings.awb_coor.y2 = H3A_PIC_SIZE + H3A_PIC_OFFSET;
 	isp_gen->ae_settings.ae_coor.x1 = H3A_PIC_OFFSET;
 	isp_gen->ae_settings.ae_coor.y1 = H3A_PIC_OFFSET;
 	isp_gen->ae_settings.ae_coor.x2 = H3A_PIC_SIZE + H3A_PIC_OFFSET;
@@ -1066,10 +1094,107 @@ void __isp_ctx_cfg_lib(struct isp_lib_context *isp_gen)
 	isp_gen->ae_entity_ctx.ae_result.ae_wdr_ratio.real = isp_gen->ae_entity_ctx.ae_result.ae_wdr_ratio.tmp;
 	isp_gen->ae_entity_ctx.ae_result.ae_wdr_ratio.isp_hardware = isp_gen->ae_entity_ctx.ae_result.ae_wdr_ratio.tmp;
 
+	//algo save variable
+	isp_gen->algo_save.wb_rgain_last[0] = 256;
+	isp_gen->algo_save.wb_rgain_last[1] = 256;
+	isp_gen->algo_save.wb_bgain_last[0] = 256;
+	isp_gen->algo_save.wb_bgain_last[1] = 256;
+	isp_gen->algo_save.wb_l_shift = 0;
+	isp_gen->algo_save.lsc_color_temp_save = 5500;
+	isp_gen->algo_save.lsc_comp_save = 256;
+	isp_gen->algo_save.lsc_vcm_std_pos_save = 300;
+	isp_gen->algo_save.lsc_hflip_save = 0;
+	isp_gen->algo_save.lsc_vflip_save = 0;
+	isp_gen->algo_save.d3d_k_cnt = 10;
+	isp_gen->algo_save.d3d_k_tdnf_en_last = 1;
+	isp_gen->algo_save.d3d_k_cal_start_avg = 0;
+
 	// 1 -> gamma 2.2
 	// 2 -> gamma 1.69
 	// 3 -> gamma 1.3
 	//isp_gen->ai_isp_en = 0;
+
+	//user initial setting
+	if (isp_gen->initial_cfg.enable.exp_mode_en) {
+		isp_gen->initial_cfg.enable.exp_mode_en = false;
+		isp_gen->ae_settings.exp_mode = isp_gen->initial_cfg.exp_mode;
+	}
+	if (isp_gen->initial_cfg.enable.flicker_mode_en) {
+		isp_gen->initial_cfg.enable.flicker_mode_en = false;
+		isp_gen->ae_settings.flicker_mode = isp_gen->initial_cfg.flicker_mode;
+	}
+	if (isp_gen->initial_cfg.enable.iso_mode_en) {
+		isp_gen->initial_cfg.enable.iso_mode_en = false;
+		isp_gen->ae_settings.iso_mode = isp_gen->initial_cfg.iso_mode;
+	}
+	if (isp_gen->initial_cfg.enable.exp_compensation_en) {
+		isp_gen->initial_cfg.enable.exp_compensation_en = false;
+		isp_gen->ae_settings.exp_compensation = isp_gen->initial_cfg.exp_compensation;
+	}
+	if (isp_gen->initial_cfg.enable.iso_sensitivity_en) {
+		isp_gen->initial_cfg.enable.iso_sensitivity_en = false;
+		isp_gen->ae_settings.iso_sensitivity = isp_gen->initial_cfg.iso_sensitivity;
+	}
+	if (isp_gen->initial_cfg.enable.exposure_metering_en) {
+		isp_gen->initial_cfg.enable.exposure_metering_en = false;
+		isp_gen->ae_settings.exp_metering_mode = isp_gen->initial_cfg.ae_metering_mode;
+	}
+	if (isp_gen->initial_cfg.enable.exp_absolute_en) {
+		isp_gen->initial_cfg.enable.exp_absolute_en = false;
+		isp_gen->ae_settings.exp_absolute = isp_gen->initial_cfg.exp_absolute;
+	}
+	if (isp_gen->initial_cfg.enable.wb_mode_en) {
+		isp_gen->initial_cfg.enable.wb_mode_en = false;
+		isp_gen->awb_settings.wb_mode = isp_gen->initial_cfg.wb_mode;
+	}
+	if (isp_gen->initial_cfg.enable.brightness_level_en) {
+		isp_gen->initial_cfg.enable.brightness_level_en = false;
+		isp_gen->tune.brightness_level = isp_gen->initial_cfg.brightness_level;
+	}
+	if (isp_gen->initial_cfg.enable.contrast_level_en) {
+		isp_gen->initial_cfg.enable.contrast_level_en = false;
+		isp_gen->tune.contrast_level = isp_gen->initial_cfg.contrast_level;
+	}
+	if (isp_gen->initial_cfg.enable.saturation_level_en) {
+		isp_gen->initial_cfg.enable.saturation_level_en = false;
+		isp_gen->tune.saturation_level = isp_gen->initial_cfg.saturation_level;
+	}
+	if (isp_gen->initial_cfg.enable.sharpness_level_en) {
+		isp_gen->initial_cfg.enable.sharpness_level_en = false;
+		isp_gen->tune.sharpness_level = isp_gen->initial_cfg.sharpness_level;
+	}
+	if (isp_gen->initial_cfg.enable.effect_en) {
+		isp_gen->initial_cfg.enable.effect_en = false;
+		isp_gen->tune.effect = isp_gen->initial_cfg.effect;
+	}
+	if (isp_gen->initial_cfg.enable.ai_scene_en) {
+		isp_gen->initial_cfg.enable.ai_scene_en = false;
+		isp_gen->ai_scene.cur_scene = isp_gen->initial_cfg.ai_scene;
+		isp_gen->ai_scene.scene_change_flag = 1;
+	} else {
+		isp_gen->ai_scene.cur_scene = NORMAL;
+		isp_gen->ai_scene.scene_change_flag = 0;
+	}
+
+#if ISP_AI_SCENE_CONF
+	// for ai scene param
+	isp_gen->ai_scene.last_tune_settings.contrast_level = isp_gen->tune.contrast_level;
+	isp_gen->ai_scene.last_tune_settings.saturation_level = isp_gen->tune.saturation_level;
+	isp_gen->ai_scene.last_tune_settings.brightness_level = isp_gen->tune.brightness_level;
+	isp_gen->ai_scene.last_tune_settings.sharpness_level = isp_gen->tune.sharpness_level;
+	isp_gen->ai_scene.last_tune_settings.tdf_level = isp_gen->tune.tdf_level;
+	isp_gen->ai_scene.last_tune_settings.denoise_level = isp_gen->tune.denoise_level;
+	isp_gen->ai_scene.last_tune_settings.hue_level = isp_gen->tune.hue_level;
+	normal_tune_settings.contrast_level = isp_gen->tune.contrast_level;
+	normal_tune_settings.saturation_level = isp_gen->tune.saturation_level;
+	normal_tune_settings.brightness_level = isp_gen->tune.brightness_level;
+	normal_tune_settings.sharpness_level = isp_gen->tune.sharpness_level;
+	normal_tune_settings.tdf_level = isp_gen->tune.tdf_level;
+	normal_tune_settings.denoise_level = isp_gen->tune.denoise_level;
+	normal_tune_settings.hue_level = isp_gen->tune.hue_level;
+	isp_gen->ai_scene.scene_frame_cnt = 0;
+	//isp_gen->ae_settings.scene_mode = SCENE_MODE_PREVIEW;
+#endif
 }
 
 #define ISP_CTX_MODULE_EN(en_bit, ISP_FEATURES) \
@@ -1197,6 +1322,12 @@ static void __isp_ctx_cfg_mod(struct isp_lib_context *isp_gen)
 		15,    13,    11,     9,     7,     5,     3,     1
 	};
 
+#if (ISP_VERSION >= 603)
+	isp_gen->isp_tuning_ver = 1;
+#else
+	isp_gen->isp_tuning_ver = 0;
+#endif
+
 	//WDR
 	if (isp_gen->sensor_info.wdr_mode == ISP_2FCMD_WDR_MODE || isp_gen->sensor_info.wdr_mode == ISP_3FCMD_WDR_MODE) { /* one ch data input */
 		mod_cfg->mode_cfg.wdr_mode = WDR_1FCH;
@@ -1246,10 +1377,35 @@ static void __isp_ctx_cfg_mod(struct isp_lib_context *isp_gen)
 		mod_cfg->wb_gain_cfg.wb_gain.b_gain  = 482;
 	}
 
+	if (isp_gen->initial_cfg.enable.wb_mgain_en) {//wb manual gain user initial setting
+		isp_gen->initial_cfg.enable.wb_mgain_en = false;
+		mod_cfg->wb_gain_cfg.wb_gain = isp_gen->initial_cfg.wb_gain_manual;
+		isp_gen->awb_entity_ctx.awb_result.wb_gain_output = isp_gen->initial_cfg.wb_gain_manual;
+		isp_gen->awb_settings.wb_gain_manual = isp_gen->initial_cfg.wb_gain_manual;
+	}
+
 	mod_cfg->awb_cfg.awb_r_sat_lim = AWB_SAT_DEF_LIM;
 	mod_cfg->awb_cfg.awb_g_sat_lim = AWB_SAT_DEF_LIM;
 	mod_cfg->awb_cfg.awb_b_sat_lim = AWB_SAT_DEF_LIM;
 	isp_gen->awb_settings.wb_stat_combine_mode = WB_STAT_NONE;
+
+	if (isp_gen->isp_ini_cfg.isp_3a_settings.ae_reserve_3 == 2) {
+		isp_gen->awb_settings.awb_coor.x1 = H3A_PIC_OFFSET;
+		isp_gen->awb_settings.awb_coor.y1 = H3A_PIC_OFFSET;
+		isp_gen->awb_settings.awb_coor.x2 = H3A_PIC_SIZE + H3A_PIC_OFFSET;
+		isp_gen->awb_settings.awb_coor.y2 = 0;
+	} else if (isp_gen->isp_ini_cfg.isp_3a_settings.ae_reserve_3 == 1) {
+		isp_gen->awb_settings.awb_coor.x1 = H3A_PIC_OFFSET;
+		isp_gen->awb_settings.awb_coor.y1 = 0;
+		isp_gen->awb_settings.awb_coor.x2 = H3A_PIC_SIZE + H3A_PIC_OFFSET;
+		isp_gen->awb_settings.awb_coor.y2 = H3A_PIC_SIZE + H3A_PIC_OFFSET;
+	} else {
+		isp_gen->awb_settings.awb_coor.x1 = H3A_PIC_OFFSET;
+		isp_gen->awb_settings.awb_coor.y1 = H3A_PIC_OFFSET;
+		isp_gen->awb_settings.awb_coor.x2 = H3A_PIC_SIZE + H3A_PIC_OFFSET;
+		isp_gen->awb_settings.awb_coor.y2 = H3A_PIC_SIZE + H3A_PIC_OFFSET;
+	}
+	isp_gen->isp_3a_change_flags |= ISP_SET_AWB_MODE;
 
 	//af
 	mod_cfg->af_cfg.af_sap_lim = ISP_AF_DIR_TH;
@@ -1342,7 +1498,10 @@ static void __isp_ctx_cfg_mod(struct isp_lib_context *isp_gen)
 			mod_cfg->mode_cfg.gain_sel = 0;
 			mod_cfg->mode_cfg.wb_sel = 0;
 			mod_cfg->nrp_cfg.gamma_en = 1;
-			mod_cfg->nrp_cfg.inv_gamma_en = 0;
+			if (isp_gen->isp_tuning_ver)
+				mod_cfg->nrp_cfg.inv_gamma_en = 1;
+			else
+				mod_cfg->nrp_cfg.inv_gamma_en = 0;
 			if (((!mod_cfg->mode_cfg.gain_sel && (param->isp_test_settings.dig_gain_en || param->isp_test_settings.lsc_en || param->isp_test_settings.msc_en)) ||
 				(!mod_cfg->mode_cfg.wb_sel && param->isp_test_settings.wb_en) || mod_cfg->nrp_cfg.gamma_en) && param->isp_test_settings.blc_en) {
 				mod_cfg->nrp_cfg.blc_en = 1;
@@ -1507,113 +1666,113 @@ static void __isp_ctx_cfg_mod(struct isp_lib_context *isp_gen)
 	mod_cfg->cfa_cfg.cfa_dir_h_th = param->isp_tunning_settings.dir_h_th;
 	mod_cfg->cfa_cfg.res_smth_high = param->isp_tunning_settings.res_smth_high;
 	mod_cfg->cfa_cfg.res_smth_low = param->isp_tunning_settings.res_smth_low;
-	//mod_cfg->cfa_cfg.afc_cnr_stren = 0x0;
-	//mod_cfg->cfa_cfg.afc_rgb_stren = 0x0;
-	//mod_cfg->cfa_cfg.afc_bayer_stren = 0x0;
 	mod_cfg->cfa_cfg.res_high_th = param->isp_tunning_settings.res_high_th;
 	mod_cfg->cfa_cfg.res_low_th = param->isp_tunning_settings.res_low_th;
 	mod_cfg->cfa_cfg.res_dir_a = param->isp_tunning_settings.res_dir_a;
 	mod_cfg->cfa_cfg.res_dir_d = param->isp_tunning_settings.res_dir_d;
 	mod_cfg->cfa_cfg.res_dir_v = param->isp_tunning_settings.res_dir_v;
 	mod_cfg->cfa_cfg.res_dir_h = param->isp_tunning_settings.res_dir_h;
-	if (param->isp_test_settings.defog_en == 1) {
-		//mod_cfg->cfa_cfg.min_rgb    = 1023;
-	} else {
-		//mod_cfg->cfa_cfg.min_rgb    = 0;
-	}
 
 	//ccm
-	mod_cfg->rgb2rgb_cfg.color_matrix = param->isp_tunning_settings.color_matrix_ini[0];
+	if(!isp_gen->isp_ctx_save_init_flag)
+		mod_cfg->rgb2rgb_cfg.color_matrix = param->isp_tunning_settings.color_matrix_ini[0];
 
 	//ctc todo
-	mod_cfg->ctc_cfg.ctc_th_max = param->isp_tunning_settings.ctc_th_max;//316;
-	mod_cfg->ctc_cfg.ctc_th_min = param->isp_tunning_settings.ctc_th_min;//60;
-	mod_cfg->ctc_cfg.ctc_th_slope = param->isp_tunning_settings.ctc_th_slope;//262;
+	mod_cfg->ctc_cfg.ctc_th_max = param->isp_tunning_settings.ctc_th_max;
+	mod_cfg->ctc_cfg.ctc_th_min = param->isp_tunning_settings.ctc_th_min;
+	if (mod_cfg->ctc_cfg.ctc_th_max > mod_cfg->ctc_cfg.ctc_th_min) {
+		mod_cfg->ctc_cfg.ctc_th_slope = 65536 / (mod_cfg->ctc_cfg.ctc_th_max - mod_cfg->ctc_cfg.ctc_th_min);
+	} else {
+		ISP_ERR("CTC Param Error, need CTC_Max > CTC_Min. \n");
+		mod_cfg->ctc_cfg.ctc_th_slope = 256;
+	}
 	mod_cfg->ctc_cfg.ctc_dir_wt = param->isp_tunning_settings.ctc_dir_wt;//64;
 	mod_cfg->ctc_cfg.ctc_dir_th = param->isp_tunning_settings.ctc_dir_th;//80;
 
 	//pltm
-	if (isp_gen->module_cfg.wdr_cfg.wdr_stitch_mode == ISP_WDR_STITCH_2F_LM)
-		mod_cfg->pltm_cfg.max_stage = 3 - 1; /*2f-wdr*/
-	else if (isp_gen->module_cfg.wdr_cfg.wdr_stitch_mode == ISP_WDR_STITCH_3F_LMS)
-		mod_cfg->pltm_cfg.max_stage = 4 - 1; /*3f-wdr*/
-	else
+	if(!isp_gen->isp_ctx_save_init_flag) {
+		if (isp_gen->module_cfg.wdr_cfg.wdr_stitch_mode == ISP_WDR_STITCH_2F_LM)
+			mod_cfg->pltm_cfg.max_stage = 3 - 1; /*2f-wdr*/
+		else if (isp_gen->module_cfg.wdr_cfg.wdr_stitch_mode == ISP_WDR_STITCH_3F_LMS)
+			mod_cfg->pltm_cfg.max_stage = 4 - 1; /*3f-wdr*/
+		else
 #if (ISP_VERSION == 603)
-		mod_cfg->pltm_cfg.max_stage = 1 - 1;/*linear*/
+			mod_cfg->pltm_cfg.max_stage = 1 - 1;/*linear*/
 #else
-		mod_cfg->pltm_cfg.max_stage = 3 - 1;/*linear*/
+			mod_cfg->pltm_cfg.max_stage = 3 - 1;/*linear*/
 #endif
 
-	mod_cfg->pltm_cfg.strength = 256;
-	if (isp_gen->sensor_info.width_overlayer)
-		mod_cfg->pltm_cfg.blk_width = isp_gen->sensor_info.width_overlayer / 32;
-	else
-		mod_cfg->pltm_cfg.blk_width = isp_gen->sensor_info.sensor_width / 32;
-	mod_cfg->pltm_cfg.blk_height = isp_gen->sensor_info.sensor_height / 24;
-	mod_cfg->pltm_cfg.blk_num = mod_cfg->pltm_cfg.blk_width * mod_cfg->pltm_cfg.blk_height;
-	mod_cfg->pltm_cfg.wi_phase = ((mod_cfg->pltm_cfg.blk_width >> 1) << 12) / mod_cfg->pltm_cfg.blk_width;
-	mod_cfg->pltm_cfg.wi_step = (1 << 12) / mod_cfg->pltm_cfg.blk_width;
-	mod_cfg->pltm_cfg.hi_phase = ((mod_cfg->pltm_cfg.blk_height >> 1) << 12) / mod_cfg->pltm_cfg.blk_height;
-	mod_cfg->pltm_cfg.hi_step = (1 << 12) / mod_cfg->pltm_cfg.blk_height;
-	mod_cfg->pltm_cfg.nrm_ratio = 2048;
-	mod_cfg->pltm_cfg.gtm_en = param->isp_tunning_settings.pltm_cfg[ISP_PLTM_GTM_EN];
-	mod_cfg->pltm_cfg.lft_en = param->isp_tunning_settings.pltm_cfg[ISP_PLTM_LTF_EN];
-	mod_cfg->pltm_cfg.dsc_en = param->isp_tunning_settings.pltm_cfg[ISP_PLTM_DSC_EN];
-	mod_cfg->pltm_cfg.dcc_en = param->isp_tunning_settings.pltm_cfg[ISP_PLTM_DCC_EN];
-	mod_cfg->pltm_cfg.dsc_shf_bit = param->isp_tunning_settings.pltm_cfg[ISP_PLTM_DSC_SHF_BIT];
-	mod_cfg->pltm_cfg.dsc_lw_th = param->isp_tunning_settings.pltm_cfg[ISP_PLTM_DSC_LW_TH];
-	mod_cfg->pltm_cfg.dsc_hi_th = param->isp_tunning_settings.pltm_cfg[ISP_PLTM_DSC_HI_TH];
-	mod_cfg->pltm_cfg.dsc_lw_ratio = param->isp_tunning_settings.pltm_cfg[ISP_PLTM_DSC_LW_RT];
-	mod_cfg->pltm_cfg.dcc_shf_bit = param->isp_tunning_settings.pltm_cfg[ISP_PLTM_DCC_SHF_BIT];
-	mod_cfg->pltm_cfg.dcc_lw_th = param->isp_tunning_settings.pltm_cfg[ISP_PLTM_DCC_LW_TH];
-	mod_cfg->pltm_cfg.dcc_hi_th = param->isp_tunning_settings.pltm_cfg[ISP_PLTM_DCC_HI_TH];
-	mod_cfg->pltm_cfg.mgc_int_smth[0] = param->isp_tunning_settings.pltm_cfg[ISP_PLTM_MGC_INT_SMTH0];
-	mod_cfg->pltm_cfg.mgc_int_smth[1] = param->isp_tunning_settings.pltm_cfg[ISP_PLTM_MGC_INT_SMTH1];
-	mod_cfg->pltm_cfg.mgc_int_smth[2] = param->isp_tunning_settings.pltm_cfg[ISP_PLTM_MGC_INT_SMTH2];
-	mod_cfg->pltm_cfg.mgc_int_smth[3] = param->isp_tunning_settings.pltm_cfg[ISP_PLTM_MGC_INT_SMTH3];
-	mod_cfg->pltm_cfg.mgc_lum_adpt[0] = param->isp_tunning_settings.pltm_cfg[ISP_PLTM_MGC_LUM_ADPT0];
-	mod_cfg->pltm_cfg.mgc_lum_adpt[1] = param->isp_tunning_settings.pltm_cfg[ISP_PLTM_MGC_LUM_ADPT1];
-	mod_cfg->pltm_cfg.mgc_lum_adpt[2] = param->isp_tunning_settings.pltm_cfg[ISP_PLTM_MGC_LUM_ADPT2];
-	mod_cfg->pltm_cfg.mgc_lum_adpt[3] = param->isp_tunning_settings.pltm_cfg[ISP_PLTM_MGC_LUM_ADPT3];
-	mod_cfg->pltm_cfg.sts_ceil_slp[0] = param->isp_tunning_settings.pltm_cfg[ISP_PLTM_STS_CEIL_SLP0];
-	mod_cfg->pltm_cfg.sts_ceil_slp[1] = param->isp_tunning_settings.pltm_cfg[ISP_PLTM_STS_CEIL_SLP1];
-	mod_cfg->pltm_cfg.sts_ceil_slp[2] = param->isp_tunning_settings.pltm_cfg[ISP_PLTM_STS_CEIL_SLP2];
-	mod_cfg->pltm_cfg.sts_ceil_slp[3] = param->isp_tunning_settings.pltm_cfg[ISP_PLTM_STS_CEIL_SLP3];
-	mod_cfg->pltm_cfg.sts_floor_slp[0] = param->isp_tunning_settings.pltm_cfg[ISP_PLTM_STS_FLOOR_SLP0];
-	mod_cfg->pltm_cfg.sts_floor_slp[1] = param->isp_tunning_settings.pltm_cfg[ISP_PLTM_STS_FLOOR_SLP1];
-	mod_cfg->pltm_cfg.sts_floor_slp[2] = param->isp_tunning_settings.pltm_cfg[ISP_PLTM_STS_FLOOR_SLP2];
-	mod_cfg->pltm_cfg.sts_floor_slp[3] = param->isp_tunning_settings.pltm_cfg[ISP_PLTM_STS_FLOOR_SLP3];
-	mod_cfg->pltm_cfg.sts_gd_ratio[0] = param->isp_tunning_settings.pltm_cfg[ISP_PLTM_STS_GD_RT0];
-	mod_cfg->pltm_cfg.sts_gd_ratio[1] = param->isp_tunning_settings.pltm_cfg[ISP_PLTM_STS_GD_RT1];
-	mod_cfg->pltm_cfg.sts_gd_ratio[2] = param->isp_tunning_settings.pltm_cfg[ISP_PLTM_STS_GD_RT2];
-	mod_cfg->pltm_cfg.sts_gd_ratio[3] = param->isp_tunning_settings.pltm_cfg[ISP_PLTM_STS_GD_RT3];
-	mod_cfg->pltm_cfg.adjk_crct_ratio[0] = param->isp_tunning_settings.pltm_cfg[ISP_PLTM_ADJK_CRCT_RT0];
-	mod_cfg->pltm_cfg.adjk_crct_ratio[1] = param->isp_tunning_settings.pltm_cfg[ISP_PLTM_ADJK_CRCT_RT1];
-	mod_cfg->pltm_cfg.adjk_crct_ratio[2] = param->isp_tunning_settings.pltm_cfg[ISP_PLTM_ADJK_CRCT_RT2];
-	mod_cfg->pltm_cfg.adjk_crct_ratio[3] = param->isp_tunning_settings.pltm_cfg[ISP_PLTM_ADJK_CRCT_RT3];
-	for (i = 0; i < PLTM_MAX_STAGE; i++) {
-		mod_cfg->pltm_cfg.sts_flt_stren[i][0] = 384;//384
-		mod_cfg->pltm_cfg.sts_flt_stren[i][1] = 256;//256
-		mod_cfg->pltm_cfg.sts_flt_stren[i][2] = 64;//128
+		mod_cfg->pltm_cfg.strength = 256;
+		if (isp_gen->sensor_info.width_overlayer)
+			mod_cfg->pltm_cfg.blk_width = isp_gen->sensor_info.width_overlayer / 32;
+		else
+			mod_cfg->pltm_cfg.blk_width = isp_gen->sensor_info.sensor_width / 32;
+		mod_cfg->pltm_cfg.blk_height = isp_gen->sensor_info.sensor_height / 24;
+		mod_cfg->pltm_cfg.blk_num = mod_cfg->pltm_cfg.blk_width * mod_cfg->pltm_cfg.blk_height;
+		mod_cfg->pltm_cfg.wi_phase = ((mod_cfg->pltm_cfg.blk_width >> 1) << 12) / mod_cfg->pltm_cfg.blk_width;
+		mod_cfg->pltm_cfg.wi_step = (1 << 12) / mod_cfg->pltm_cfg.blk_width;
+		mod_cfg->pltm_cfg.hi_phase = ((mod_cfg->pltm_cfg.blk_height >> 1) << 12) / mod_cfg->pltm_cfg.blk_height;
+		mod_cfg->pltm_cfg.hi_step = (1 << 12) / mod_cfg->pltm_cfg.blk_height;
+		mod_cfg->pltm_cfg.nrm_ratio = 2048;
+		mod_cfg->pltm_cfg.gtm_en = param->isp_tunning_settings.pltm_cfg[ISP_PLTM_GTM_EN];
+		mod_cfg->pltm_cfg.lft_en = param->isp_tunning_settings.pltm_cfg[ISP_PLTM_LTF_EN];
+		mod_cfg->pltm_cfg.dsc_en = param->isp_tunning_settings.pltm_cfg[ISP_PLTM_DSC_EN];
+		mod_cfg->pltm_cfg.dcc_en = param->isp_tunning_settings.pltm_cfg[ISP_PLTM_DCC_EN];
+		mod_cfg->pltm_cfg.dsc_shf_bit = param->isp_tunning_settings.pltm_cfg[ISP_PLTM_DSC_SHF_BIT];
+		mod_cfg->pltm_cfg.dsc_lw_th = param->isp_tunning_settings.pltm_cfg[ISP_PLTM_DSC_LW_TH];
+		mod_cfg->pltm_cfg.dsc_hi_th = param->isp_tunning_settings.pltm_cfg[ISP_PLTM_DSC_HI_TH];
+		mod_cfg->pltm_cfg.dsc_lw_ratio = param->isp_tunning_settings.pltm_cfg[ISP_PLTM_DSC_LW_RT];
+		mod_cfg->pltm_cfg.dcc_shf_bit = param->isp_tunning_settings.pltm_cfg[ISP_PLTM_DCC_SHF_BIT];
+		mod_cfg->pltm_cfg.dcc_lw_th = param->isp_tunning_settings.pltm_cfg[ISP_PLTM_DCC_LW_TH];
+		mod_cfg->pltm_cfg.dcc_hi_th = param->isp_tunning_settings.pltm_cfg[ISP_PLTM_DCC_HI_TH];
+		mod_cfg->pltm_cfg.mgc_int_smth[0] = param->isp_tunning_settings.pltm_cfg[ISP_PLTM_MGC_INT_SMTH0];
+		mod_cfg->pltm_cfg.mgc_int_smth[1] = param->isp_tunning_settings.pltm_cfg[ISP_PLTM_MGC_INT_SMTH1];
+		mod_cfg->pltm_cfg.mgc_int_smth[2] = param->isp_tunning_settings.pltm_cfg[ISP_PLTM_MGC_INT_SMTH2];
+		mod_cfg->pltm_cfg.mgc_int_smth[3] = param->isp_tunning_settings.pltm_cfg[ISP_PLTM_MGC_INT_SMTH3];
+		mod_cfg->pltm_cfg.mgc_lum_adpt[0] = param->isp_tunning_settings.pltm_cfg[ISP_PLTM_MGC_LUM_ADPT0];
+		mod_cfg->pltm_cfg.mgc_lum_adpt[1] = param->isp_tunning_settings.pltm_cfg[ISP_PLTM_MGC_LUM_ADPT1];
+		mod_cfg->pltm_cfg.mgc_lum_adpt[2] = param->isp_tunning_settings.pltm_cfg[ISP_PLTM_MGC_LUM_ADPT2];
+		mod_cfg->pltm_cfg.mgc_lum_adpt[3] = param->isp_tunning_settings.pltm_cfg[ISP_PLTM_MGC_LUM_ADPT3];
+		mod_cfg->pltm_cfg.sts_ceil_slp[0] = param->isp_tunning_settings.pltm_cfg[ISP_PLTM_STS_CEIL_SLP0];
+		mod_cfg->pltm_cfg.sts_ceil_slp[1] = param->isp_tunning_settings.pltm_cfg[ISP_PLTM_STS_CEIL_SLP1];
+		mod_cfg->pltm_cfg.sts_ceil_slp[2] = param->isp_tunning_settings.pltm_cfg[ISP_PLTM_STS_CEIL_SLP2];
+		mod_cfg->pltm_cfg.sts_ceil_slp[3] = param->isp_tunning_settings.pltm_cfg[ISP_PLTM_STS_CEIL_SLP3];
+		mod_cfg->pltm_cfg.sts_floor_slp[0] = param->isp_tunning_settings.pltm_cfg[ISP_PLTM_STS_FLOOR_SLP0];
+		mod_cfg->pltm_cfg.sts_floor_slp[1] = param->isp_tunning_settings.pltm_cfg[ISP_PLTM_STS_FLOOR_SLP1];
+		mod_cfg->pltm_cfg.sts_floor_slp[2] = param->isp_tunning_settings.pltm_cfg[ISP_PLTM_STS_FLOOR_SLP2];
+		mod_cfg->pltm_cfg.sts_floor_slp[3] = param->isp_tunning_settings.pltm_cfg[ISP_PLTM_STS_FLOOR_SLP3];
+		mod_cfg->pltm_cfg.sts_gd_ratio[0] = param->isp_tunning_settings.pltm_cfg[ISP_PLTM_STS_GD_RT0];
+		mod_cfg->pltm_cfg.sts_gd_ratio[1] = param->isp_tunning_settings.pltm_cfg[ISP_PLTM_STS_GD_RT1];
+		mod_cfg->pltm_cfg.sts_gd_ratio[2] = param->isp_tunning_settings.pltm_cfg[ISP_PLTM_STS_GD_RT2];
+		mod_cfg->pltm_cfg.sts_gd_ratio[3] = param->isp_tunning_settings.pltm_cfg[ISP_PLTM_STS_GD_RT3];
+		mod_cfg->pltm_cfg.adjk_crct_ratio[0] = param->isp_tunning_settings.pltm_cfg[ISP_PLTM_ADJK_CRCT_RT0];
+		mod_cfg->pltm_cfg.adjk_crct_ratio[1] = param->isp_tunning_settings.pltm_cfg[ISP_PLTM_ADJK_CRCT_RT1];
+		mod_cfg->pltm_cfg.adjk_crct_ratio[2] = param->isp_tunning_settings.pltm_cfg[ISP_PLTM_ADJK_CRCT_RT2];
+		mod_cfg->pltm_cfg.adjk_crct_ratio[3] = param->isp_tunning_settings.pltm_cfg[ISP_PLTM_ADJK_CRCT_RT3];
+		for (i = 0; i < PLTM_MAX_STAGE; i++) {
+			mod_cfg->pltm_cfg.sts_flt_stren[i][0] = 384;//384
+			mod_cfg->pltm_cfg.sts_flt_stren[i][1] = 256;//256
+			mod_cfg->pltm_cfg.sts_flt_stren[i][2] = 64;//128
 
-		mod_cfg->pltm_cfg.adj1_asym_ratio[i] = 0;
-	}
-	if (isp_gen->isp_ini_cfg.isp_tunning_settings.pltm_cfg[ISP_PLTM_MODE] != 1) {
-		for (i = 0; i < 128; i++) {
-			mod_cfg->pltm_cfg.pltm_table[ISP_PLTM_TM_TBL_SIZE + 4*i + 0] = param->isp_tunning_settings.isp_pltm_lum_map_cv[0][i];
-			mod_cfg->pltm_cfg.pltm_table[ISP_PLTM_TM_TBL_SIZE + 4*i + 1] = param->isp_tunning_settings.isp_pltm_lum_map_cv[1][i];
-			mod_cfg->pltm_cfg.pltm_table[ISP_PLTM_TM_TBL_SIZE + 4*i + 2] = param->isp_tunning_settings.isp_pltm_lum_map_cv[2][i];
-			mod_cfg->pltm_cfg.pltm_table[ISP_PLTM_TM_TBL_SIZE + 4*i + 3] = param->isp_tunning_settings.isp_pltm_lum_map_cv[3][i];
+			mod_cfg->pltm_cfg.adj1_asym_ratio[i] = 0;
 		}
-	}
-	for (i = 0; i < 15; i++) {
-		for (j = 0; j < PLTM_MAX_STAGE; j++) {
-			mod_cfg->pltm_cfg.stat_gd_cv[i*PLTM_MAX_STAGE+j] = param->isp_tunning_settings.isp_pltm_stat_gd_cv[j][i];
+		if (isp_gen->isp_ini_cfg.isp_tunning_settings.pltm_cfg[ISP_PLTM_MODE] != 1) {
+			for (i = 0; i < 128; i++) {
+				mod_cfg->pltm_cfg.pltm_table[ISP_PLTM_TM_TBL_SIZE + 4*i + 0] = param->isp_tunning_settings.isp_pltm_lum_map_cv[0][i];
+				mod_cfg->pltm_cfg.pltm_table[ISP_PLTM_TM_TBL_SIZE + 4*i + 1] = param->isp_tunning_settings.isp_pltm_lum_map_cv[1][i];
+				mod_cfg->pltm_cfg.pltm_table[ISP_PLTM_TM_TBL_SIZE + 4*i + 2] = param->isp_tunning_settings.isp_pltm_lum_map_cv[2][i];
+				mod_cfg->pltm_cfg.pltm_table[ISP_PLTM_TM_TBL_SIZE + 4*i + 3] = param->isp_tunning_settings.isp_pltm_lum_map_cv[3][i];
+			}
 		}
-	}
-	for (i = 0; i < ISP_REG_TBL_LENGTH; i++) {
-		for (j = 0; j < PLTM_MAX_STAGE; j++) {
-			mod_cfg->pltm_cfg.adj_k_df_cv[i*PLTM_MAX_STAGE+j] = param->isp_tunning_settings.isp_pltm_df_cv[j][i];
+		for (i = 0; i < 15; i++) {
+			for (j = 0; j < PLTM_MAX_STAGE; j++) {
+				mod_cfg->pltm_cfg.stat_gd_cv[i*PLTM_MAX_STAGE+j] = param->isp_tunning_settings.isp_pltm_stat_gd_cv[j][i];
+			}
+		}
+		for (i = 0; i < ISP_REG_TBL_LENGTH; i++) {
+			for (j = 0; j < PLTM_MAX_STAGE; j++) {
+				mod_cfg->pltm_cfg.adj_k_df_cv[i*PLTM_MAX_STAGE+j] = param->isp_tunning_settings.isp_pltm_df_cv[j][i];
+			}
 		}
 	}
 
@@ -1685,108 +1844,129 @@ static void __isp_ctx_cfg_mod(struct isp_lib_context *isp_gen)
 				mod_cfg->msc_cfg.msc_blh_dlt_lut[i] = clamp(8192/max(mod_cfg->msc_cfg.msc_blh_lut[i] + mod_cfg->msc_cfg.msc_blh_lut[i-1], 1), 4, 2048);
 			}
 		}
+	}
 
-#if ISP_LIB_USE_OTP
-		// update otp infomation
-		if(isp_gen->otp_enable == 1) {
+	// update otp infomation
+	if (isp_gen->sensor_otp.otp_enable) {
+		if (isp_gen->sensor_otp.otp_info && isp_gen->sensor_otp.pmsc_table &&
+			isp_gen->sensor_otp.pwb_table && isp_gen->sensor_otp.paf_table) {
 			/* msc */
-			for(i = 0; i < (ISP_MSC_TBL_LENGTH); i++) {
-				isp_gen->msc_golden_ratio[i] = (float)max(((HW_U16*)(isp_gen->pmsc_table))[i], 1) / max(msc_golden[i], 1);
-			}
-			isp_gen->msc_r_ratio = (float)max(((HW_U16*)(isp_gen->pmsc_table))[0] + ((HW_U16*)(isp_gen->pmsc_table))[15] + ((HW_U16*)(isp_gen->pmsc_table))[15*16] + ((HW_U16*)(isp_gen->pmsc_table))[16*16 - 1], 1) /
+			if (isp_gen->stitch_mode == STITCH_2IN1_LINNER) {
+				for(i = 0; i < OTP_MSC_SIZE_2IN1; i++) {
+					isp_gen->sensor_otp.otp_info->msc_golden_ratio[i] = (float)max(isp_gen->sensor_otp.pmsc_table[i], 1) / max(msc_golden[i], 1);
+				}
+				isp_gen->sensor_otp.otp_info->msc_r_ratio = (float)max(isp_gen->sensor_otp.pmsc_table[0] + isp_gen->sensor_otp.pmsc_table[OTP_MSC_SIZE + 15] + isp_gen->sensor_otp.pmsc_table[15*16] + isp_gen->sensor_otp.pmsc_table[OTP_MSC_SIZE + 16*16 - 1], 1) /
+					max(msc_golden[0] + msc_golden[OTP_MSC_SIZE + 15] + msc_golden[15*16] + msc_golden[OTP_MSC_SIZE + 16*16 - 1], 1);
+			} else {
+				for(i = 0; i < OTP_MSC_SIZE; i++) {
+					isp_gen->sensor_otp.otp_info->msc_golden_ratio[i] = (float)max(isp_gen->sensor_otp.pmsc_table[i], 1) / max(msc_golden[i], 1);
+				}
+				isp_gen->sensor_otp.otp_info->msc_r_ratio = (float)max(isp_gen->sensor_otp.pmsc_table[0] + isp_gen->sensor_otp.pmsc_table[15] + isp_gen->sensor_otp.pmsc_table[15*16] + isp_gen->sensor_otp.pmsc_table[16*16 - 1], 1) /
 					max(msc_golden[0] + msc_golden[15] + msc_golden[15*16] + msc_golden[16*16 - 1], 1);
-			for (i = 0; i < (ISP_MSC_TBL_LENGTH); i++) {
-				if (i < 16*16) {
-					if (isp_gen->msc_r_ratio > 1.0) {
-						isp_gen->msc_golden_flag[i] = 1;
-					} else {
-						isp_gen->msc_golden_flag[i] = 0;
-					}
+			}
+			for (i = 0; i < OTP_MSC_SIZE / 3; i++) {
+				if (isp_gen->sensor_otp.otp_info->msc_r_ratio > 1.0) {
+					isp_gen->sensor_otp.otp_info->msc_golden_flag[i] = 1;
 				} else {
-					isp_gen->msc_golden_flag[i] = 0;
+					isp_gen->sensor_otp.otp_info->msc_golden_flag[i] = 0;
 				}
 			}
+			//printf("isp%d ratio\n", isp_gen->isp_id);
+			//for(i = 0; i < OTP_MSC_SIZE; i++) {
+			//	if (i % 16 == 0)
+			//		printf("\n");
+			//	printf("%.4f, ", isp_gen->sensor_otp.otp_info->msc_golden_ratio[i]);
+			//}
+			//printf("\n");
 
-			isp_gen->msc_adjust_ratio[0] = 5;
-			isp_gen->msc_adjust_ratio[1] = 5;
-			isp_gen->msc_adjust_ratio[2] = 0;
-			isp_gen->msc_adjust_ratio[3] = 10;
-			isp_gen->msc_adjust_ratio[4] = 11;
-			isp_gen->msc_adjust_ratio[5] = 11;// more less more green
+			isp_gen->sensor_otp.otp_info->msc_adjust_ratio[0] = 0;
+			isp_gen->sensor_otp.otp_info->msc_adjust_ratio[1] = 0;
+			isp_gen->sensor_otp.otp_info->msc_adjust_ratio[2] = 0;
+			isp_gen->sensor_otp.otp_info->msc_adjust_ratio[3] = 0;
+			isp_gen->sensor_otp.otp_info->msc_adjust_ratio[4] = 0;
+			isp_gen->sensor_otp.otp_info->msc_adjust_ratio[5] = 0;// more less more green
 
-			isp_gen->msc_adjust_ratio_less[0] = -5;// more less more red
-			isp_gen->msc_adjust_ratio_less[1] = -5;
-			isp_gen->msc_adjust_ratio_less[2] = 0;
-			isp_gen->msc_adjust_ratio_less[3] = 0;
-			isp_gen->msc_adjust_ratio_less[4] = -6;
-			isp_gen->msc_adjust_ratio_less[5] = -8;
+			isp_gen->sensor_otp.otp_info->msc_adjust_ratio_less[0] = 0;// more less more red
+			isp_gen->sensor_otp.otp_info->msc_adjust_ratio_less[1] = 0;
+			isp_gen->sensor_otp.otp_info->msc_adjust_ratio_less[2] = 0;
+			isp_gen->sensor_otp.otp_info->msc_adjust_ratio_less[3] = 0;
+			isp_gen->sensor_otp.otp_info->msc_adjust_ratio_less[4] = 0;
+			isp_gen->sensor_otp.otp_info->msc_adjust_ratio_less[5] = 0;
 #if 0
-			isp_gen->msc_adjust_ratio_less[0] = isp_gen->isp_ini_cfg.isp_3a_settings.af_tolerance_value_tbl[0];
-			isp_gen->msc_adjust_ratio_less[1] = isp_gen->isp_ini_cfg.isp_3a_settings.af_tolerance_value_tbl[1];
-			isp_gen->msc_adjust_ratio_less[2] = isp_gen->isp_ini_cfg.isp_3a_settings.af_tolerance_value_tbl[2];
-			isp_gen->msc_adjust_ratio_less[3] = isp_gen->isp_ini_cfg.isp_3a_settings.af_tolerance_value_tbl[3];
-			isp_gen->msc_adjust_ratio_less[4] = isp_gen->isp_ini_cfg.isp_3a_settings.af_tolerance_value_tbl[4];
-			isp_gen->msc_adjust_ratio_less[5] = isp_gen->isp_ini_cfg.isp_3a_settings.af_tolerance_value_tbl[5];
+			isp_gen->sensor_otp.otp_info->msc_adjust_ratio[0] = 5;
+			isp_gen->sensor_otp.otp_info->msc_adjust_ratio[1] = 5;
+			isp_gen->sensor_otp.otp_info->msc_adjust_ratio[2] = 0;
+			isp_gen->sensor_otp.otp_info->msc_adjust_ratio[3] = 10;
+			isp_gen->sensor_otp.otp_info->msc_adjust_ratio[4] = 11;
+			isp_gen->sensor_otp.otp_info->msc_adjust_ratio[5] = 11;// more less more green
+
+			isp_gen->sensor_otp.otp_info->msc_adjust_ratio_less[0] = -5;// more less more red
+			isp_gen->sensor_otp.otp_info->msc_adjust_ratio_less[1] = -5;
+			isp_gen->sensor_otp.otp_info->msc_adjust_ratio_less[2] = 0;
+			isp_gen->sensor_otp.otp_info->msc_adjust_ratio_less[3] = 0;
+			isp_gen->sensor_otp.otp_info->msc_adjust_ratio_less[4] = -6;
+			isp_gen->sensor_otp.otp_info->msc_adjust_ratio_less[5] = -8;
+#endif
+#if 0
+			isp_gen->sensor_otp.otp_info->msc_adjust_ratio_less[0] = isp_gen->isp_ini_cfg.isp_3a_settings.af_tolerance_value_tbl[0];
+			isp_gen->sensor_otp.otp_info->msc_adjust_ratio_less[1] = isp_gen->isp_ini_cfg.isp_3a_settings.af_tolerance_value_tbl[1];
+			isp_gen->sensor_otp.otp_info->msc_adjust_ratio_less[2] = isp_gen->isp_ini_cfg.isp_3a_settings.af_tolerance_value_tbl[2];
+			isp_gen->sensor_otp.otp_info->msc_adjust_ratio_less[3] = isp_gen->isp_ini_cfg.isp_3a_settings.af_tolerance_value_tbl[3];
+			isp_gen->sensor_otp.otp_info->msc_adjust_ratio_less[4] = isp_gen->isp_ini_cfg.isp_3a_settings.af_tolerance_value_tbl[4];
+			isp_gen->sensor_otp.otp_info->msc_adjust_ratio_less[5] = isp_gen->isp_ini_cfg.isp_3a_settings.af_tolerance_value_tbl[5];
 
 			ISP_LIB_LOG(ISP_LOG_LSC, "%f, %f, %f, %f, %f, %f. \n",
-				isp_gen->msc_adjust_ratio_less[0],
-				isp_gen->msc_adjust_ratio_less[1],
-				isp_gen->msc_adjust_ratio_less[2],
-				isp_gen->msc_adjust_ratio_less[3],
-				isp_gen->msc_adjust_ratio_less[4],
-				isp_gen->msc_adjust_ratio_less[5]);
+				isp_gen->sensor_otp.otp_info->msc_adjust_ratio_less[0],
+				isp_gen->sensor_otp.otp_info->msc_adjust_ratio_less[1],
+				isp_gen->sensor_otp.otp_info->msc_adjust_ratio_less[2],
+				isp_gen->sensor_otp.otp_info->msc_adjust_ratio_less[3],
+				isp_gen->sensor_otp.otp_info->msc_adjust_ratio_less[4],
+				isp_gen->sensor_otp.otp_info->msc_adjust_ratio_less[5]);
 #endif
-		} else {
-			for(i = 0; i < (ISP_MSC_TBL_LENGTH); i++) {
-				isp_gen->msc_golden_ratio[i] = 1.0;
-				isp_gen->msc_golden_flag[i] = 1;
+
+			/* wb */
+			for(i = 0; i < ISP_RAW_CH_MAX; i++) {
+				ISP_LIB_LOG(ISP_LOG_AWB, "awb corner :%5d, golden: %d. \n", isp_gen->sensor_otp.pwb_table[i], isp_gen->sensor_otp.pwb_table[i+4]);
+			}
+			isp_gen->sensor_otp.otp_info->wb_golden_ratio[0] = (float)max(isp_gen->sensor_otp.pwb_table[0], 1) / (float)max(isp_gen->sensor_otp.pwb_table[0+4], 1);
+			isp_gen->sensor_otp.otp_info->wb_golden_ratio[1] = (float)max(isp_gen->sensor_otp.pwb_table[1] + isp_gen->sensor_otp.pwb_table[2], 1)
+				/ (float)max(isp_gen->sensor_otp.pwb_table[1+4] + isp_gen->sensor_otp.pwb_table[2+4], 1);
+			isp_gen->sensor_otp.otp_info->wb_golden_ratio[2] = (float)max(isp_gen->sensor_otp.pwb_table[3], 1) / (float)max(isp_gen->sensor_otp.pwb_table[3+4], 1);
+
+			ISP_LIB_LOG(ISP_LOG_AWB, "awb otp ratio r :%5f, g: %5f, b: %5f. \n", isp_gen->sensor_otp.otp_info->wb_golden_ratio[0], isp_gen->sensor_otp.otp_info->wb_golden_ratio[1], isp_gen->sensor_otp.otp_info->wb_golden_ratio[2]);
+
+			for(i = 0; i < param->isp_3a_settings.awb_light_num; i++) {
+				ISP_LIB_LOG(ISP_LOG_AWB, "Before awb otp adjust %5d %5d %5d \n",param->isp_3a_settings.awb_light_info[10*i + 0], param->isp_3a_settings.awb_light_info[10*i + 1], param->isp_3a_settings.awb_light_info[10*i + 2]);
+				param->isp_3a_settings.awb_light_info[10*i + 0] = (HW_S32)(param->isp_3a_settings.awb_light_info[10*i + 0]*isp_gen->sensor_otp.otp_info->wb_golden_ratio[0]);
+				param->isp_3a_settings.awb_light_info[10*i + 1] = (HW_S32)(param->isp_3a_settings.awb_light_info[10*i + 1]*isp_gen->sensor_otp.otp_info->wb_golden_ratio[1]);
+				param->isp_3a_settings.awb_light_info[10*i + 2] = (HW_S32)(param->isp_3a_settings.awb_light_info[10*i + 2]*isp_gen->sensor_otp.otp_info->wb_golden_ratio[2]);
+				ISP_LIB_LOG(ISP_LOG_AWB, "Before awb otp adjust %5d %5d %5d \n",param->isp_3a_settings.awb_light_info[10*i + 0], param->isp_3a_settings.awb_light_info[10*i + 1], param->isp_3a_settings.awb_light_info[10*i + 2]);
 			}
 
-			isp_gen->msc_r_ratio = 1.0;
-			isp_gen->msc_adjust_ratio[0] = 0;
-			isp_gen->msc_adjust_ratio[1] = 0;
-			isp_gen->msc_adjust_ratio[2] = 0;
-			isp_gen->msc_adjust_ratio[3] = 0;
-			isp_gen->msc_adjust_ratio[4] = 0;
-			isp_gen->msc_adjust_ratio[5] = 0;
-			isp_gen->msc_adjust_ratio_less[0] = 0;
-			isp_gen->msc_adjust_ratio_less[1] = 0;
-			isp_gen->msc_adjust_ratio_less[2] = 0;
-			isp_gen->msc_adjust_ratio_less[3] = 0;
-			isp_gen->msc_adjust_ratio_less[4] = 0;
-			isp_gen->msc_adjust_ratio_less[5] = 0;
+			/* af */
+			if (param->isp_test_settings.af_en) {
+				if ((!isp_gen->sensor_otp.paf_table[0] && !isp_gen->sensor_otp.paf_table[1]) || (isp_gen->sensor_otp.paf_table[1] > isp_gen->sensor_otp.paf_table[0]) ||
+					(isp_gen->sensor_otp.paf_table[0] > 1023) || (isp_gen->sensor_otp.paf_table[1] > 1023) ||
+					(!af_golden[0] && !af_golden[1]) || (af_golden[1] > af_golden[0]) || (af_golden[0] > 1023) || (af_golden[1] > 1023)) {
+					ISP_PRINT("AF_OTP data failed, disable AF_OTP. (gd_max = %d, gd_min = %d, otp_max = %d, otp_min = %d)\n",
+						af_golden[0], af_golden[1], isp_gen->sensor_otp.paf_table[0], isp_gen->sensor_otp.paf_table[1]);
+					isp_gen->sensor_otp.otp_info->af_max_code_offset = 0;
+					isp_gen->sensor_otp.otp_info->af_min_code_offset = 0;
+				} else {
+					isp_gen->sensor_otp.otp_info->af_max_code_offset = (int)isp_gen->sensor_otp.paf_table[0] - af_golden[0];
+					isp_gen->sensor_otp.otp_info->af_min_code_offset = (int)isp_gen->sensor_otp.paf_table[1] - af_golden[1];
+					ISP_LIB_LOG(ISP_LOG_AF, "otp af max offset = %d, af min offset = %d. \n", isp_gen->sensor_otp.otp_info->af_max_code_offset, isp_gen->sensor_otp.otp_info->af_min_code_offset);
+				}
+			} else {
+				isp_gen->sensor_otp.otp_info->af_max_code_offset = 0;
+				isp_gen->sensor_otp.otp_info->af_min_code_offset = 0;
+			}
+		} else {
+			ISP_ERR("otp enable, buf otp pointer error, disable OTP.(otp_info=%p, pmsc_table=%p, pwb_table=%p, paf_table%p)\n", isp_gen->sensor_otp.otp_info,
+				isp_gen->sensor_otp.pmsc_table, isp_gen->sensor_otp.pwb_table, isp_gen->sensor_otp.paf_table);
+			isp_gen->sensor_otp.otp_enable = 0;
 		}
-#endif
 	}
-
-#if ISP_LIB_USE_OTP
-	if(isp_gen->otp_enable == 1) {
-		/* msc */
-		for(i = 0; i < ISP_RAW_CH_MAX; i++) {
-			ISP_LIB_LOG(ISP_LOG_AWB, "awb corner :%5d, golden: %d. \n", ((HW_U16*)(isp_gen->pwb_table))[i], ((HW_U16*)(isp_gen->pwb_table))[i+4]);
-		}
-
-		isp_gen->wb_golden_ratio[0] = (float)max(((HW_U16*)(isp_gen->pwb_table))[0], 1) / (float)max(((HW_U16*)(isp_gen->pwb_table))[0+4], 1);
-		isp_gen->wb_golden_ratio[1] = (float)max(((HW_U16*)(isp_gen->pwb_table))[1] +((HW_U16*)(isp_gen->pwb_table))[2], 1)
-			/ (float)max(((HW_U16*)(isp_gen->pwb_table))[1+4] + ((HW_U16*)(isp_gen->pwb_table))[2+4], 1);
-		isp_gen->wb_golden_ratio[2] = (float)max(((HW_U16*)(isp_gen->pwb_table))[3], 1) / (float)max(((HW_U16*)(isp_gen->pwb_table))[3+4], 1);
-
-		ISP_LIB_LOG(ISP_LOG_AWB, "awb otp ratio r :%5f, g: %5f, b: %5f. \n", isp_gen->wb_golden_ratio[0], isp_gen->wb_golden_ratio[1], isp_gen->wb_golden_ratio[2]);
-#if 0
-		for(i = 0; i < param->isp_3a_settings.awb_light_num; i++) {
-			ISP_LIB_LOG(ISP_LOG_AWB, "Before awb otp adjust %5d %5d %5d \n",param->isp_3a_settings.awb_light_info[10*i + 0], param->isp_3a_settings.awb_light_info[10*i + 1], param->isp_3a_settings.awb_light_info[10*i + 2]);
-			param->isp_3a_settings.awb_light_info[10*i + 0] = (HW_S32)(param->isp_3a_settings.awb_light_info[10*i + 0]*isp_gen->wb_golden_ratio[0]);
-			param->isp_3a_settings.awb_light_info[10*i + 1] = (HW_S32)(param->isp_3a_settings.awb_light_info[10*i + 1]*isp_gen->wb_golden_ratio[1]);
-			param->isp_3a_settings.awb_light_info[10*i + 2] = (HW_S32)(param->isp_3a_settings.awb_light_info[10*i + 2]*isp_gen->wb_golden_ratio[2]);
-			ISP_LIB_LOG(ISP_LOG_AWB, "Before awb otp adjust %5d %5d %5d \n",param->isp_3a_settings.awb_light_info[10*i + 0], param->isp_3a_settings.awb_light_info[10*i + 1], param->isp_3a_settings.awb_light_info[10*i + 2]);
-		}
-#endif
-	} else {
-		isp_gen->wb_golden_ratio[0] = 1;
-		isp_gen->wb_golden_ratio[1] = 1;
-		isp_gen->wb_golden_ratio[2] = 1;
-	}
-#endif
 
 	/*sharp*/
 	mod_cfg->sharp_cfg.ss_shp_ratio = param->isp_tunning_settings.sharp_comm_cfg[ISP_SHARP_SS_SHP_RATIO];
@@ -1829,7 +2009,10 @@ static void __isp_ctx_cfg_mod(struct isp_lib_context *isp_gen)
 	config_band_step(isp_gen);
 
 	//drc
-	mod_cfg->drc_cfg.drc_scale = 0;
+	if (isp_gen->isp_tuning_ver)
+		mod_cfg->drc_cfg.drc_scale = 15;
+	else
+		mod_cfg->drc_cfg.drc_scale = 0;
 
 	//gamma table
 	if (param->isp_test_settings.gamma_en) {
@@ -2287,8 +2470,16 @@ HW_S32 __isp_ctx_update_af_cfg(struct isp_lib_context *isp_gen)
 
 	//af_ini_cfg.
 	isp_gen->af_entity_ctx.af_param->af_ini.af_use_otp = isp_gen->isp_ini_cfg.isp_3a_settings.af_use_otp;
-	isp_gen->af_entity_ctx.af_param->af_ini.vcm_min_code = isp_gen->isp_ini_cfg.isp_3a_settings.vcm_min_code;
-	isp_gen->af_entity_ctx.af_param->af_ini.vcm_max_code = isp_gen->isp_ini_cfg.isp_3a_settings.vcm_max_code;
+	if (isp_gen->sensor_otp.otp_enable && isp_gen->sensor_otp.otp_info) {
+		isp_gen->af_entity_ctx.af_param->af_ini.vcm_min_code = clamp(isp_gen->isp_ini_cfg.isp_3a_settings.vcm_min_code + isp_gen->sensor_otp.otp_info->af_min_code_offset, 0, 1023);
+		isp_gen->af_entity_ctx.af_param->af_ini.vcm_max_code = clamp(isp_gen->isp_ini_cfg.isp_3a_settings.vcm_max_code + isp_gen->sensor_otp.otp_info->af_max_code_offset, 0, 1023);
+	} else {
+		isp_gen->af_entity_ctx.af_param->af_ini.vcm_min_code = isp_gen->isp_ini_cfg.isp_3a_settings.vcm_min_code;
+		isp_gen->af_entity_ctx.af_param->af_ini.vcm_max_code = isp_gen->isp_ini_cfg.isp_3a_settings.vcm_max_code;
+	}
+	isp_gen->af_entity_ctx.af_param->vcm.vcm_min_code = isp_gen->af_entity_ctx.af_param->af_ini.vcm_min_code;
+	isp_gen->af_entity_ctx.af_param->vcm.vcm_max_code = isp_gen->af_entity_ctx.af_param->af_ini.vcm_max_code;
+
 	isp_gen->af_entity_ctx.af_param->af_ini.af_interval_time = isp_gen->isp_ini_cfg.isp_3a_settings.af_interval_time;
 	isp_gen->af_entity_ctx.af_param->af_ini.af_speed_ind = isp_gen->isp_ini_cfg.isp_3a_settings.af_speed_ind;
 	isp_gen->af_entity_ctx.af_param->af_ini.af_auto_fine_en = isp_gen->isp_ini_cfg.isp_3a_settings.af_auto_fine_en;
@@ -2318,9 +2509,6 @@ HW_S32 __isp_ctx_update_af_cfg(struct isp_lib_context *isp_gen)
 	isp_gen->af_entity_ctx.af_param->af_ini.af_delay_frame = isp_gen->isp_ini_cfg.isp_3a_settings.af_reserve_0;
 	isp_gen->af_entity_ctx.af_param->af_ini.af_touch_dist_ind = isp_gen->isp_ini_cfg.isp_3a_settings.af_reserve_1;
 	isp_af_set_params_helper(&isp_gen->af_entity_ctx, ISP_AF_INI_DATA);
-
-	isp_gen->af_entity_ctx.af_param->vcm.vcm_max_code = isp_gen->isp_ini_cfg.isp_3a_settings.vcm_max_code;
-	isp_gen->af_entity_ctx.af_param->vcm.vcm_min_code = isp_gen->isp_ini_cfg.isp_3a_settings.vcm_min_code;
 
 	isp_gen->af_entity_ctx.af_param->test_cfg.isp_test_mode = isp_gen->isp_ini_cfg.isp_test_settings.isp_test_mode;
 	isp_gen->af_entity_ctx.af_param->test_cfg.isp_test_focus = isp_gen->isp_ini_cfg.isp_test_settings.isp_test_focus;
@@ -2374,11 +2562,7 @@ HW_S32 __isp_ctx_update_awb_cfg(struct isp_lib_context *isp_gen)
 #if (ISP_VERSION >= 602)
 	isp_gen->awb_entity_ctx.awb_param->test_cfg.isp_test_mode = clamp(isp_gen->isp_ini_cfg.isp_3a_settings.local_wb_coef, -1, 20);
 #else
-	if (isp_gen->stitch_mode == STITCH_NONE) {
-		isp_gen->awb_entity_ctx.awb_param->test_cfg.isp_test_mode = 10;//isp_gen->isp_ini_cfg.isp_test_settings.isp_test_mode;
-	} else {
-		isp_gen->awb_entity_ctx.awb_param->test_cfg.isp_test_mode = -1;
-	}
+	isp_gen->awb_entity_ctx.awb_param->test_cfg.isp_test_mode = 10;//isp_gen->isp_ini_cfg.isp_test_settings.isp_test_mode;
 #endif
 
 	return 0;
@@ -2489,6 +2673,8 @@ HW_S32 __isp_ctx_update_ae_cfg(struct isp_lib_context *isp_gen)
 	isp_gen->tune.gains.dig_gain_min = isp_gen->ae_entity_ctx.ae_param->ae_ini.ae_digital_gain_range[0]/4; /*Q10 -> Q8*/
 	isp_gen->tune.gains.dig_gain_max = isp_gen->ae_entity_ctx.ae_param->ae_ini.ae_digital_gain_range[1]/4;
 
+	if (isp_gen->ae_settings.exp_metering_mode == AE_METERING_MODE_SPOT)
+		isp_ae_set_params_helper(&isp_gen->ae_entity_ctx, ISP_AE_BUILD_TOUCH_WEIGHT);
 	return 0;
 }
 
@@ -2528,6 +2714,7 @@ HW_S32 __isp_ctx_update_rolloff_cfg(struct isp_lib_context *isp_gen)
 
 	//rolloff_sensor_info.
 	isp_gen->rolloff_entity_ctx.rolloff_param->rolloff_sensor_info = isp_gen->sensor_info;
+	isp_gen->rolloff_entity_ctx.rolloff_param->stitch_mode = isp_gen->stitch_mode;
 
 	for (m = 0; m < 11 * ROLLOFF_WIN_SIZE; m++)
 		isp_gen->rolloff_entity_ctx.rolloff_param->rolloff_ini.Rgain[m]
@@ -2797,7 +2984,7 @@ int isp_ctx_algo_init(struct isp_lib_context *isp_gen, const struct isp_ctx_oper
 		isp_gen->pltm_entity_ctx.pltm_param->isp_platform_id = isp_gen->module_cfg.isp_platform_id;
 	}
 
-#if (ISP_VERSION == 600)
+#if (ISP_VERSION == 600 || ISP_VERSION == 603)
 	isp_gen->module_cfg.module_entity = isp_module_init();
 	if (isp_gen->module_cfg.module_entity == NULL) {
 		ISP_ERR("isp module Entity is BUSY or NULL!\n");
@@ -2816,6 +3003,17 @@ int isp_ctx_algo_init(struct isp_lib_context *isp_gen, const struct isp_ctx_oper
 		isp_gen->rolloff_entity_ctx.rolloff_param->isp_platform_id = isp_gen->module_cfg.isp_platform_id;
 	}
 #endif
+
+	//other algorithm buffer alloc
+	isp_gen->algo_save.local_wb_save = malloc(sizeof(struct local_wb_data_save));
+	if (isp_gen->algo_save.local_wb_save == NULL) {
+		ISP_ERR("local_wb_save alloc failed, no memory!\n");
+		return -1;
+	} else {
+		memset(isp_gen->algo_save.local_wb_save, 0, sizeof(struct local_wb_data_save));
+		isp_gen->algo_save.local_wb_save->gain_max = 1.0;
+	}
+
 	isp_gen->ops = ops;
 
 	isp_gen->af_frame_cnt  = 0;
@@ -2950,7 +3148,7 @@ int isp_ctx_algo_exit(struct isp_lib_context *isp_gen)
 	gtm_exit(isp_gen->gtm_entity_ctx.gtm_entity);
 	pltm_exit(isp_gen->pltm_entity_ctx.pltm_entity);
 	iso_exit(isp_gen->iso_entity_ctx.iso_entity);
-#if (ISP_VERSION == 600)
+#if (ISP_VERSION == 600 || ISP_VERSION == 603)
 	isp_module_exit(isp_gen->module_cfg.module_entity);
 #endif
 #if ISP_LIB_USE_ROLLOFF
@@ -2960,6 +3158,13 @@ int isp_ctx_algo_exit(struct isp_lib_context *isp_gen)
 		free(isp_gen->load_reg_base);
 		isp_gen->load_reg_base = NULL;
 	}
+
+	//other algorithm buffer free
+	if (isp_gen->algo_save.local_wb_save != NULL) {
+		free(isp_gen->algo_save.local_wb_save);
+		isp_gen->algo_save.local_wb_save = NULL;
+	}
+
 	pthread_mutex_unlock(&(isp_gen->ctx_lock));
 
 	pthread_mutex_destroy(&(isp_gen->ctx_lock));
@@ -3052,10 +3257,11 @@ int isp_ctx_config_init(struct isp_lib_context *isp_gen)
 	isp_gen->isp_3a_change_flags &= ~ISP_SET_GAIN_STR;
 	isp_gen->isp_3a_change_flags &= ~ISP_SET_SCENE_MODE;
 
-	if (isp_gen->isp_ir_flag == ISP_IR_MODE) {
-		isp_gen->isp_3a_change_flags &= ~ISP_SET_HUE;
+	if (isp_gen->isp_ir_flag == ISP_IR_MODE)
 		isp_gen->tune.effect = ISP_COLORFX_GRAY;
-	}
+
+	if (isp_gen->tune.effect != ISP_COLORFX_NONE)
+		isp_gen->isp_3a_change_flags &= ~ISP_SET_HUE;
 
 	isp_apply_settings(isp_gen);
 

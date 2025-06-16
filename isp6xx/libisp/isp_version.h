@@ -19,14 +19,14 @@
 extern "C" {
 #endif
 #ifndef ISP_VERSION
-#define ISP_VERSION 601
+#define ISP_VERSION 602
 #endif
 #define ISP_SMALL_VERSION 100
 #define REPO_TAG "isp-500-520-v2.00"
 #define REPO_BRANCH "libisp-dev"
-#define REPO_COMMIT "fb5260a6a1f1b707e577376f215a34c6894f06f0"
-#define REPO_DATE "Tue Jul 9 11:03:00 2024 +0800"
-#define RELEASE_AUTHOR "<guoqiuwang@allwinnertech.com>"
+#define REPO_COMMIT "665dc2e9613716c25abb6b64af145a73b989271e"
+#define REPO_DATE "Wed Dec 18 15:26:13 2024 +0800"
+#define RELEASE_AUTHOR "<linjiandao@allwinnertech.com>"
 
 static inline void isp_version_info(void)
 {

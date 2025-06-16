@@ -61,16 +61,24 @@ int isp_ctx_save_init(struct isp_lib_context *ctx)
 		sizeof(isp_rolloff_entity_context_t) + sizeof(struct isp_module_config);
 	int read_len = 0;
 
-	sprintf(fdstr, "%s/isp%d_%d_%d_%u_%u_%s_ctx_saved.bin", ISP_PATH, ctx->isp_id, ctx->sensor_info.sensor_width,
-		ctx->sensor_info.sensor_height, ctx->sensor_info.fps_fixed, ctx->sensor_info.wdr_mode, ctx->sensor_info.name);
+	if(ctx->stitch_mode == STITCH_2IN1_LINNER) {
+		sprintf(fdstr, "%s/isp%d_%d_%d_%u_%u_%s_ctx_saved.bin", ISP_PATH, 1, ctx->sensor_info.sensor_width,
+			ctx->sensor_info.sensor_height, ctx->sensor_info.fps_fixed, ctx->sensor_info.wdr_mode, ctx->sensor_info.name);
+	} else {
+		sprintf(fdstr, "%s/isp%d_%d_%d_%u_%u_%s_ctx_saved.bin", ISP_PATH, ctx->isp_id, ctx->sensor_info.sensor_width,
+			ctx->sensor_info.sensor_height, ctx->sensor_info.fps_fixed, ctx->sensor_info.wdr_mode, ctx->sensor_info.name);
+	}
+
 	file_fd = fopen(fdstr, "rb");
 
 	if (!file_fd) {
 		ISP_WARN("open %s failed, err:%s.\n", fdstr, strerror(errno));
+		ctx->isp_ctx_save_init_flag = 0;
 		return -1;
 	} else {
 		fread(&read_len, sizeof(int), 1, file_fd);
 		if (data_len != read_len) {
+			ctx->isp_ctx_save_init_flag = 0;
 			ISP_ERR("%s read size %d != isp_ctx size %d!\n", fdstr, read_len, data_len);
 		} else {
 			fread(&ctx->module_cfg, sizeof(struct isp_module_config), 1, file_fd);
@@ -83,6 +91,7 @@ int isp_ctx_save_init(struct isp_lib_context *ctx)
 			fread(&ctx->pltm_entity_ctx, sizeof(isp_pltm_entity_context_t), 1, file_fd);
 			fread(&ctx->iso_entity_ctx, sizeof(isp_iso_entity_context_t), 1, file_fd);
 			fread(&ctx->rolloff_entity_ctx, sizeof(isp_rolloff_entity_context_t), 1, file_fd);
+			ctx->isp_ctx_save_init_flag = 1;
 			ISP_PRINT("get isp_ctx from %s success!!!\n", fdstr);
 		}
 	}
@@ -101,9 +110,15 @@ int isp_ctx_save_exit(struct isp_lib_context *ctx)
 		sizeof(isp_pltm_entity_context_t) + sizeof(isp_iso_entity_context_t) +
 		sizeof(isp_rolloff_entity_context_t) + sizeof(struct isp_module_config);
 
-	sprintf(fdstr, "%s/isp%d_%d_%d_%u_%u_%s_ctx_saved.bin", ISP_PATH, ctx->isp_id, ctx->sensor_info.sensor_width,
-		ctx->sensor_info.sensor_height, ctx->sensor_info.fps_fixed, ctx->sensor_info.wdr_mode,
-		ctx->sensor_info.name);
+	if(ctx->stitch_mode == STITCH_2IN1_LINNER) {
+		sprintf(fdstr, "%s/isp%d_%d_%d_%u_%u_%s_ctx_saved.bin", ISP_PATH, 1, ctx->sensor_info.sensor_width,
+			ctx->sensor_info.sensor_height, ctx->sensor_info.fps_fixed, ctx->sensor_info.wdr_mode,
+			ctx->sensor_info.name);
+	} else {
+		sprintf(fdstr, "%s/isp%d_%d_%d_%u_%u_%s_ctx_saved.bin", ISP_PATH, ctx->isp_id, ctx->sensor_info.sensor_width,
+			ctx->sensor_info.sensor_height, ctx->sensor_info.fps_fixed, ctx->sensor_info.wdr_mode,
+			ctx->sensor_info.name);
+	}
 	file_fd = fopen(fdstr, "wb");
 
 	if (!file_fd) {
@@ -255,6 +270,9 @@ void isp_s_brightness(struct isp_lib_context *isp_gen, int value)
 void isp_s_contrast(struct isp_lib_context *isp_gen, int value)
 {
 	int i = 0;
+
+	isp_gen->pltm_entity_ctx.pltm_param->pltm_enable = 1;
+	isp_gen->gtm_entity_ctx.gtm_param->gtm_enable = 1;
 
 	if (!isp_gen->isp_ini_cfg.isp_test_settings.gtm_en || !isp_gen->isp_ini_cfg.isp_test_settings.drc_en) {
 		isp_gen->isp_ini_cfg.isp_test_settings.gtm_en = 1;
@@ -415,7 +433,10 @@ void isp_s_ae_roi(struct isp_lib_context *isp_gen, int value, struct isp_h3a_coo
 	if ((value == AE_METERING_MODE_SPOT) && (coor != NULL) &&
 	    memcmp(&isp_gen->ae_settings.ae_coor, coor, sizeof(struct isp_h3a_coor_win))) {
 		isp_gen->ae_settings.exp_metering_mode = value;
-		isp_gen->ae_settings.ae_coor = *coor;
+		isp_gen->ae_settings.ae_coor.x1 = clamp(coor->x1, -1000, 1000);
+		isp_gen->ae_settings.ae_coor.y1 = clamp(coor->y1, -1000, 1000);
+		isp_gen->ae_settings.ae_coor.x2 = clamp(coor->x2, -1000, 1000);
+		isp_gen->ae_settings.ae_coor.y2 = clamp(coor->y2, -1000, 1000);
 		isp_gen->ae_settings.exposure_lock = false;
 		isp_gen->ae_entity_ctx.ae_param->ae_setting = isp_gen->ae_settings;
 		isp_ae_set_params_helper(&isp_gen->ae_entity_ctx, ISP_AE_BUILD_TOUCH_WEIGHT);
@@ -672,8 +693,10 @@ void isp_s_focus_auto(struct isp_lib_context *isp_gen, int value)
 			ISP_ERR("af is not init, please init first!\n");
 			return;
 		}
-		//isp_gen->af_entity_ctx.af_param->auto_focus_trigger = 1;
-		//isp_af_set_params_helper(&isp_gen->af_entity_ctx, ISP_AF_TRIGGER);
+#if (ISP_VERSION == 600 || ISP_VERSION == 603)
+		isp_gen->af_entity_ctx.af_param->auto_focus_trigger = 1;
+		isp_af_set_params_helper(&isp_gen->af_entity_ctx, ISP_AF_TRIGGER);
+#endif
 	} else {
 		isp_gen->af_settings.af_mode = AUTO_FOCUS_MANUAL;
 	}

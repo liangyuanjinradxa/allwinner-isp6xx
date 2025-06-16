@@ -30,7 +30,10 @@ extern "C" {
 #define ALOGE(...)   ALOG("E", __VA_ARGS__)
 #define LOG_ALWAYS_FATAL(...)   do { ALOGE(__VA_ARGS__); exit(1); } while (0)
 
-#define MAX_ISP_NUM 2
+#define MAX_ISP_NUM 4
+
+static pthread_mutex_t lock = PTHREAD_MUTEX_INITIALIZER;
+
 
 static int awIspApiInit()
 {
@@ -57,7 +60,9 @@ static int awIspStart(int isp_id)
 {
     int ret = -1;
 
+    pthread_mutex_lock(&lock);
     ret = isp_init(isp_id);
+    pthread_mutex_unlock(&lock);
     ret = isp_run(isp_id);
 
     if (ret < 0) {
@@ -72,9 +77,11 @@ static int awIspStop(int isp_id)
 {
     int ret = -1;
 
+    pthread_mutex_lock(&lock);
     ret = isp_stop(isp_id);
     ret = isp_pthread_join(isp_id);
     ret = isp_exit(isp_id);
+    pthread_mutex_unlock(&lock);
 
     if (ret < 0) {
         ALOGE("F:%s, L:%d, ret:%d",__FUNCTION__, __LINE__, ret);
@@ -106,6 +113,16 @@ static int awIspApiUnInit()
     return 0;
 }
 
+static int awIspSetAeTable(int isp_id, int msg)
+{
+	return isp_set_aetable(isp_id, msg);
+}
+
+static int awIspSetSync(int mode)
+{
+       return isp_set_sync(mode);
+}
+
 AWIspApi *CreateAWIspApi(void)
 {
 	AWIspApi *ispport = (AWIspApi *)malloc(sizeof(AWIspApi));
@@ -120,6 +137,9 @@ AWIspApi *CreateAWIspApi(void)
     ispport->ispStop = awIspStop;
     ispport->ispWaitToExit = awIspWaitToExit;
     ispport->ispApiUnInit = awIspApiUnInit;
+    ispport->ispSetAeTable = awIspSetAeTable;
+    ispport->ispSetSync = awIspSetSync;
+
 
 	return ispport;
 }

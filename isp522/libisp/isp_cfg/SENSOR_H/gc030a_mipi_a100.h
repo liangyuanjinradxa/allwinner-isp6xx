@@ -40,7 +40,7 @@ struct isp_test_param gc030a_mipi_isp_test_settings = {
 	.lum_forced = 1,
 	.manual_en = 0,
 	.afs_en = 0,
-	.sharp_en = 1,
+	.sharp_en = 0,
 	.contrast_en = 0,
 	.denoise_en = 1,
 	.drc_en = 0,
@@ -56,38 +56,38 @@ struct isp_test_param gc030a_mipi_isp_test_settings = {
 	.blc_en = 0,
 	.so_en = 1,
 	.wb_en = 1,
-	.otf_dpc_en = 0,
+	.otf_dpc_en = 1,
 	.cfa_en = 1,
 	.tdf_en = 0,
-	.cnr_en = 0,
-	.lca_en = 0,
+	.cnr_en = 1,
+	.lca_en = 1,
 	.gca_en = 0,
-	.satur_en = 0,
+	.satur_en = 1,
 	.defog_en = 0,
 	.linear_en = 0,
 	.gtm_en = 0,
 	.dig_gain_en = 0,
 	.pltm_en = 0,
 	.wdr_en = 0,
-	.ctc_en = 0
+	.ctc_en = 1
 };
 struct isp_3a_param gc030a_mipi_isp_3a_settings = {
 	.define_ae_table = 1,
 	.ae_max_lv = 1652,
 	.ae_table_preview_length = 2,
 	.ae_table_preview = {
-		 8000,    50,   256,   256,   266,   266,
-		   50,    50,   256,  8196,   266,   266
+		 8000,    15,   256,   256,   266,   266,
+		   15,    15,   256,  8196,   266,   266
 	},
 	.ae_table_capture_length = 2,
 	.ae_table_capture = {
-		 8000,    50,   256,   256,   266,   266,
-		   50,    50,   256,  8196,   266,   266
+		 8000,    15,   256,   256,   266,   266,
+		   15,    15,   256,  8196,   266,   266
 	},
 	.ae_table_video_length = 2,
 	.ae_table_video = {
-		 8000,    50,   256,   256,   266,   266,
-		   50,    50,   256,  8196,   266,   266
+		 8000,    15,   256,   256,   266,   266,
+		   15,    15,   256,  8196,   266,   266
 	},
 	.ae_win_weight = {
 		    1,     1,     1,     1,     1,     1,     1,     1,
@@ -226,7 +226,7 @@ struct isp_dynamic_param gc030a_mipi_isp_iso_settings = {
 			0, 6, 36, 24, 160, 512, 0, 256, 0, 256, 0
 		},
 		.denoise_cfg = {
-			350, 0, 450, 0, 250, 250, 250, 48, 48, 32, 16, 20, 24, 28, 10, 67, 100, 133, 666, 666
+			250, 0, 300, 0, 250, 250, 250, 48, 48, 32, 128, 256, 32, 16, 10, 67, 100, 133, 666, 666
 		},
 		.sensor_offset = {
 			-4, -4, -8, -8
@@ -235,7 +235,7 @@ struct isp_dynamic_param gc030a_mipi_isp_iso_settings = {
 			-240, -240, -240, -240
 		},
 		.dpc_cfg = {
-			4, 1, 512, 2, 0, 0
+			8, 100, 144, 216, 32, 128
 		},
 		.pltm_dynamic_cfg = {
 			30, 24, 0, 0
@@ -246,7 +246,7 @@ struct isp_dynamic_param gc030a_mipi_isp_iso_settings = {
 		.saturation_cb = 0,
 		.saturation_cr = 0,
 		.saturation_cfg = {
-			4, 8, 4, 0, 28, 28, 50
+			4, 8, 4, 0, -153, -157, 50
 		},
 		.cem_ratio = 66,
 		.tdf_cfg = {
@@ -260,7 +260,7 @@ struct isp_dynamic_param gc030a_mipi_isp_iso_settings = {
 			512, 2, 10, 10, 215, 3, 1, 3, 0
 		},
 		.lca_cfg = {
-			0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0
+			512, 768, 320, 96, 512, 9, 280, 32, 11, 15, 8
 		},
 	},
 	.isp_dynamic_cfg[1] = {
@@ -271,7 +271,7 @@ struct isp_dynamic_param gc030a_mipi_isp_iso_settings = {
 			0, 8, 36, 24, 150, 256, 0, 256, 0, 256, 0
 		},
 		.denoise_cfg = {
-			500, 0, 600, 0, 250, 250, 250, 48, 48, 32, 16, 20, 24, 28, 10, 67, 100, 133, 666, 666
+			300, 0, 350, 0, 250, 250, 250, 48, 48, 32, 128, 256, 32, 16, 10, 67, 100, 133, 666, 666
 		},
 		.sensor_offset = {
 			-4, -4, -8, -8
@@ -280,7 +280,7 @@ struct isp_dynamic_param gc030a_mipi_isp_iso_settings = {
 			-240, -240, -240, -240
 		},
 		.dpc_cfg = {
-			4, 1, 256, 2, 0, 0
+			8, 100, 144, 216, 32, 128
 		},
 		.pltm_dynamic_cfg = {
 			40, 24, 0, 0
@@ -291,7 +291,7 @@ struct isp_dynamic_param gc030a_mipi_isp_iso_settings = {
 		.saturation_cb = 0,
 		.saturation_cr = 0,
 		.saturation_cfg = {
-			4, 8, 4, 0, 28, 28, 50
+			4, 8, 4, 0, -153, -157, 50
 		},
 		.cem_ratio = 66,
 		.tdf_cfg = {
@@ -305,7 +305,7 @@ struct isp_dynamic_param gc030a_mipi_isp_iso_settings = {
 			512, 2, 10, 20, 215, 3, 1, 3, 0
 		},
 		.lca_cfg = {
-			0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0
+			512, 768, 320, 96, 512, 9, 280, 32, 11, 15, 8
 		},
 	},
 	.isp_dynamic_cfg[2] = {
@@ -316,7 +316,7 @@ struct isp_dynamic_param gc030a_mipi_isp_iso_settings = {
 			1, 16, 32, 32, 105, 256, 0, 256, 0, 256, 0
 		},
 		.denoise_cfg = {
-			850, 0, 900, 0, 250, 250, 250, 48, 48, 32, 16, 20, 24, 28, 10, 67, 100, 133, 666, 666
+			400, 0, 500, 0, 250, 250, 250, 48, 48, 32, 128, 256, 32, 16, 10, 67, 100, 133, 666, 666
 		},
 		.sensor_offset = {
 			-4, -4, -8, -8
@@ -325,7 +325,7 @@ struct isp_dynamic_param gc030a_mipi_isp_iso_settings = {
 			-240, -240, -240, -240
 		},
 		.dpc_cfg = {
-			4, 1, 128, 2, 0, 0
+			8, 100, 144, 216, 32, 128
 		},
 		.pltm_dynamic_cfg = {
 			60, 24, 0, 0
@@ -336,7 +336,7 @@ struct isp_dynamic_param gc030a_mipi_isp_iso_settings = {
 		.saturation_cb = 0,
 		.saturation_cr = 0,
 		.saturation_cfg = {
-			4, 8, 4, 0, 27, 28, 50
+			4, 8, 4, 0, -153, -157, 50
 		},
 		.cem_ratio = 66,
 		.tdf_cfg = {
@@ -350,7 +350,7 @@ struct isp_dynamic_param gc030a_mipi_isp_iso_settings = {
 			512, 2, 10, 20, 215, 3, 1, 3, 0
 		},
 		.lca_cfg = {
-			0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0
+			512, 768, 320, 96, 512, 9, 280, 32, 11, 15, 8
 		},
 	},
 	.isp_dynamic_cfg[3] = {
@@ -361,7 +361,7 @@ struct isp_dynamic_param gc030a_mipi_isp_iso_settings = {
 			3, 16, 32, 32, 105, 256, 0, 256, 0, 256, 0
 		},
 		.denoise_cfg = {
-			1150, 0, 1250, 0, 250, 250, 250, 48, 48, 32, 16, 20, 24, 28, 10, 67, 100, 133, 666, 666
+			1150, 0, 1250, 0, 250, 250, 250, 48, 48, 32, 128, 256, 32, 16, 10, 67, 100, 133, 666, 666
 		},
 		.sensor_offset = {
 			-4, -4, -8, -8
@@ -370,7 +370,7 @@ struct isp_dynamic_param gc030a_mipi_isp_iso_settings = {
 			-240, -240, -240, -240
 		},
 		.dpc_cfg = {
-			4, 1, 64, 2, 0, 0
+			8, 100, 144, 216, 32, 128
 		},
 		.pltm_dynamic_cfg = {
 			75, 24, 0, 0
@@ -381,7 +381,7 @@ struct isp_dynamic_param gc030a_mipi_isp_iso_settings = {
 		.saturation_cb = 0,
 		.saturation_cr = 0,
 		.saturation_cfg = {
-			4, 8, 4, 0, 21, 21, 50
+			4, 8, 4, 0, -153, -157, 50
 		},
 		.cem_ratio = 44,
 		.tdf_cfg = {
@@ -395,7 +395,7 @@ struct isp_dynamic_param gc030a_mipi_isp_iso_settings = {
 			512, 2, 10, 20, 215, 3, 1, 3, 0
 		},
 		.lca_cfg = {
-			0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0
+			512, 768, 320, 96, 512, 9, 280, 32, 11, 15, 8
 		},
 	},
 	.isp_dynamic_cfg[4] = {
@@ -406,7 +406,7 @@ struct isp_dynamic_param gc030a_mipi_isp_iso_settings = {
 			4, 16, 36, 12, 105, 256, 64, 256, 0, 256, 0
 		},
 		.denoise_cfg = {
-			1400, 0, 1500, 0, 255, 255, 255, 48, 48, 32, 16, 20, 24, 28, 10, 67, 100, 133, 666, 666
+			1400, 0, 1500, 0, 255, 255, 255, 48, 48, 32, 128, 256, 32, 16, 10, 67, 100, 133, 666, 666
 		},
 		.sensor_offset = {
 			-4, -4, -8, -8
@@ -415,7 +415,7 @@ struct isp_dynamic_param gc030a_mipi_isp_iso_settings = {
 			-240, -240, -240, -240
 		},
 		.dpc_cfg = {
-			0, 0, 0, 2, 0, 0
+			8, 100, 144, 216, 32, 128
 		},
 		.pltm_dynamic_cfg = {
 			85, 26, 0, 0
@@ -426,7 +426,7 @@ struct isp_dynamic_param gc030a_mipi_isp_iso_settings = {
 		.saturation_cb = 0,
 		.saturation_cr = 0,
 		.saturation_cfg = {
-			4, 8, 4, 0, 18, 19, 50
+			4, 8, 4, 0, -153, -157, 50
 		},
 		.cem_ratio = 36,
 		.tdf_cfg = {
@@ -440,7 +440,7 @@ struct isp_dynamic_param gc030a_mipi_isp_iso_settings = {
 			512, 2, 10, 20, 215, 3, 1, 3, 0
 		},
 		.lca_cfg = {
-			0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0
+			512, 768, 320, 96, 512, 9, 280, 32, 11, 15, 8
 		},
 	},
 	.isp_dynamic_cfg[5] = {
@@ -451,7 +451,7 @@ struct isp_dynamic_param gc030a_mipi_isp_iso_settings = {
 			4, 16, 34, 12, 105, 256, 80, 256, 0, 256, 0
 		},
 		.denoise_cfg = {
-			1800, 0, 2000, 0, 255, 255, 255, 48, 48, 32, 16, 20, 24, 28, 10, 67, 100, 133, 666, 666
+			1800, 0, 2000, 0, 255, 255, 255, 48, 48, 32, 128, 256, 32, 16, 10, 67, 100, 133, 666, 666
 		},
 		.sensor_offset = {
 			-4, -4, -8, -8
@@ -460,7 +460,7 @@ struct isp_dynamic_param gc030a_mipi_isp_iso_settings = {
 			-240, -240, -240, -240
 		},
 		.dpc_cfg = {
-			0, 0, 0, 2, 0, 0
+			8, 100, 144, 216, 32, 128
 		},
 		.pltm_dynamic_cfg = {
 			95, 28, 0, 0
@@ -471,7 +471,7 @@ struct isp_dynamic_param gc030a_mipi_isp_iso_settings = {
 		.saturation_cb = 0,
 		.saturation_cr = 0,
 		.saturation_cfg = {
-			4, 8, 4, 0, 16, 16, 50
+			4, 8, 4, 0, -153, -157, 50
 		},
 		.cem_ratio = 40,
 		.tdf_cfg = {
@@ -485,7 +485,7 @@ struct isp_dynamic_param gc030a_mipi_isp_iso_settings = {
 			512, 2, 10, 20, 215, 3, 1, 3, 0
 		},
 		.lca_cfg = {
-			0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0
+			512, 768, 320, 96, 512, 9, 280, 32, 11, 15, 8
 		},
 	},
 	.isp_dynamic_cfg[6] = {
@@ -496,7 +496,7 @@ struct isp_dynamic_param gc030a_mipi_isp_iso_settings = {
 			4, 16, 30, 12, 105, 256, 96, 256, 0, 256, 0
 		},
 		.denoise_cfg = {
-			2000, 0, 2200, 0, 250, 250, 250, 64, 48, 32, 16, 20, 24, 28, 10, 67, 100, 133, 666, 666
+			2000, 0, 2200, 0, 250, 250, 250, 64, 48, 32, 128, 256, 32, 16, 10, 67, 100, 133, 666, 666
 		},
 		.sensor_offset = {
 			-4, -4, -8, -8
@@ -505,7 +505,7 @@ struct isp_dynamic_param gc030a_mipi_isp_iso_settings = {
 			-240, -240, -240, -240
 		},
 		.dpc_cfg = {
-			0, 0, 0, 2, 0, 0
+			8, 100, 144, 216, 32, 128
 		},
 		.pltm_dynamic_cfg = {
 			100, 30, 0, 0
@@ -516,7 +516,7 @@ struct isp_dynamic_param gc030a_mipi_isp_iso_settings = {
 		.saturation_cb = 0,
 		.saturation_cr = 0,
 		.saturation_cfg = {
-			4, 8, 4, 0, -22, -44, 50
+			4, 8, 4, 0, -153, -157, 50
 		},
 		.cem_ratio = 22,
 		.tdf_cfg = {
@@ -524,13 +524,13 @@ struct isp_dynamic_param gc030a_mipi_isp_iso_settings = {
 		},
 		.color_denoise = 250,
 		.ae_cfg = {
-			482, 512, 482, 512, 22, 22, 22, 22, 3, 55, 4, 30, 2, 25
+			482, 512, 482, 512, 22, 22, 22, 22, 3, 60, 4, 30, 2, 25
 		},
 		.gtm_cfg = {
 			512, 2, 10, 20, 215, 3, 1, 3, 0
 		},
 		.lca_cfg = {
-			0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0
+			512, 768, 320, 96, 512, 9, 280, 32, 11, 15, 8
 		},
 	},
 	.isp_dynamic_cfg[7] = {
@@ -541,7 +541,7 @@ struct isp_dynamic_param gc030a_mipi_isp_iso_settings = {
 			4, 16, 26, 12, 105, 256, 104, 256, 0, 256, 0
 		},
 		.denoise_cfg = {
-			900, 0, 900, 0, 250, 250, 250, 64, 48, 32, 16, 20, 24, 28, 10, 67, 100, 133, 666, 666
+			900, 0, 900, 0, 250, 250, 250, 64, 48, 32, 128, 256, 32, 16, 10, 67, 100, 133, 666, 666
 		},
 		.sensor_offset = {
 			-4, -4, -8, -8
@@ -550,7 +550,7 @@ struct isp_dynamic_param gc030a_mipi_isp_iso_settings = {
 			-240, -240, -240, -240
 		},
 		.dpc_cfg = {
-			0, 0, 0, 2, 0, 0
+			8, 100, 144, 216, 32, 128
 		},
 		.pltm_dynamic_cfg = {
 			95, 32, 0, 0
@@ -561,7 +561,7 @@ struct isp_dynamic_param gc030a_mipi_isp_iso_settings = {
 		.saturation_cb = 0,
 		.saturation_cr = 0,
 		.saturation_cfg = {
-			4, 8, 4, 0, -88, -88, 50
+			4, 8, 4, 0, -153, -157, 50
 		},
 		.cem_ratio = 22,
 		.tdf_cfg = {
@@ -569,13 +569,13 @@ struct isp_dynamic_param gc030a_mipi_isp_iso_settings = {
 		},
 		.color_denoise = 260,
 		.ae_cfg = {
-			482, 512, 482, 512, 22, 22, 22, 22, 3, 42, 4, 30, 2, 25
+			482, 512, 482, 512, 22, 22, 22, 22, 3, 55, 4, 30, 2, 25
 		},
 		.gtm_cfg = {
 			512, 2, 10, 20, 215, 3, 1, 3, 0
 		},
 		.lca_cfg = {
-			0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0
+			512, 768, 320, 96, 512, 9, 280, 32, 11, 15, 8
 		},
 	},
 	.isp_dynamic_cfg[8] = {
@@ -586,7 +586,7 @@ struct isp_dynamic_param gc030a_mipi_isp_iso_settings = {
 			4, 16, 22, 12, 105, 256, 112, 256, 0, 256, 0
 		},
 		.denoise_cfg = {
-			1000, 0, 1280, 0, 255, 246, 236, 64, 48, 32, 16, 20, 24, 28, 10, 67, 100, 133, 666, 666
+			1000, 0, 1280, 0, 255, 246, 236, 64, 48, 32, 128, 256, 32, 16, 10, 67, 100, 133, 666, 666
 		},
 		.sensor_offset = {
 			-4, -4, -8, -8
@@ -595,7 +595,7 @@ struct isp_dynamic_param gc030a_mipi_isp_iso_settings = {
 			-240, -240, -240, -240
 		},
 		.dpc_cfg = {
-			3, 1, 1024, 0, 0, 0
+			8, 100, 144, 216, 32, 128
 		},
 		.pltm_dynamic_cfg = {
 			85, 34, 0, 0
@@ -614,13 +614,13 @@ struct isp_dynamic_param gc030a_mipi_isp_iso_settings = {
 		},
 		.color_denoise = 1,
 		.ae_cfg = {
-			482, 512, 482, 512, 22, 22, 22, 22, 3, 32, 4, 30, 2, 25
+			482, 512, 482, 512, 22, 22, 22, 22, 3, 50, 4, 30, 2, 25
 		},
 		.gtm_cfg = {
 			512, 2, 10, 16, 215, 3, 1, 3, 0
 		},
 		.lca_cfg = {
-			0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0
+			512, 768, 320, 96, 512, 9, 280, 32, 11, 15, 8
 		},
 	},
 	.isp_dynamic_cfg[9] = {
@@ -631,7 +631,7 @@ struct isp_dynamic_param gc030a_mipi_isp_iso_settings = {
 			4, 16, 18, 10, 105, 200, 128, 256, 0, 256, 0
 		},
 		.denoise_cfg = {
-			1200, 0, 1200, 0, 255, 246, 236, 64, 48, 32, 16, 20, 24, 28, 10, 67, 100, 133, 666, 666
+			1200, 0, 1200, 0, 255, 246, 236, 64, 48, 32, 128, 256, 32, 16, 10, 67, 100, 133, 666, 666
 		},
 		.sensor_offset = {
 			-4, -4, -8, -8
@@ -640,7 +640,7 @@ struct isp_dynamic_param gc030a_mipi_isp_iso_settings = {
 			-240, -240, -240, -240
 		},
 		.dpc_cfg = {
-			3, 15, 1024, 0, 0, 0
+			8, 100, 144, 216, 32, 128
 		},
 		.pltm_dynamic_cfg = {
 			75, 36, 0, 0
@@ -659,13 +659,13 @@ struct isp_dynamic_param gc030a_mipi_isp_iso_settings = {
 		},
 		.color_denoise = 1,
 		.ae_cfg = {
-			482, 512, 482, 512, 22, 22, 22, 22, 3, 28, 4, 30, 2, 25
+			482, 512, 482, 512, 22, 22, 22, 22, 3, 45, 4, 30, 2, 25
 		},
 		.gtm_cfg = {
 			512, 2, 10, 10, 215, 3, 1, 3, 0
 		},
 		.lca_cfg = {
-			0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0
+			512, 768, 320, 96, 512, 9, 280, 32, 11, 15, 8
 		},
 	},
 	.isp_dynamic_cfg[10] = {
@@ -676,7 +676,7 @@ struct isp_dynamic_param gc030a_mipi_isp_iso_settings = {
 			4, 16, 14, 8, 105, 199, 160, 256, 0, 256, 0
 		},
 		.denoise_cfg = {
-			2200, 0, 2000, 0, 255, 246, 236, 64, 48, 32, 16, 20, 24, 28, 10, 67, 100, 133, 666, 666
+			2200, 0, 2000, 0, 255, 246, 236, 64, 48, 32, 128, 256, 32, 16, 10, 67, 100, 133, 666, 666
 		},
 		.sensor_offset = {
 			-4, -4, -8, -8
@@ -685,7 +685,7 @@ struct isp_dynamic_param gc030a_mipi_isp_iso_settings = {
 			-235, -235, -235, -235
 		},
 		.dpc_cfg = {
-			3, 15, 1024, 0, 0, 0
+			8, 100, 144, 216, 32, 128
 		},
 		.pltm_dynamic_cfg = {
 			60, 32, 0, 0
@@ -704,13 +704,13 @@ struct isp_dynamic_param gc030a_mipi_isp_iso_settings = {
 		},
 		.color_denoise = 1,
 		.ae_cfg = {
-			482, 512, 482, 512, 29, 29, 29, 29, 6, 26, 4, 30, 2, 25
+			482, 512, 482, 512, 29, 29, 29, 29, 6, 40, 4, 30, 2, 25
 		},
 		.gtm_cfg = {
 			512, 2, 10, 10, 215, 3, 1, 3, 0
 		},
 		.lca_cfg = {
-			0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0
+			512, 768, 320, 96, 512, 9, 280, 32, 11, 15, 8
 		},
 	},
 	.isp_dynamic_cfg[11] = {
@@ -721,7 +721,7 @@ struct isp_dynamic_param gc030a_mipi_isp_iso_settings = {
 			4, 16, 10, 7, 88, 188, 256, 256, 0, 256, 0
 		},
 		.denoise_cfg = {
-			2800, 0, 2240, 0, 255, 246, 236, 64, 48, 32, 16, 20, 24, 28, 10, 67, 100, 133, 666, 666
+			2800, 0, 2240, 0, 255, 246, 236, 64, 48, 32, 128, 256, 32, 16, 10, 67, 100, 133, 666, 666
 		},
 		.sensor_offset = {
 			-4, -4, -8, -8
@@ -730,7 +730,7 @@ struct isp_dynamic_param gc030a_mipi_isp_iso_settings = {
 			-230, -230, -230, -230
 		},
 		.dpc_cfg = {
-			3, 15, 1024, 0, 0, 0
+			8, 100, 144, 216, 32, 128
 		},
 		.pltm_dynamic_cfg = {
 			40, 28, 0, 0
@@ -749,13 +749,13 @@ struct isp_dynamic_param gc030a_mipi_isp_iso_settings = {
 		},
 		.color_denoise = 1,
 		.ae_cfg = {
-			482, 512, 482, 512, 29, 29, 29, 29, 6, 24, 4, 22, 2, 25
+			482, 512, 482, 512, 29, 29, 29, 29, 6, 35, 4, 22, 2, 25
 		},
 		.gtm_cfg = {
 			512, 2, 10, 10, 215, 3, 1, 3, 0
 		},
 		.lca_cfg = {
-			0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0
+			512, 768, 320, 96, 512, 9, 280, 32, 11, 15, 8
 		},
 	},
 	.isp_dynamic_cfg[12] = {
@@ -766,7 +766,7 @@ struct isp_dynamic_param gc030a_mipi_isp_iso_settings = {
 			4, 16, 8, 6, 77, 177, 320, 256, 0, 256, 0
 		},
 		.denoise_cfg = {
-			3600, 0, 2360, 0, 255, 246, 236, 64, 48, 32, 16, 20, 24, 28, 10, 67, 100, 133, 666, 666
+			3600, 0, 2360, 0, 255, 246, 236, 64, 48, 32, 128, 256, 32, 16, 10, 67, 100, 133, 666, 666
 		},
 		.sensor_offset = {
 			-4, -4, -8, -8
@@ -775,7 +775,7 @@ struct isp_dynamic_param gc030a_mipi_isp_iso_settings = {
 			-225, -225, -225, -225
 		},
 		.dpc_cfg = {
-			3, 15, 1024, 0, 0, 0
+			8, 100, 144, 216, 32, 128
 		},
 		.pltm_dynamic_cfg = {
 			30, 20, 0, 0
@@ -794,13 +794,13 @@ struct isp_dynamic_param gc030a_mipi_isp_iso_settings = {
 		},
 		.color_denoise = 1,
 		.ae_cfg = {
-			482, 512, 482, 512, 29, 29, 29, 29, 6, 24, 4, 30, 2, 25
+			482, 512, 482, 512, 29, 29, 29, 29, 6, 35, 4, 30, 2, 25
 		},
 		.gtm_cfg = {
 			512, 2, 10, 10, 215, 3, 1, 3, 0
 		},
 		.lca_cfg = {
-			0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0
+			512, 768, 320, 96, 512, 9, 280, 32, 11, 15, 8
 		},
 	},
 	.isp_dynamic_cfg[13] = {
@@ -811,7 +811,7 @@ struct isp_dynamic_param gc030a_mipi_isp_iso_settings = {
 			4, 16, 4, 3, 66, 166, 320, 256, 0, 256, 0
 		},
 		.denoise_cfg = {
-			4400, 0, 2560, 0, 255, 246, 236, 64, 48, 32, 16, 20, 24, 28, 10, 67, 100, 133, 666, 666
+			4400, 0, 2560, 0, 255, 246, 236, 64, 48, 32, 128, 256, 32, 16, 10, 67, 100, 133, 666, 666
 		},
 		.sensor_offset = {
 			-4, -4, -8, -8
@@ -820,7 +820,7 @@ struct isp_dynamic_param gc030a_mipi_isp_iso_settings = {
 			-220, -220, -220, -220
 		},
 		.dpc_cfg = {
-			3, 15, 1024, 0, 0, 0
+			48, 192, 180, 100, 100, 400
 		},
 		.pltm_dynamic_cfg = {
 			6, 12, 0, 0
@@ -839,13 +839,13 @@ struct isp_dynamic_param gc030a_mipi_isp_iso_settings = {
 		},
 		.color_denoise = 1,
 		.ae_cfg = {
-			482, 512, 482, 512, 29, 29, 29, 29, 6, 24, 4, 30, 2, 25
+			482, 512, 482, 512, 29, 29, 29, 29, 6, 35, 4, 30, 2, 25
 		},
 		.gtm_cfg = {
 			512, 2, 10, 10, 215, 3, 1, 3, 0
 		},
 		.lca_cfg = {
-			0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0
+			512, 768, 320, 96, 512, 9, 280, 32, 11, 15, 8
 		},
 	}
 };

@@ -103,7 +103,18 @@ static int client_handle(int sock_fd)
 	case SOCK_TYPE_ISP_VERSION:
 		thread_func_ptr = &sock_handle_isp_version_thread;
 		break;
+	case SOCK_TYPE_PREVIEW_VENCODE:
+#ifdef ANDROID_VENCODE
+		thread_func_ptr = &sock_handle_preview_vencode_thread;
+		break;
+#endif
+		LOG("App in board does't have preview vencode feature, please rebuild App with ANDROID_VENCODE macro define\n");
+		close(sock_fd);
+		return -1;
 #if 1
+	case SOCK_TYPE_BLOCK_INFO:
+		thread_func_ptr = &sock_handle_blockinfo_thread;
+		break;
 	case SOCK_CMD_EXIT:
 		LOG("%s: recv exit\n", __FUNCTION__);
 		g_server_stop_flag = SERVER_FLAG_STOP_YES;
@@ -117,7 +128,7 @@ static int client_handle(int sock_fd)
 	}
 
 	// 3. add work
-	ret = add_work(thread_func_ptr, (void *)sock_fd);
+	ret = add_work(thread_func_ptr, (void *)(intptr_t)sock_fd);
 
 	// 4. reply
 	//pack_packet(&comm_packet);
@@ -189,6 +200,7 @@ int init_server(int port)
 	struct sockaddr_in server_socket_addr = { 0 };
 	char ip_addr[64] = { 0 }, *ip = NULL;
 	int ret = -1;
+	int optVal = 1;
 
 #ifdef FUNCTION_END_FLAG
 #undef FUNCTION_END_FLAG
@@ -201,7 +213,7 @@ int init_server(int port)
 	}
 
 	reset_server_params();
-	
+
 	server_socket_addr.sin_family = AF_INET;
 	server_socket_addr.sin_port = htons(port);
 	server_socket_addr.sin_addr.s_addr = htons(INADDR_ANY);
@@ -224,7 +236,9 @@ int init_server(int port)
 
 	// ignoral pipe error
 	signal(SIGPIPE, SIG_IGN);
-	
+
+	setsockopt(g_server_socket_fd, SOL_SOCKET, SO_REUSEADDR, &optVal, sizeof(optVal));
+
 	// bind
 	ret = bind(g_server_socket_fd, (struct sockaddr*)&server_socket_addr, sizeof(server_socket_addr));
 	if (-1 == ret) {
@@ -256,7 +270,7 @@ int init_server(int port)
 	//if (ret < 0) {
 	//	LOG("%s: failed to init isp module\n", __FUNCTION__);
 	//}
-	
+
 	//ret = select_isp(0);
 	//if (ret < 0) {
 	//	LOG("%s: failed to select isp 0\n", __FUNCTION__);
@@ -279,7 +293,7 @@ int init_server(int port)
 	if (0 != ret) {
 		LOG("%s: failed to init mini shell\n", __FUNCTION__);
 	}
-	
+
 	g_server_init_flag = SERVER_FLAG_INIT_YES;
 	LOG("%s: init done\n", __FUNCTION__);
 	return 0;
@@ -322,7 +336,7 @@ int run_server()
 				LOG("%s: exits(%d, %08x)\n", __FUNCTION__, try_times, ret);
 				return 0;
 			}
-			
+
 			memset(&client_socket_addr, 0, sizeof(client_socket_addr));
 			client_socket = socket_accept(g_server_socket_fd,
 				(struct sockaddr*)&client_socket_addr, &client_socket_addr_len, SOCK_DEFAULT_TIMEOUT);

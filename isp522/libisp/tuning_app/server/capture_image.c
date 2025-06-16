@@ -9,9 +9,12 @@
 #include "../../include/device/video.h"
 #include "../log_handle.h"
 #include "../thread_pool.h"
-
+#include "../socket_protocol.h"
 #include "capture_image.h"
+#include "server_core.h"
 #include "raw_flow_opt.h"
+#include "isp_handle.h"
+
 
 
 #define CAPTURE_CHANNEL_MAX     HW_VIDEO_DEVICE_NUM
@@ -115,7 +118,7 @@ static int get_video_fmt(struct hw_isp_media_dev *media_dev, int vich, struct vi
 	} else {
 		video = media_dev->video_dev[vich];
 	}
-	
+
 	memset(vi_fmt, 0, sizeof(struct video_fmt));
 	video_get_fmt(video, vi_fmt);
 
@@ -135,7 +138,7 @@ static int enable_video(struct hw_isp_media_dev *media_dev, int vich)
 	} else {
 		video = media_dev->video_dev[vich];
 	}
-	
+
 	pool = buffers_pool_new(video);
 	if (!pool) {
 		return -1;
@@ -193,11 +196,11 @@ static int get_video_frame(struct hw_isp_media_dev *media_dev, int vich, frame_b
 	if (video_wait_buffer(video, timeout) < 0) {
 		return -1;
 	}
-	
+
 	if (video_dequeue_buffer(video, &buffer) < 0) {
 		return -1;
 	}
-	
+
 	memset(&vfmt, 0, sizeof(vfmt));
 	video_get_fmt(video, &vfmt);
 	for (i = 0; i < vfmt.nplanes; i++) {
@@ -238,7 +241,7 @@ static int release_video_frame(struct hw_isp_media_dev *media_dev, int vich, fra
  */
 static void *frame_loop_thread(void *params)
 {
-	int ret = -1, failed_times = 0;
+	int ret = -1, failed_times = 0, thread_status;
 	capture_params *cap_pa = (capture_params *)params;
 	capture_format cap_fmt;
 	cap_fmt.buffer = (unsigned char *)malloc(1 << 24); // 16M
@@ -251,6 +254,11 @@ static void *frame_loop_thread(void *params)
 		pthread_mutex_unlock(&cap_pa->locker);
 		while (1) {
 			msleep(1);
+			thread_status = CheckThreadsStatus();
+			if (thread_status & TH_STATUS_PREVIEW_VENCODE) {
+				msleep(100);
+				continue;
+			}
 			ret = pthread_mutex_trylock(&cap_pa->locker);
 			if (0 == ret) { // lock ok
 				if (!(CAP_STATUS_ON & cap_pa->status)) {
@@ -362,17 +370,17 @@ int start_video(capture_params *cap_pa, capture_format *cap_fmt)
 			goto start_video_get_fmt;
 		}
  	}
-	
+
 	fmt_changed = 1;
 	cap_pa->status &= ~CAP_STATUS_ON;
-	
+
 	ret = init_video(g_media_dev, cap_fmt->channel);
 	if (ret) {
 		ret = CAP_ERR_CH_INIT;
 		LOG("%s: failed to init channel %d\n", __FUNCTION__, cap_fmt->channel);
 		goto start_video_end;
-	}	
-	
+	}
+
 	cap_pa->priv_cap.vich = cap_fmt->channel;
 	cap_pa->priv_cap.timeout = 2000;  // ms
 	cap_pa->priv_cap.vi_fmt.type = V4L2_BUF_TYPE_VIDEO_CAPTURE_MPLANE;
@@ -381,12 +389,13 @@ int start_video(capture_params *cap_pa, capture_format *cap_fmt)
 	cap_pa->priv_cap.vi_fmt.format.field = V4L2_FIELD_NONE;
 	cap_pa->priv_cap.vi_fmt.format.width = cap_fmt->width;
 	cap_pa->priv_cap.vi_fmt.format.height = cap_fmt->height;
-	cap_pa->priv_cap.vi_fmt.nbufs = 6;
+	cap_pa->priv_cap.vi_fmt.nbufs = 3;
 	cap_pa->priv_cap.vi_fmt.nplanes = cap_fmt->planes_count;
 	cap_pa->priv_cap.vi_fmt.capturemode = V4L2_MODE_VIDEO;
 	cap_pa->priv_cap.vi_fmt.fps = cap_fmt->fps;
 	cap_pa->priv_cap.vi_fmt.wdr_mode = cap_fmt->wdr;
 	cap_pa->priv_cap.vi_fmt.use_current_win = 1;  //!!! not to change sensor input format
+	cap_pa->priv_cap.vi_fmt.index = cap_fmt->index;
 
 	ret = set_video_fmt(g_media_dev, cap_fmt->channel, &cap_pa->priv_cap.vi_fmt);
 	if (ret) {
@@ -427,7 +436,7 @@ start_video_get_fmt:
 			cap_pa->priv_cap.vi_fmt.format.plane_fmt[1].bytesperline,
 			cap_pa->priv_cap.vi_fmt.format.plane_fmt[2].bytesperline);
 	}
-	
+
 	cap_fmt->width = cap_pa->priv_cap.vi_fmt.format.width;
 	cap_fmt->height = cap_pa->priv_cap.vi_fmt.format.height;
 	cap_fmt->format = cap_pa->priv_cap.vi_fmt.format.pixelformat;
@@ -441,7 +450,16 @@ start_video_get_fmt:
 		add_work(&frame_loop_thread, cap_pa);
 	}
 	ret = CAP_ERR_NONE;
-	
+
+	if (fmt_changed) {
+		msleep(1000);
+		int isp_id = 0;
+		ret = select_isp(isp_id, 1);//PC Tools input isp_id
+		if (ret) {
+			LOG("%s: failed to select isp %d\n", __FUNCTION__, cap_fmt->channel);
+		}
+	}
+
 start_video_end:
 	pthread_mutex_unlock(&cap_pa->locker);
 	if (CAP_ERR_NONE == ret) {
@@ -477,7 +495,7 @@ int init_capture_module()
 		pthread_mutex_init(&cap_handle->locker, NULL);
 		reset_cap_params(cap_handle);
 	}
-	
+
 	pthread_mutex_init(&g_cap_locker, NULL);
 	g_cap_init_status = CAPTURE_INIT_YES;
 
@@ -560,7 +578,7 @@ int set_sensor_input(const sensor_input *sensor_in)
 		//if (sensor_set_flag) {
 		//	return CAP_ERR_NONE;
 		//}
-		
+
 		pthread_mutex_lock(&g_cap_locker);
 		cap_handle = g_cap_handle + sensor_in->channel;
 
@@ -585,12 +603,13 @@ int set_sensor_input(const sensor_input *sensor_in)
 		cap_handle->priv_cap.vi_fmt.format.field = V4L2_FIELD_NONE;
 		cap_handle->priv_cap.vi_fmt.format.width = sensor_in->width;
 		cap_handle->priv_cap.vi_fmt.format.height = sensor_in->height;
-		cap_handle->priv_cap.vi_fmt.nbufs = 6;
+		cap_handle->priv_cap.vi_fmt.nbufs = 3;
 		cap_handle->priv_cap.vi_fmt.nplanes = 2;
 		cap_handle->priv_cap.vi_fmt.capturemode = V4L2_MODE_VIDEO;
 		cap_handle->priv_cap.vi_fmt.fps = sensor_in->fps;
 		cap_handle->priv_cap.vi_fmt.wdr_mode = sensor_in->wdr;
 		cap_handle->priv_cap.vi_fmt.use_current_win = 0;  //!!! try to change sensor input format
+		cap_handle->priv_cap.vi_fmt.index = sensor_in->index;
 
 		ret = set_video_fmt(g_media_dev, sensor_in->channel, &cap_handle->priv_cap.vi_fmt);
 		if (ret) {
@@ -599,7 +618,7 @@ int set_sensor_input(const sensor_input *sensor_in)
 			LOG("%s: failed to set format(channel %d)\n", __FUNCTION__, sensor_in->channel);
 			goto set_sensor_input_end;
 		}
-		
+
 		ret = enable_video(g_media_dev, sensor_in->channel);
 		if (ret) {
 			exit_video(g_media_dev, sensor_in->channel);
@@ -615,6 +634,11 @@ int set_sensor_input(const sensor_input *sensor_in)
 			ret = CAP_ERR_CH_GET_FMT;
 			LOG("%s: failed to get format(channel %d)\n", __FUNCTION__, sensor_in->channel);
 			goto set_sensor_input_end;
+		}
+
+		if (ISP_VERSION >= 522) {
+			video_set_control(g_media_dev->video_dev[sensor_in->channel], V4L2_CID_HFLIP, 0);
+			video_set_control(g_media_dev->video_dev[sensor_in->channel], V4L2_CID_VFLIP, 0);
 		}
 
 		LOG("%s: vich%d format - fmt-%d, %dx%d@%d, wdr-%d, planes-%d[%d, %d, %d]\n", __FUNCTION__,
@@ -650,7 +674,7 @@ set_sensor_input_end:
 			} while (1);
 		}
 		pthread_mutex_unlock(&g_cap_locker);
-		return ret;		
+		return ret;
 	}
 
 	return -1;
@@ -695,11 +719,18 @@ int get_capture_buffer(capture_format *cap_fmt)
 					buffer += cap_handle->priv_cap.vi_frame_info.u32Stride[ret];
 					cap_fmt->length += cap_handle->priv_cap.vi_frame_info.u32Stride[ret];
 				}
-#if (ISP_VERSION == 521)
-				if(cap_fmt->height % 16) { // height ALIGN
-					uptr = cap_fmt->buffer + (cap_fmt->width * cap_fmt->height);
-					for(i = 0; i < cap_fmt->width * cap_fmt->height / 2; i++) {
-						*(uptr + i) = *(uptr + i + (cap_fmt->width * (16 - cap_fmt->height % 16)));
+#if (ISP_VERSION >= 521)
+				if((cap_fmt->format != V4L2_PIX_FMT_SBGGR8) && (cap_fmt->format != V4L2_PIX_FMT_SGBRG8) &&
+					(cap_fmt->format != V4L2_PIX_FMT_SGRBG8) && (cap_fmt->format != V4L2_PIX_FMT_SRGGB8) &&
+					(cap_fmt->format != V4L2_PIX_FMT_SBGGR10) && (cap_fmt->format != V4L2_PIX_FMT_SGBRG10) &&
+					(cap_fmt->format != V4L2_PIX_FMT_SGRBG10) && (cap_fmt->format != V4L2_PIX_FMT_SRGGB10) &&
+					(cap_fmt->format != V4L2_PIX_FMT_SBGGR12) && (cap_fmt->format != V4L2_PIX_FMT_SGBRG12) &&
+					(cap_fmt->format != V4L2_PIX_FMT_SGRBG12) && (cap_fmt->format != V4L2_PIX_FMT_SRGGB12)) {
+					if(cap_fmt->height % 16) { // height ALIGN
+						uptr = cap_fmt->buffer + (cap_fmt->width * cap_fmt->height);
+						for(i = 0; i < cap_fmt->width * cap_fmt->height / 2; i++) {
+							*(uptr + i) = *(uptr + i + (cap_fmt->width * (16 - cap_fmt->height % 16)));
+						}
 					}
 				}
 #endif
@@ -720,6 +751,261 @@ int get_capture_buffer(capture_format *cap_fmt)
 
 	return ret;
 }
+
+int get_capture_blockinfo(capture_format *cap_fmt, int GrayBlocksFlag, SRegion *region)
+{
+	int ret = CAP_ERR_NONE;
+	unsigned char *buffer = NULL;
+	capture_params *cap_handle = NULL;
+	//unsigned char *uptr = NULL;
+	unsigned int i, j, k, b_width, b_height;
+
+	if (cap_fmt && VALID_VIDEO_SEL(cap_fmt->channel)) {
+		pthread_mutex_lock(&g_cap_locker);
+		cap_handle = g_cap_handle + cap_fmt->channel;
+		//LOG("%s: %d\n", __FUNCTION__, __LINE__);
+		ret = start_video(cap_handle, cap_fmt);
+		//LOG("%s: %d\n", __FUNCTION__, __LINE__);
+		if (CAP_ERR_NONE == ret) {
+			// get frame
+			//LOG("%s: ready to get frame(channel %d)\n", __FUNCTION__, cap_fmt->channel);
+			//LOG("%s: %d\n", __FUNCTION__, __LINE__);
+			pthread_mutex_lock(&cap_handle->locker);
+			//LOG("%s: %d\n", __FUNCTION__, __LINE__);
+			ret = get_video_frame(g_media_dev, cap_handle->priv_cap.vich, &cap_handle->priv_cap.vi_frame_info, cap_handle->priv_cap.timeout);
+			//LOG("%s: get frame %d done(channel %d)\n", __FUNCTION__, frames_count, cap_fmt->channel);
+			cap_handle->frame_count++;
+			if (ret < 0) {
+				ret = CAP_ERR_GET_FRAME;
+				LOG("%s: failed to get frame %d(channel %d)\n", __FUNCTION__, cap_handle->frame_count, cap_fmt->channel);
+			} else {
+				if (cap_handle->frame_count % 50 == 0) {
+					LOG("%s: get frame %d done(channel %d)\n", __FUNCTION__, cap_handle->frame_count, cap_fmt->channel);
+				}
+				buffer = cap_fmt->buffer;
+				cap_fmt->length = 0;
+
+				for (i = 0; i < 20 ; i++) {
+					if (GrayBlocksFlag & (1 << i)) {
+						b_width = region[i].right - region[i].left + 1;
+						b_height = region[i].bottom - region[i].top + 1;
+						for (j = 0; j < b_height; j++) {
+							for (k = 0; k < b_width; k++) {
+								*buffer = *((unsigned char *)cap_handle->priv_cap.vi_frame_info.pVirAddr[0] + (region[i].top + j) * cap_fmt->width + region[i].left + k);
+								buffer++;
+							}
+						}
+						cap_fmt->length += b_width * b_height;
+					}
+				}
+				//for (ret = 0; ret < cap_fmt->planes_count; ret++) {
+				//	memcpy(buffer, cap_handle->priv_cap.vi_frame_info.pVirAddr[ret],
+				//		cap_handle->priv_cap.vi_frame_info.u32Stride[ret]);
+				//	buffer += cap_handle->priv_cap.vi_frame_info.u32Stride[ret];
+				//	cap_fmt->length += cap_handle->priv_cap.vi_frame_info.u32Stride[ret];
+				//}
+
+				//if (cap_fmt->length < cap_fmt->width * cap_fmt->height) {
+				//	LOG("%s: %d < %dx%d, not matched\n", __FUNCTION__, cap_fmt->length, cap_fmt->width, cap_fmt->height);
+				//	ret = CAP_ERR_GET_FRAME;
+				//} else {
+				ret = CAP_ERR_NONE;
+				//}
+				release_video_frame(g_media_dev, cap_handle->priv_cap.vich, &cap_handle->priv_cap.vi_frame_info);
+			}
+			pthread_mutex_unlock(&cap_handle->locker);
+		}
+		pthread_mutex_unlock(&g_cap_locker);
+	} else {
+		ret = CAP_ERR_INVALID_PARAMS;
+	}
+
+	return ret;
+}
+
+
+#ifdef ANDROID_VENCODE
+int set_vencode_config(capture_format *cap_fmt, encode_param_t *encode_param)
+{
+	if(cap_fmt->width == 0 || cap_fmt->height == 0) {
+		LOG("%s: cap_fmt.width=%d height=%d is invaild, please check PC setting or socket comm\n",
+			__FUNCTION__, cap_fmt->width, cap_fmt->height);
+		return CAP_ERR_INVALID_PARAMS;
+	}
+
+	memset(encode_param, 0, sizeof(encode_param_t));
+	encode_param->src_width = cap_fmt->width;
+	encode_param->src_height = cap_fmt->height;
+#if 1
+	encode_param->dst_width = cap_fmt->width;
+	encode_param->dst_height = cap_fmt->height;
+#else
+    encode_param->dst_width = vencoder_tuning_param->common_cfg.DstPicWidth;
+	encode_param->dst_height = vencoder_tuning_param->common_cfg.DstPicHeight;
+#endif
+	printf("encode_param width=%u height=%u\n", encode_param->src_width, encode_param->src_height);
+	encode_param->frame_rate = 30;
+	//encode_param->maxKeyFrame = 30;
+	encode_param->maxKeyFrame = vencoder_tuning_param->common_cfg.MaxKeyInterval;
+	encode_param->encode_frame_num = 1;
+
+	//if(encode_param->dst_width >= 3840)
+	//	encode_param->bit_rate = 20*1024*1024;
+	//else if(encode_param->dst_width >= 1920)
+	//	encode_param->bit_rate = 10*1024*1024;
+	//else if(encode_param->dst_width >= 1280)
+	//	encode_param->bit_rate = 6*1024*1024;
+	//else if(encode_param->dst_width >= 640)
+	//	encode_param->bit_rate = 2*1024*1024;
+	//else
+	//	encode_param->bit_rate = 1*1024*1024;
+	encode_param->bit_rate = vencoder_tuning_param->common_cfg.mBitRate;
+
+	encode_param->qp_min = vencoder_tuning_param->common_cfg.mMixQp;
+	encode_param->qp_max = vencoder_tuning_param->common_cfg.mMaxQp;
+	encode_param->mInitQp = vencoder_tuning_param->common_cfg.mInitQp;
+	encode_param->bFastEncFlag = vencoder_tuning_param->common_cfg.FastEncFlag;
+	encode_param->mbPintraEnable = vencoder_tuning_param->common_cfg.mbPintraEnable;
+	encode_param->Rotate = vencoder_tuning_param->common_cfg.Rotate;
+      encode_param->n3DNR   = vencoder_tuning_param->common_cfg.Flag_3DNR;
+	printf("+++++++++++++++3dnr=%d", vencoder_tuning_param->common_cfg.Flag_3DNR);
+      encode_param->IQpOffset = vencoder_tuning_param->common_cfg.IQpOffset;
+      encode_param->SbmBufSize = vencoder_tuning_param->common_cfg.SbmBufSize;
+      encode_param->MaxReEncodeTimes = vencoder_tuning_param->common_cfg.MaxReEncodeTimes;
+	//encode_param->encode_format = VENC_CODEC_H264;
+	encode_param->encode_format = vencoder_tuning_param->common_cfg.EncodeFormat;
+	if (cap_fmt->format == V4L2_PIX_FMT_NV12M) {
+		LOG("set_vencode_config: cap_fmt->format: NV12M\n");
+		encode_param->picture_format = VENC_PIXEL_YUV420SP;
+	}
+	else if(cap_fmt->format == V4L2_PIX_FMT_NV21M) {
+		LOG("set_vencode_config: cap_fmt->format: NV21M\n");
+		encode_param->picture_format = VENC_PIXEL_YVU420SP;
+	}
+	else {
+		LOG("set_vencode_config: cap_fmt->format: unknow or unknow support\n");
+		encode_param->picture_format = VENC_PIXEL_YUV420SP;
+	}
+
+	encode_param->fixqp.mIQp = vencoder_tuning_param->fixqp_cfg.mIQp;
+	encode_param->fixqp.mPQp = vencoder_tuning_param->fixqp_cfg.mPQp;
+
+#ifdef INPUTSOURCE_FILE
+	unsigned int nAlignW, nAlignH;
+
+	encode_param->encode_frame_num = 30;
+	memset(&encode_param->bufferParam, 0 ,sizeof(VencAllocateBufferParam));
+	//* ve require 16-align
+	nAlignW = (encode_param->src_width + 15)& ~15;
+	nAlignH = (encode_param->src_height + 15)& ~15;
+	encode_param->bufferParam.nSizeY = nAlignW*nAlignH;
+	encode_param->bufferParam.nSizeC = nAlignW*nAlignH/2;
+	encode_param->bufferParam.nBufferNum = 1;
+	/******** end set bufferParam param********/
+
+	encode_param->picture_format = VENC_PIXEL_YUV420P;
+	encode_param->src_size = encode_param->src_width * encode_param->src_height;
+	encode_param->dts_size = encode_param->src_size;
+	strcpy((char*)encode_param->input_path,  "/tmp/1080.yuv");
+	strcpy((char*)encode_param->output_path, "/tmp/1080p.h264");
+	encode_param->in_file = fopen(encode_param->input_path, "r");
+	if(encode_param->in_file == NULL)
+	{
+		printf("open in_file fail\n");
+		return CAP_ERR_INVALID_PARAMS;
+	}
+
+	encode_param->out_file = fopen(encode_param->output_path, "wb");
+	if(encode_param->out_file == NULL)
+	{
+		printf("open out_file fail\n");
+		fclose(encode_param->in_file);
+		return CAP_ERR_INVALID_PARAMS;
+	}
+#endif
+
+	return CAP_ERR_NONE;
+}
+
+int get_capture_vencode_buffer(capture_format *cap_fmt, encode_param_t *encode_param, int type)
+{
+	int ret = CAP_ERR_NONE;
+	capture_params *cap_handle = NULL;
+	unsigned char *buffer = NULL;
+	VencInputBuffer *inputBuffer = &encode_param->inputBuffer;
+	VencOutputBuffer *outputBuffer = &encode_param->outputBuffer;
+
+	if (cap_fmt == NULL) {
+		LOG("%s: cap_fmt is null\n", __FUNCTION__);
+		return CAP_ERR_INVALID_PARAMS;
+	}
+	buffer = cap_fmt->buffer;
+
+	if (VALID_VIDEO_SEL(cap_fmt->channel)) {
+		if (type == SOCK_CMD_VENCODE_PPSSPS) {
+			ret = StartEncoder(encode_param, NULL, NULL, VENCODE_CMD_HEAD_PPSSPS);
+			if (ret) {
+				LOG("%s: detect encode error!!@%d\n", __FUNCTION__, __LINE__);
+				ret = CAP_ERR_VENCODE_PPSSPS;
+			} else {
+				//Encoder data save in sps_pps_data
+				cap_fmt->length = encode_param->sps_pps_data.nLength;
+				memcpy(buffer, encode_param->sps_pps_data.pBuffer, cap_fmt->length);
+				ret = CAP_ERR_NONE;
+			}
+		} else if (type == SOCK_CMD_VENCODE_STREAM) {
+			pthread_mutex_lock(&g_cap_locker);
+			cap_handle = g_cap_handle + cap_fmt->channel;
+			ret = start_video(cap_handle, cap_fmt);
+			if (CAP_ERR_NONE == ret) {
+				pthread_mutex_lock(&cap_handle->locker);
+				ret = get_video_frame(g_media_dev, cap_handle->priv_cap.vich,
+									  &cap_handle->priv_cap.vi_frame_info,
+									  cap_handle->priv_cap.timeout);
+				cap_handle->frame_count++;
+				if (ret < 0) {
+					ret = CAP_ERR_GET_FRAME;
+					LOG("%s: failed to get frame %d(channel %d)\n", __FUNCTION__, cap_handle->frame_count, cap_fmt->channel);
+				} else {
+					inputBuffer->pAddrVirY = (unsigned char*)cap_handle->priv_cap.vi_frame_info.pVirAddr[0];
+					inputBuffer->pAddrVirC = (unsigned char*)cap_handle->priv_cap.vi_frame_info.pVirAddr[1];
+					inputBuffer->pAddrPhyY = (unsigned char*)cap_handle->priv_cap.vi_frame_info.u32PhyAddr[0];
+					inputBuffer->pAddrPhyC = (unsigned char*)cap_handle->priv_cap.vi_frame_info.u32PhyAddr[1];
+					ret = StartEncoder(encode_param, inputBuffer, outputBuffer, VENCODE_CMD_STREAM);
+					if (ret) {
+						LOG("%s: detect video encode error!!@%d\n", __FUNCTION__, __LINE__);
+						ret = CAP_ERR_VENCODE_STREAM;
+					} else {
+						//Encoder data save in outputBuffer
+						cap_fmt->length = outputBuffer->nSize0 + outputBuffer->nSize1;
+						memcpy(buffer, outputBuffer->pData0, outputBuffer->nSize0);
+						if (outputBuffer->nSize1) {
+							buffer += outputBuffer->nSize0;
+							memcpy(buffer, outputBuffer->pData1, outputBuffer->nSize1);
+						}
+						//when we do the job with outputBuffer, should call this function to free it
+						ret = FreeEncoderOutputBuffer(&encode_param->outputBuffer);
+						if (ret) {
+							LOG("%s free video encode outputBuffer faile\n", __FUNCTION__);
+							ret = CAP_ERR_VENCODE_FREEBUFFER;
+						}
+					}
+					release_video_frame(g_media_dev, cap_handle->priv_cap.vich, &cap_handle->priv_cap.vi_frame_info);
+				}
+				pthread_mutex_unlock(&cap_handle->locker);
+			} else {
+				LOG("%s: start_video fail\n", __FUNCTION__);
+			}
+			pthread_mutex_unlock(&g_cap_locker);
+		}
+	} else {
+		ret = CAP_ERR_INVALID_PARAMS;
+	}
+
+	return ret;
+
+}
+#endif
 
 int get_capture_buffer_transfer(capture_format *cap_fmt)
 {
@@ -761,11 +1047,18 @@ int get_capture_buffer_transfer(capture_format *cap_fmt)
 							buffer += cap_handle->priv_cap.vi_frame_info.u32Stride[ret];
 							cap_fmt->length += cap_handle->priv_cap.vi_frame_info.u32Stride[ret];
 						}
-#if (ISP_VERSION == 521)
-						if(cap_fmt->height % 16) { // height ALIGN
-							uptr = cap_fmt->buffer + (cap_fmt->width * cap_fmt->height);
-							for(i = 0; i < cap_fmt->width * cap_fmt->height / 2; i++) {
-								*(uptr + i) = *(uptr + i + (cap_fmt->width * (16 - cap_fmt->height % 16)));
+#if (ISP_VERSION >= 521)
+						if((cap_fmt->format != V4L2_PIX_FMT_SBGGR8) && (cap_fmt->format != V4L2_PIX_FMT_SGBRG8) &&
+							(cap_fmt->format != V4L2_PIX_FMT_SGRBG8) && (cap_fmt->format != V4L2_PIX_FMT_SRGGB8) &&
+							(cap_fmt->format != V4L2_PIX_FMT_SBGGR10) && (cap_fmt->format != V4L2_PIX_FMT_SGBRG10) &&
+							(cap_fmt->format != V4L2_PIX_FMT_SGRBG10) && (cap_fmt->format != V4L2_PIX_FMT_SRGGB10) &&
+							(cap_fmt->format != V4L2_PIX_FMT_SBGGR12) && (cap_fmt->format != V4L2_PIX_FMT_SGBRG12) &&
+							(cap_fmt->format != V4L2_PIX_FMT_SGRBG12) && (cap_fmt->format != V4L2_PIX_FMT_SRGGB12)) {
+							if(cap_fmt->height % 16) { // height ALIGN
+								uptr = cap_fmt->buffer + (cap_fmt->width * cap_fmt->height);
+								for(i = 0; i < cap_fmt->width * cap_fmt->height / 2; i++) {
+									*(uptr + i) = *(uptr + i + (cap_fmt->width * (16 - cap_fmt->height % 16)));
+								}
 							}
 						}
 #endif
@@ -794,7 +1087,7 @@ int start_raw_flow(capture_format *cap_fmt)
 	int ret = CAP_ERR_NONE;
 	capture_params *cap_handle = NULL;
 
-	if (cap_fmt && VALID_VIDEO_SEL(cap_fmt->channel)) {	
+	if (cap_fmt && VALID_VIDEO_SEL(cap_fmt->channel)) {
 		// check format
 		if (!(cap_fmt->format == V4L2_PIX_FMT_SBGGR8 ||
 			cap_fmt->format == V4L2_PIX_FMT_SGBRG8 ||
@@ -855,7 +1148,7 @@ int stop_raw_flow(int channel)
 	if (!VALID_VIDEO_SEL(channel)) {
 		return CAP_ERR_INVALID_PARAMS;
 	}
-	
+
 	pthread_mutex_lock(&g_cap_locker);
 	cap_handle = g_cap_handle + channel;
 	pthread_mutex_lock(&cap_handle->locker);
@@ -872,7 +1165,7 @@ int stop_raw_flow(int channel)
 		pthread_mutex_unlock(&cap_handle->locker);
 	} while (1);
 	pthread_mutex_unlock(&g_cap_locker);
-	
+
 	if (exit_raw_flow() != ERR_RAW_FLOW_NONE) {
 		return CAP_ERR_STOP_RAW_FLOW;
 	} else {
@@ -910,7 +1203,7 @@ void *do_save_raw_flow(void *params)
 	FILE *fp = NULL;
 	capture_format cap_fmt;
 	int ret = 0, frames_count = 0;
-	
+
 	if (params) {
 		fp = (FILE *)params;
 		cap_fmt.buffer = (unsigned char *)malloc(1 << 24); // 16M

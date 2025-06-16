@@ -7,7 +7,9 @@
 #define ISP_STAT_SAVE		0
 #define ISP_LOG_SAVE		0
 
+#define ISP_SAVE_STRING  70
 #define ISP_PATH "/mnt"
+extern unsigned int isp_lib_log_param;
 
 /**************isp statistic save api**************/
 int isp_stat_save_init(struct isp_lib_context *ctx)
@@ -51,7 +53,7 @@ void isp_stat_save_run(struct isp_lib_context *ctx)
 int isp_ctx_save_init(struct isp_lib_context *ctx)
 {
 	FILE *file_fd = NULL;
-	char fdstr[50];
+	char fdstr[ISP_SAVE_STRING];
 	int data_len = sizeof(isp_af_entity_context_t) + sizeof(isp_afs_entity_context_t) +
 		sizeof(isp_md_entity_context_t) + sizeof(isp_awb_entity_context_t) +
 		sizeof(isp_ae_entity_context_t) + sizeof(isp_gtm_entity_context_t) +
@@ -59,17 +61,17 @@ int isp_ctx_save_init(struct isp_lib_context *ctx)
 		sizeof(isp_rolloff_entity_context_t) + sizeof(struct isp_module_config);
 	int read_len = 0;
 
-	sprintf(fdstr, "%s/isp%d_%d_%d_%d_ctx_saved.bin", ISP_PATH, ctx->isp_id, ctx->sensor_info.sensor_width,
+	sprintf(fdstr, "%s/isp%d_%d_%d_%u_ctx_saved.bin", ISP_PATH, ctx->isp_id, ctx->sensor_info.sensor_width,
 		ctx->sensor_info.sensor_height, ctx->sensor_info.fps_fixed);
 	file_fd = fopen(fdstr, "rb");
 
 	if (file_fd == NULL) {
-		ISP_WARN("open %s failed!!!\n", fdstr);
+		ISP_WARN("open %s failed, err:%s.\n", fdstr, strerror(errno));
 		return -1;
 	} else {
 		fread(&read_len, sizeof(int), 1, file_fd);
 		if (data_len != read_len) {
-			ISP_WARN("%s size %d != isp_ctx size %d!\n", fdstr, data_len, sizeof(*ctx));
+			ISP_ERR("%s read size %d != isp_ctx size %d!\n", fdstr, read_len, data_len);
 		} else {
 			fread(&ctx->module_cfg, sizeof(struct isp_module_config), 1, file_fd);
 			fread(&ctx->af_entity_ctx, sizeof(isp_af_entity_context_t), 1, file_fd);
@@ -92,19 +94,19 @@ int isp_ctx_save_init(struct isp_lib_context *ctx)
 int isp_ctx_save_exit(struct isp_lib_context *ctx)
 {
 	FILE *file_fd = NULL;
-	char fdstr[50];
+	char fdstr[ISP_SAVE_STRING];
 	int data_len = sizeof(isp_af_entity_context_t) + sizeof(isp_afs_entity_context_t) +
 		sizeof(isp_md_entity_context_t) + sizeof(isp_awb_entity_context_t) +
 		sizeof(isp_ae_entity_context_t) + sizeof(isp_gtm_entity_context_t) +
 		sizeof(isp_pltm_entity_context_t) + sizeof(isp_iso_entity_context_t) +
 		sizeof(isp_rolloff_entity_context_t) + sizeof(struct isp_module_config);
 
-	sprintf(fdstr, "%s/isp%d_%d_%d_%d_ctx_saved.bin", ISP_PATH, ctx->isp_id, ctx->sensor_info.sensor_width,
+	sprintf(fdstr, "%s/isp%d_%d_%d_%u_ctx_saved.bin", ISP_PATH, ctx->isp_id, ctx->sensor_info.sensor_width,
 		ctx->sensor_info.sensor_height, ctx->sensor_info.fps_fixed);
 	file_fd = fopen(fdstr, "wb");
 
 	if (file_fd == NULL) {
-		ISP_WARN("open %s failed!!!\n", fdstr);
+		ISP_ERR("open %s failed, err:%s.\n", fdstr, strerror(errno));
 		return -1;
 	} else {
 		fwrite(&data_len, sizeof(int), 1, file_fd);
@@ -113,12 +115,13 @@ int isp_ctx_save_exit(struct isp_lib_context *ctx)
 		fwrite(&ctx->afs_entity_ctx, sizeof(isp_afs_entity_context_t), 1, file_fd);
 		fwrite(&ctx->md_entity_ctx, sizeof(isp_md_entity_context_t), 1, file_fd);
 		fwrite(&ctx->awb_entity_ctx, sizeof(isp_awb_entity_context_t), 1, file_fd);
+
 		fwrite(&ctx->ae_entity_ctx, sizeof(isp_ae_entity_context_t), 1, file_fd);
 		fwrite(&ctx->gtm_entity_ctx, sizeof(isp_gtm_entity_context_t), 1, file_fd);
 		fwrite(&ctx->pltm_entity_ctx, sizeof(isp_pltm_entity_context_t), 1, file_fd);
 		fwrite(&ctx->iso_entity_ctx, sizeof(isp_iso_entity_context_t), 1, file_fd);
 		fwrite(&ctx->rolloff_entity_ctx, sizeof(isp_rolloff_entity_context_t), 1, file_fd);
-		ISP_LIB_LOG(ISP_LOG_ISP, "save isp_ctx to %s success!!!\n", fdstr);
+		ISP_PRINT("save isp_ctx to %s success, data_len:%d!!!\n", fdstr, data_len);
 	}
 	fclose(file_fd);
 
@@ -209,6 +212,23 @@ void isp_log_save_exit(struct isp_lib_context *ctx)
 		fclose(ctx->isp_log_fd);
 #endif
 }
+
+#ifdef ANDROID_PLATFORM
+int ISP_LIB_LOG(int flag,const char *fmt,...)
+{
+	if(isp_lib_log_param & flag)
+	{
+		va_list arg_list;
+		char buf[2048];
+		memset(buf, 0, 2048);
+		va_start(arg_list,fmt);
+		vsnprintf(buf, 2048, fmt, arg_list);
+		va_end(arg_list);
+		ALOGE("[ISP_DEBUG]: %s",buf);
+	}
+	return 0;
+}
+#endif
 
 /**************isp cmd for effect set api**************/
 void isp_s_brightness(struct isp_lib_context *isp_gen, int value)
@@ -332,7 +352,29 @@ void isp_s_illuminators_2(struct isp_lib_context *isp_gen, int value)
 	;
 }
 
-void isp_s_af_metering_mode(struct isp_lib_context *isp_gen, int value, struct isp_h3a_coor_win *coor)
+void isp_s_af_metering_mode(struct isp_lib_context *isp_gen, struct v4l2_win_setting  *win)
+{
+  ISP_PRINT("isp_s_af_metering_mode");
+
+  if (win != NULL) {
+    isp_gen->af_settings.af_metering_mode = win->metering_mode;
+  }
+  if ((isp_gen->af_settings.af_metering_mode == AUTO_FOCUS_METERING_SPOT) && (win != NULL))
+  {
+    //isp_gen->af_settings.af_mode = AUTO_FOCUS_TOUCH;
+    isp_gen->af_settings.af_coor.x1 = win->coor.x1;
+    isp_gen->af_settings.af_coor.y1 = win->coor.y1;
+    isp_gen->af_settings.af_coor.x2 = win->coor.x2;
+    isp_gen->af_settings.af_coor.y2 = win->coor.y2;
+  }
+  else
+  {
+    //isp_gen->af_settings.af_mode = AUTO_FOCUS_CONTINUEOUS;
+  }
+  isp_gen->isp_3a_change_flags |= ISP_SET_AF_METERING_MODE;
+}
+
+/*void isp_s_af_metering_mode(struct isp_lib_context *isp_gen, int value, struct isp_h3a_coor_win *coor)
 {
 
 	isp_gen->af_settings.af_metering_mode = value;
@@ -349,7 +391,7 @@ void isp_s_af_metering_mode(struct isp_lib_context *isp_gen, int value, struct i
 		//isp_gen->af_settings.af_mode = AUTO_FOCUS_CONTINUEOUS;
 	}
 	isp_gen->isp_3a_change_flags |= ISP_SET_AF_METERING_MODE;
-}
+}*/
 
 void isp_s_ae_metering_mode(struct isp_lib_context *isp_gen, int value)
 {
@@ -473,7 +515,8 @@ void isp_s_auto_focus_start(struct isp_lib_context *isp_gen, int value)
 
 void isp_s_auto_focus_stop(struct isp_lib_context *isp_gen, int value)
 {
-	isp_gen->af_settings.focus_lock = false;
+	//isp_gen->af_settings.focus_lock = false;
+	isp_gen->af_settings.focus_lock = true;
 	isp_gen->af_settings.af_mode  = AUTO_FOCUS_CONTINUEOUS;
 }
 
@@ -506,6 +549,17 @@ void isp_s_flash_mode(struct isp_lib_context *isp_gen, int value)
 {
 	if (isp_gen->ae_settings.flash_mode != value)
 		isp_gen->ae_settings.flash_mode= value;
+}
+
+void isp_s_flash_mode_v1(struct isp_lib_context *isp_gen, int value)
+{
+	if (!value) {
+		if (isp_gen->ae_settings.flash_mode != value)
+			isp_gen->ae_settings.flash_mode= value;
+	} else {
+		if (isp_gen->ae_settings.flash_mode != (value + 2))
+			isp_gen->ae_settings.flash_mode= value + 2;
+	}
 }
 
 void isp_s_r_gain(struct isp_lib_context *isp_gen, int value)

@@ -133,6 +133,7 @@ int video_to_isp_id(struct isp_video_device *video);
 int video_set_fmt(struct isp_video_device *video, struct video_fmt *vfmt);
 int video_get_fmt(struct isp_video_device *video, struct video_fmt *vfmt);
 void video_set_next_ptn(struct isp_video_device *video, struct video_fmt *vfmt);
+void video_set_ldci_mode(struct isp_video_device *video, unsigned int ldci_select);
 int video_req_buffers(struct isp_video_device *video, struct buffers_pool *pool);
 int video_free_buffers(struct isp_video_device *video);
 int video_wait_buffer(struct isp_video_device *video, int timeout);

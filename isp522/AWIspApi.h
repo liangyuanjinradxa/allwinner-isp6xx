@@ -16,6 +16,12 @@ typedef struct{
 	int (*ispStop)(int isp_id);
 	int (*ispWaitToExit)(int isp_id);
 	int (*ispApiUnInit)(void);
+	int (*ispSetAeTarget)(int isp_id, void *target_val);
+	int (*ispSetAeWeight)(int isp_id, void *msg);
+	int (*ispSetAeTable)(int isp_id, void *msg);
+	int (*ispSetSync)(int mode);
+
+
 }AWIspApi;
 
 AWIspApi *CreateAWIspApi(void);

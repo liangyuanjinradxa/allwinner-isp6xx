@@ -250,6 +250,7 @@ static void isp_stat_process_buffer(void *priv)
 	struct vin_isp_stat_data data;
 	struct v4l2_event event;
 	struct vin_isp_stat_event_status *status = (struct vin_isp_stat_event_status *)event.u.data;
+	struct isp_lib_context *ctx = NULL;
 	int ret;
 
 	memset(&event, 0, sizeof event);
@@ -268,6 +269,21 @@ static void isp_stat_process_buffer(void *priv)
 	memset(&data, 0, sizeof data);
 	data.buf = isp->buffer;
 	data.buf_size = isp->size;
+	/* use config_counter to tell kernel stop getting some statistics. reduce cpu usage.
+	   bit[0]:AF stop
+	   bit[1]:PLTM pkx stop
+	   bit[2]:ldci stop
+	*/
+	ctx = (struct isp_lib_context *)isp->ctx;
+	if (ctx) {
+		if (!ctx->isp_ini_cfg.isp_test_settings.af_en)//check af_en
+			data.config_counter |= 0x1;
+
+		data.config_counter |= 0x2;//PLTM pkx is not used
+
+		if (!ctx->isp_ini_cfg.isp_test_settings.gtm_en || ctx->isp_ini_cfg.isp_tunning_settings.gtm_type != 4)//disable ldci
+			data.config_counter |= 0x4;
+	}
 
 	ret = ioctl(isp->stat.fd, VIDIOC_VIN_ISP_STAT_REQ, &data);
 	if (ret < 0) {
@@ -540,9 +556,8 @@ int isp_video_open(struct hw_isp_media_dev *isp_md, unsigned int video_id)
 	}
 
 	video->isp_id = media_video_to_isp_id(video->entity);
-
 	if (video->isp_id == -1) {
-		ISP_ERR("error: unable to initialize video device.\n");
+		ISP_ERR("error: unable to get isp id.\n");
 		video_cleanup(video);
 		free(video);
 		goto error;
@@ -822,11 +837,10 @@ void isp_get_debug_info(struct hw_isp_device *isp)
 	ctx->debug_param_info.denoise_level = ctx->tune.denoise_level;
 	ctx->debug_param_info.pltmwdr_level = ctx->tune.pltmwdr_level;
 
-	if (ctx->temp_info.enable) {
-		struct sensor_temp temp;
-		isp_sensor_get_temp(isp, &temp);
-		ctx->debug_param_info.sensor_temper = temp.temp;
-	}
+	if (ctx->temp_info.enable)
+		ctx->debug_param_info.sensor_temper = ctx->sensor_info.temperature;
+	else
+		ctx->debug_param_info.sensor_temper = 0;
 }
 
 int isp_sync_debug_info(struct hw_isp_device *isp, struct isp_debug_info *debug_info)

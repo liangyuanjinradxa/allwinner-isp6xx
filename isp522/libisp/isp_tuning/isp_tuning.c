@@ -52,7 +52,7 @@ struct isp_tuning {
 	pthread_mutex_t mutex;
 };
 
-int isp_params_parse(struct hw_isp_device *isp, struct isp_param_config *params, int sync_mode)
+int isp_params_parse(struct hw_isp_device *isp, struct isp_param_config *params, HW_U8 ir, int sync_mode)
 {
 	struct isp_lib_context *ctx = isp_dev_get_ctx(isp);
 
@@ -61,14 +61,56 @@ int isp_params_parse(struct hw_isp_device *isp, struct isp_param_config *params,
 
 	return parser_ini_info(params, ctx->sensor_info.name,
 		ctx->sensor_info.sensor_width, ctx->sensor_info.sensor_height,
-		ctx->sensor_info.fps_fixed, ctx->sensor_info.wdr_mode, 0, sync_mode, ctx->isp_id);
+		ctx->sensor_info.fps_fixed, ctx->sensor_info.wdr_mode, ir, sync_mode, ctx->isp_id);
+}
+
+int isp_sensor_otp_init(struct hw_isp_device *isp)
+{
+	struct isp_lib_context *ctx = isp_dev_get_ctx(isp);
+	int ret = 0;
+	int i = 0;
+
+	if (ctx == NULL)
+		return -1;
+
+	// shading
+	ctx->pmsc_table = malloc(ISP_MSC_TBL_LENGTH*sizeof(unsigned short));
+	memset(ctx->pmsc_table, 0, ISP_MSC_TBL_LENGTH*sizeof(unsigned short));
+
+	if (!ctx->pmsc_table) {
+		ISP_ERR("msc_table alloc failed, no memory!\n");
+		return -1;
+	}
+
+	ctx->otp_enable = 1;
+	ret = ioctl(isp->sensor.fd, VIDIOC_VIN_GET_SENSOR_OTP_INFO, ctx->pmsc_table);
+	if(ret < 0) {
+		ISP_WARN("VIDIOC_VIN_GET_SENSOR_OTP_INFO return error:%s\n", strerror(errno));
+		ctx->otp_enable = -1;
+	}
+	ctx->pwb_table = (void *)((uintptr_t)(ctx->pmsc_table) + 16*16*3*sizeof(unsigned short));
+
+	return 0;
+}
+
+int isp_sensor_otp_exit(struct hw_isp_device *isp)
+{
+	struct isp_lib_context *ctx = isp_dev_get_ctx(isp);
+
+	if (ctx == NULL)
+		return -1;
+
+	// shading
+	free(ctx->pmsc_table);
+
+	return 0;
 }
 
 int isp_config_sensor_info(struct hw_isp_device *isp)
 {
 	struct sensor_config cfg;
-	struct isp_lib_context *ctx = isp_dev_get_ctx(isp);;
-
+	struct isp_lib_context *ctx = isp_dev_get_ctx(isp);
+	int i = 0, j = 0;
 	memset(&cfg, 0, sizeof(cfg));
 
 	if (ctx == NULL)
@@ -140,7 +182,15 @@ int isp_config_sensor_info(struct hw_isp_device *isp)
 
 	ctx->stats_ctx.pic_w = cfg.width;
 	ctx->stats_ctx.pic_h = cfg.height;
-
+#if 1
+	// update otp infomation
+	if(ctx->otp_enable == -1){
+		ISP_PRINT("otp disabled, msc use 1024\n");
+		for(i = 0; i < 16*16*3; i++) {
+			((unsigned short*)(ctx->pmsc_table))[i] = 1024;
+		}
+	}
+#endif
 	return 0;
 }
 
@@ -572,6 +622,16 @@ HW_S32 isp_tuning_get_cfg(struct hw_isp_device *isp, HW_U8 group_id, HW_U32 cfg_
 			data_ptr += sizeof(struct isp_af_scene_cfg);
 			ret += sizeof(struct isp_af_scene_cfg);
 		}
+		if (cfg_ids & HW_ISP_CFG_AE_WDR) /* isp_ae_wdr */
+		{
+			struct isp_ae_wdr_cfg *isp_ae_wdr = (struct isp_ae_wdr_cfg *)data_ptr;
+			memcpy(&isp_ae_wdr->wdr_cfg[0], &tuning->params.isp_3a_settings.wdr_cfg[0],
+				sizeof(isp_ae_wdr->wdr_cfg));
+
+			/* offset */
+			data_ptr += sizeof(struct isp_ae_wdr_cfg);
+			ret += sizeof(struct isp_ae_wdr_cfg);
+		}
 		break;
 	case HW_ISP_CFG_TUNING: /* isp_tunning_param */
 		if (cfg_ids & HW_ISP_CFG_TUNING_FLASH) /* isp_tuning_flash */
@@ -611,7 +671,12 @@ HW_S32 isp_tuning_get_cfg(struct hw_isp_device *isp, HW_U8 group_id, HW_U32 cfg_
 			isp_tuning_gtm->type = tuning->params.isp_tunning_settings.gtm_type;
 			isp_tuning_gtm->gamma_type = tuning->params.isp_tunning_settings.gamma_type;
 			isp_tuning_gtm->auto_alpha_en = tuning->params.isp_tunning_settings.auto_alpha_en;
+			isp_tuning_gtm->hist_pix_cnt= tuning->params.isp_tunning_settings.hist_pix_cnt;
+			isp_tuning_gtm->dark_minval= tuning->params.isp_tunning_settings.dark_minval;
+			isp_tuning_gtm->bright_minval= tuning->params.isp_tunning_settings.bright_minval;
 
+			memcpy(isp_tuning_gtm->plum_var, tuning->params.isp_tunning_settings.plum_var,
+				sizeof(isp_tuning_gtm->plum_var));
 			/* offset */
 			data_ptr += sizeof(struct isp_tuning_gtm_cfg);
 			ret += sizeof(struct isp_tuning_gtm_cfg);
@@ -620,8 +685,10 @@ HW_S32 isp_tuning_get_cfg(struct hw_isp_device *isp, HW_U8 group_id, HW_U32 cfg_
 		{
 			struct isp_tuning_cfa_cfg *isp_tuning_cfa = (struct isp_tuning_cfa_cfg *)data_ptr;
 			isp_tuning_cfa->dir_thres = tuning->params.isp_tunning_settings.cfa_dir_th;
+#if (ISP_VERSION >= 521)
 			isp_tuning_cfa->interp_mode = tuning->params.isp_tunning_settings.cfa_interp_mode;
 			isp_tuning_cfa->zig_zag = tuning->params.isp_tunning_settings.cfa_zig_zag;
+#endif
 
 			/* offset */
 			data_ptr += sizeof(struct isp_tuning_cfa_cfg);
@@ -698,25 +765,109 @@ HW_S32 isp_tuning_get_cfg(struct hw_isp_device *isp, HW_U8 group_id, HW_U32 cfg_
 			data_ptr += sizeof(struct isp_tuning_gca_cfg);
 			ret += sizeof(struct isp_tuning_gca_cfg);
 		}
-		if (cfg_ids & HW_ISP_CFG_TUNING_MSC) /* isp_tuning_msc */
+#endif
+		if (cfg_ids & HW_VENCODER_CFG_TUNING_COMMON)
 		{
-			struct isp_tuning_msc_table_cfg *isp_tuning_msc = (struct isp_tuning_msc_table_cfg *)data_ptr;
-			isp_tuning_msc->mff_mod = tuning->params.isp_tunning_settings.mff_mod;
-			isp_tuning_msc->msc_mode = tuning->params.isp_tunning_settings.msc_mode;
-			memcpy(isp_tuning_msc->msc_blw_lut, tuning->params.isp_tunning_settings.msc_blw_lut,
-				sizeof(isp_tuning_msc->msc_blw_lut));
-			memcpy(isp_tuning_msc->msc_blh_lut, tuning->params.isp_tunning_settings.msc_blh_lut,
-				sizeof(isp_tuning_msc->msc_blh_lut));
-			memcpy(&(isp_tuning_msc->value[0][0]), &(tuning->params.isp_tunning_settings.msc_tbl[0][0]),
-				sizeof(isp_tuning_msc->value));
-			memcpy(isp_tuning_msc->color_temp_triggers, tuning->params.isp_tunning_settings.msc_trig_cfg,
-				sizeof(isp_tuning_msc->color_temp_triggers));
+			#ifdef ANDROID_VENCODE
+			memcpy(data_ptr, &vencoder_tuning_param->common_cfg, sizeof(vencoder_common_cfg_t));
 
 			/* offset */
-			data_ptr += sizeof(struct isp_tuning_msc_table_cfg);
-			ret += sizeof(struct isp_tuning_msc_table_cfg);
+			data_ptr += sizeof(vencoder_common_cfg_t);
+			ret += sizeof(vencoder_common_cfg_t);
+			#else
+			memset(data_ptr, 0, sizeof(vencoder_common_cfg_t));
+
+			/* offset */
+			data_ptr += sizeof(vencoder_common_cfg_t);
+			ret += sizeof(vencoder_common_cfg_t);
+			ISP_WARN("App in board does't have preview vencode feature, unable to get HW_VENCODER_CFG_TUNING_COMMON\n");
+			#endif
 		}
-#endif
+		if (cfg_ids & HW_VENCODER_CFG_TUNING_VBR)
+		{
+			#ifdef ANDROID_VENCODE
+			memcpy(data_ptr, &vencoder_tuning_param->vbr_cfg, sizeof(vencoder_vbr_cfg_t));
+
+			/* offset */
+			data_ptr += sizeof(vencoder_vbr_cfg_t);
+			ret += sizeof(vencoder_vbr_cfg_t);
+			#else
+			memset(data_ptr, 0, sizeof(vencoder_vbr_cfg_t));
+
+			/* offset */
+			data_ptr += sizeof(vencoder_vbr_cfg_t);
+			ret += sizeof(vencoder_vbr_cfg_t);
+			ISP_WARN("App in board does't have preview vencode feature, unable to get HW_VENCODER_CFG_TUNING_VBR\n");
+			#endif
+		}
+		if (cfg_ids & HW_VENCODER_CFG_TUNING_AVBR)
+		{
+			#ifdef ANDROID_VENCODE
+			memcpy(data_ptr, &vencoder_tuning_param->avbr_cfg, sizeof(vencoder_avbr_cfg_t));
+
+			/* offset */
+			data_ptr += sizeof(vencoder_avbr_cfg_t);
+			ret += sizeof(vencoder_avbr_cfg_t);
+			#else
+			memset(data_ptr, 0, sizeof(vencoder_avbr_cfg_t));
+
+			/* offset */
+			data_ptr += sizeof(vencoder_avbr_cfg_t);
+			ret += sizeof(vencoder_avbr_cfg_t);
+			ISP_WARN("App in board does't have preview vencode feature, unable to get HW_VENCODER_CFG_TUNING_AVBR\n");
+			#endif
+		}
+		if (cfg_ids & HW_VENCODER_CFG_TUNING_FIXQP)
+		{
+			#ifdef ANDROID_VENCODE
+			memcpy(data_ptr, &vencoder_tuning_param->fixqp_cfg, sizeof(vencoder_fixqp_cfg_t));
+
+			/* offset */
+			data_ptr += sizeof(vencoder_fixqp_cfg_t);
+			ret += sizeof(vencoder_fixqp_cfg_t);
+			#else
+			memset(data_ptr, 0, sizeof(vencoder_fixqp_cfg_t));
+
+			/* offset */
+			data_ptr += sizeof(vencoder_fixqp_cfg_t);
+			ret += sizeof(vencoder_fixqp_cfg_t);
+			ISP_WARN("App in board does't have preview vencode feature, unable to get HW_VENCODER_CFG_TUNING_FIXQP\n");
+			#endif
+		}
+		if (cfg_ids & HW_VENCODER_CFG_TUNING_PROC)
+		{
+			#ifdef ANDROID_VENCODE
+			memcpy(data_ptr, &vencoder_tuning_param->proc_cfg, sizeof(vencoder_proc_cfg_t));
+
+			/* offset */
+			data_ptr += sizeof(vencoder_proc_cfg_t);
+			ret += sizeof(vencoder_proc_cfg_t);
+			#else
+			memset(data_ptr, 0, sizeof(vencoder_proc_cfg_t));
+
+			/* offset */
+			data_ptr += sizeof(vencoder_proc_cfg_t);
+			ret += sizeof(vencoder_proc_cfg_t);
+			ISP_WARN("App in board does't have preview vencode feature, unable to get HW_VENCODER_CFG_TUNING_PROC\n");
+			#endif
+		}
+		if (cfg_ids & HW_VENCODER_CFG_TUNING_SAVEBSFILE)
+		{
+			#ifdef ANDROID_VENCODE
+			memcpy(data_ptr, &vencoder_tuning_param->savebsfile_cfg, sizeof(vencoder_savebsfile_cfg_t));
+
+			/* offset */
+			data_ptr += sizeof(vencoder_savebsfile_cfg_t);
+			ret += sizeof(vencoder_savebsfile_cfg_t);
+			#else
+			memset(data_ptr, 0, sizeof(vencoder_savebsfile_cfg_t));
+
+			/* offset */
+			data_ptr += sizeof(vencoder_savebsfile_cfg_t);
+			ret += sizeof(vencoder_savebsfile_cfg_t);
+			ISP_WARN("App in board does't have preview vencode feature, unable to get HW_VENCODER_CFG_TUNING_SAVEBSFILE\n");
+			#endif
+		}
 		break;
 	case HW_ISP_CFG_TUNING_TABLES: /* isp tuning tables */
 		if (cfg_ids & HW_ISP_CFG_TUNING_LSC) /* isp_tuning_lsc */
@@ -833,6 +984,7 @@ HW_S32 isp_tuning_get_cfg(struct hw_isp_device *isp, HW_U8 group_id, HW_U32 cfg_
 			data_ptr += sizeof(struct isp_tuning_cem_table_cfg);
 			ret += sizeof(struct isp_tuning_cem_table_cfg);
 		}
+#if (ISP_VERSION != 522)
 		if (cfg_ids & HW_ISP_CFG_TUNING_PLTM_TBL) /* isp_tuning_pltm_table */
 		{
 			memcpy(data_ptr, tuning->params.isp_tunning_settings.isp_pltm_table, sizeof(struct isp_tuning_pltm_table_cfg));
@@ -849,6 +1001,7 @@ HW_S32 isp_tuning_get_cfg(struct hw_isp_device *isp, HW_U8 group_id, HW_U32 cfg_
 			data_ptr += sizeof(struct isp_tuning_wdr_table_cfg);
 			ret += sizeof(struct isp_tuning_wdr_table_cfg);
 		}
+#endif
 #if (ISP_VERSION >= 521)
 		if (cfg_ids & HW_ISP_CFG_TUNING_LCA_TBL) /* isp_tuning_lca  */
 		{
@@ -862,6 +1015,28 @@ HW_S32 isp_tuning_get_cfg(struct hw_isp_device *isp, HW_U8 group_id, HW_U32 cfg_
 			data_ptr += sizeof(struct isp_tuning_lca_gf_satu_lut);
 			ret += sizeof(struct isp_tuning_lca_gf_satu_lut);
 
+		}
+		if (cfg_ids & HW_ISP_CFG_TUNING_MSC) /* isp_tuning_msc */
+		{
+			struct isp_tuning_msc_table_cfg *isp_tuning_msc = (struct isp_tuning_msc_table_cfg *)data_ptr;
+			isp_tuning_msc->mff_mod = tuning->params.isp_tunning_settings.mff_mod;
+			isp_tuning_msc->msc_mode = tuning->params.isp_tunning_settings.msc_mode;
+			memcpy(isp_tuning_msc->msc_blw_lut, tuning->params.isp_tunning_settings.msc_blw_lut,
+				sizeof(isp_tuning_msc->msc_blw_lut));
+			memcpy(isp_tuning_msc->msc_blh_lut, tuning->params.isp_tunning_settings.msc_blh_lut,
+				sizeof(isp_tuning_msc->msc_blh_lut));
+			memcpy(isp_tuning_msc->msc_blw_dlt_lut, tuning->params.isp_tunning_settings.msc_blw_dlt_lut,
+				sizeof(isp_tuning_msc->msc_blw_dlt_lut));
+			memcpy(isp_tuning_msc->msc_blh_dlt_lut, tuning->params.isp_tunning_settings.msc_blh_dlt_lut,
+				sizeof(isp_tuning_msc->msc_blh_dlt_lut));
+			memcpy(&(isp_tuning_msc->value[0][0]), &(tuning->params.isp_tunning_settings.msc_tbl[0][0]),
+				sizeof(isp_tuning_msc->value));
+			memcpy(isp_tuning_msc->color_temp_triggers, tuning->params.isp_tunning_settings.msc_trig_cfg,
+				sizeof(isp_tuning_msc->color_temp_triggers));
+
+			/* offset */
+			data_ptr += sizeof(struct isp_tuning_msc_table_cfg);
+			ret += sizeof(struct isp_tuning_msc_table_cfg);
 		}
 #endif
 		break;
@@ -1135,6 +1310,14 @@ HW_S32 isp_tuning_set_cfg(struct hw_isp_device *isp, HW_U8 group_id, HW_U32 cfg_
 			tuning->params.isp_test_settings.isp_exp_line = isp_test_pub->exp_line;
 			tuning->params.isp_test_settings.isp_color_temp = isp_test_pub->color_temp;
 			tuning->params.isp_test_settings.isp_log_param = isp_test_pub->log_param;
+			if (tuning->params.isp_test_settings.isp_test_mode == 4) { //Manual mode
+				struct sensor_exp_gain exp_gain;
+				exp_gain.exp_val = tuning->params.isp_test_settings.isp_exp_line;
+				exp_gain.gain_val = tuning->params.isp_test_settings.isp_gain / 16;
+				exp_gain.r_gain = 0;
+				exp_gain.b_gain = 0;
+				isp_sensor_set_exp_gain(isp, &exp_gain);
+			}
 
 			/* offset */
 			data_ptr += sizeof(struct isp_test_pub_cfg);
@@ -1174,6 +1357,10 @@ HW_S32 isp_tuning_set_cfg(struct hw_isp_device *isp, HW_U8 group_id, HW_U32 cfg_
 			tuning->params.isp_test_settings.focus_step = isp_test_focus->step;
 			tuning->params.isp_test_settings.focus_end = isp_test_focus->end;
 			tuning->params.isp_test_settings.focus_change_interval = isp_test_focus->change_interval;
+			if (isp != NULL && tuning->params.isp_test_settings.isp_test_mode == 4) { //Manual mode
+				isp_act_init_range(isp, 0, 1023);
+				isp_act_set_pos(isp, tuning->params.isp_test_settings.focus_start);
+			}
 
 			/* offset */
 			data_ptr += sizeof(struct isp_test_item_cfg);
@@ -1454,6 +1641,16 @@ HW_S32 isp_tuning_set_cfg(struct hw_isp_device *isp, HW_U8 group_id, HW_U32 cfg_
 			data_ptr += sizeof(struct isp_af_scene_cfg);
 			ret += sizeof(struct isp_af_scene_cfg);
 		}
+		if (cfg_ids & HW_ISP_CFG_AE_WDR) /* isp_ae_wdr */
+		{
+			struct isp_ae_wdr_cfg *isp_ae_wdr = (struct isp_ae_wdr_cfg *)data_ptr;
+			memcpy(&tuning->params.isp_3a_settings.wdr_cfg[0], &isp_ae_wdr->wdr_cfg[0],
+				sizeof(isp_ae_wdr->wdr_cfg));
+
+			/* offset */
+			data_ptr += sizeof(struct isp_ae_wdr_cfg);
+			ret += sizeof(struct isp_ae_wdr_cfg);
+		}
 		break;
 	case HW_ISP_CFG_TUNING: /* isp_tunning_param */
 		if (cfg_ids & HW_ISP_CFG_TUNING_FLASH) /* isp_flash */
@@ -1493,7 +1690,12 @@ HW_S32 isp_tuning_set_cfg(struct hw_isp_device *isp, HW_U8 group_id, HW_U32 cfg_
 			tuning->params.isp_tunning_settings.gtm_type = isp_tuning_gtm->type;
 			tuning->params.isp_tunning_settings.gamma_type = isp_tuning_gtm->gamma_type;
 			tuning->params.isp_tunning_settings.auto_alpha_en = isp_tuning_gtm->auto_alpha_en;
+			tuning->params.isp_tunning_settings.hist_pix_cnt= isp_tuning_gtm->hist_pix_cnt;
+			tuning->params.isp_tunning_settings.dark_minval= isp_tuning_gtm->dark_minval;
+			tuning->params.isp_tunning_settings.bright_minval= isp_tuning_gtm->bright_minval;
 
+			memcpy(tuning->params.isp_tunning_settings.plum_var, isp_tuning_gtm->plum_var,
+				sizeof(isp_tuning_gtm->plum_var));
 			/* offset */
 			data_ptr += sizeof(struct isp_tuning_gtm_cfg);
 			ret += sizeof(struct isp_tuning_gtm_cfg);
@@ -1502,8 +1704,10 @@ HW_S32 isp_tuning_set_cfg(struct hw_isp_device *isp, HW_U8 group_id, HW_U32 cfg_
 		{
 			struct isp_tuning_cfa_cfg *isp_tuning_cfa = (struct isp_tuning_cfa_cfg *)data_ptr;
 			tuning->params.isp_tunning_settings.cfa_dir_th = isp_tuning_cfa->dir_thres;
+#if (ISP_VERSION >= 521)
 			tuning->params.isp_tunning_settings.cfa_interp_mode = isp_tuning_cfa->interp_mode;
 			tuning->params.isp_tunning_settings.cfa_zig_zag = isp_tuning_cfa->zig_zag;
+#endif
 
 			/* offset */
 			data_ptr += sizeof(struct isp_tuning_cfa_cfg);
@@ -1580,25 +1784,97 @@ HW_S32 isp_tuning_set_cfg(struct hw_isp_device *isp, HW_U8 group_id, HW_U32 cfg_
 			data_ptr += sizeof(struct isp_tuning_gca_cfg);
 			ret += sizeof(struct isp_tuning_gca_cfg);
 		}
-		if (cfg_ids & HW_ISP_CFG_TUNING_MSC) /* isp_tuning_msc */
+#endif
+		if (cfg_ids & HW_VENCODER_CFG_TUNING_COMMON)
 		{
-			struct isp_tuning_msc_table_cfg *isp_tuning_msc = (struct isp_tuning_msc_table_cfg *)data_ptr;
-			tuning->params.isp_tunning_settings.mff_mod = isp_tuning_msc->mff_mod;
-			tuning->params.isp_tunning_settings.msc_mode = isp_tuning_msc->msc_mode;
-			memcpy(tuning->params.isp_tunning_settings.msc_blw_lut, isp_tuning_msc->msc_blw_lut,
-				sizeof(isp_tuning_msc->msc_blw_lut));
-			memcpy(tuning->params.isp_tunning_settings.msc_blh_lut, isp_tuning_msc->msc_blh_lut,
-				sizeof(isp_tuning_msc->msc_blh_lut));
-			memcpy(&(tuning->params.isp_tunning_settings.msc_tbl[0][0]), &(isp_tuning_msc->value[0][0]),
-				sizeof(isp_tuning_msc->value));
-			memcpy(tuning->params.isp_tunning_settings.msc_trig_cfg, isp_tuning_msc->color_temp_triggers,
-				sizeof(isp_tuning_msc->color_temp_triggers));
+			#ifdef ANDROID_VENCODE
+			memcpy(&vencoder_tuning_param->common_cfg, data_ptr, sizeof(vencoder_common_cfg_t));
 
 			/* offset */
-			data_ptr += sizeof(struct isp_tuning_msc_table_cfg);
-			ret += sizeof(struct isp_tuning_msc_table_cfg);
+			data_ptr += sizeof(vencoder_common_cfg_t);
+			ret += sizeof(vencoder_common_cfg_t);
+			#else
+			/* offset */
+			data_ptr += sizeof(vencoder_common_cfg_t);
+			ret += sizeof(vencoder_common_cfg_t);
+			ISP_WARN("App in board does't have preview vencode feature, unable to get HW_VENCODER_CFG_TUNING_COMMON\n");
+			#endif
 		}
-#endif
+		if (cfg_ids & HW_VENCODER_CFG_TUNING_VBR)
+		{
+			#ifdef ANDROID_VENCODE
+			memcpy(&vencoder_tuning_param->vbr_cfg, data_ptr, sizeof(vencoder_vbr_cfg_t));
+
+			/* offset */
+			data_ptr += sizeof(vencoder_vbr_cfg_t);
+			ret += sizeof(vencoder_vbr_cfg_t);
+			#else
+			/* offset */
+			data_ptr += sizeof(vencoder_vbr_cfg_t);
+			ret += sizeof(vencoder_vbr_cfg_t);
+			ISP_WARN("App in board does't have preview vencode feature, unable to get HW_VENCODER_CFG_TUNING_VBR\n");
+			#endif
+		}
+		if (cfg_ids & HW_VENCODER_CFG_TUNING_AVBR)
+		{
+			#ifdef ANDROID_VENCODE
+			memcpy(&vencoder_tuning_param->avbr_cfg, data_ptr, sizeof(vencoder_avbr_cfg_t));
+
+			/* offset */
+			data_ptr += sizeof(vencoder_avbr_cfg_t);
+			ret += sizeof(vencoder_avbr_cfg_t);
+			#else
+			/* offset */
+			data_ptr += sizeof(vencoder_avbr_cfg_t);
+			ret += sizeof(vencoder_avbr_cfg_t);
+			ISP_WARN("App in board does't have preview vencode feature, unable to get HW_VENCODER_CFG_TUNING_AVBR\n");
+			#endif
+		}
+		if (cfg_ids & HW_VENCODER_CFG_TUNING_FIXQP)
+		{
+			#ifdef ANDROID_VENCODE
+			memcpy(&vencoder_tuning_param->fixqp_cfg, data_ptr, sizeof(vencoder_fixqp_cfg_t));
+
+			/* offset */
+			data_ptr += sizeof(vencoder_fixqp_cfg_t);
+			ret += sizeof(vencoder_fixqp_cfg_t);
+			#else
+			/* offset */
+			data_ptr += sizeof(vencoder_fixqp_cfg_t);
+			ret += sizeof(vencoder_fixqp_cfg_t);
+			ISP_WARN("App in board does't have preview vencode feature, unable to get HW_VENCODER_CFG_TUNING_FIXQP\n");
+			#endif
+		}
+		if (cfg_ids & HW_VENCODER_CFG_TUNING_PROC)
+		{
+			#ifdef ANDROID_VENCODE
+			memcpy(&vencoder_tuning_param->proc_cfg, data_ptr, sizeof(vencoder_proc_cfg_t));
+
+			/* offset */
+			data_ptr += sizeof(vencoder_proc_cfg_t);
+			ret += sizeof(vencoder_proc_cfg_t);
+			#else
+			/* offset */
+			data_ptr += sizeof(vencoder_proc_cfg_t);
+			ret += sizeof(vencoder_proc_cfg_t);
+			ISP_WARN("App in board does't have preview vencode feature, unable to get HW_VENCODER_CFG_TUNING_PROC\n");
+			#endif
+		}
+		if (cfg_ids & HW_VENCODER_CFG_TUNING_SAVEBSFILE)
+		{
+			#ifdef ANDROID_VENCODE
+			memcpy(&vencoder_tuning_param->savebsfile_cfg, data_ptr, sizeof(vencoder_savebsfile_cfg_t));
+
+			/* offset */
+			data_ptr += sizeof(vencoder_savebsfile_cfg_t);
+			ret += sizeof(vencoder_savebsfile_cfg_t);
+			#else
+			/* offset */
+			data_ptr += sizeof(vencoder_savebsfile_cfg_t);
+			ret += sizeof(vencoder_savebsfile_cfg_t);
+			ISP_WARN("App in board does't have preview vencode feature, unable to get HW_VENCODER_CFG_TUNING_SAVEBSFILE\n");
+			#endif
+		}
 		break;
 	case HW_ISP_CFG_TUNING_TABLES: /* isp tuning tables*/
 		if (cfg_ids & HW_ISP_CFG_TUNING_LSC) /* isp_lsc */
@@ -1714,6 +1990,7 @@ HW_S32 isp_tuning_set_cfg(struct hw_isp_device *isp, HW_U8 group_id, HW_U32 cfg_
 			data_ptr += sizeof(struct isp_tuning_cem_table_cfg);
 			ret += sizeof(struct isp_tuning_cem_table_cfg);
 		}
+#if (ISP_VERSION != 522)
 		if (cfg_ids & HW_ISP_CFG_TUNING_PLTM_TBL) /* isp_tuning_pltm_table */
 		{
 			memcpy(tuning->params.isp_tunning_settings.isp_pltm_table, data_ptr, sizeof(struct isp_tuning_pltm_table_cfg));
@@ -1730,6 +2007,7 @@ HW_S32 isp_tuning_set_cfg(struct hw_isp_device *isp, HW_U8 group_id, HW_U32 cfg_
 			data_ptr += sizeof(struct isp_tuning_wdr_table_cfg);
 			ret += sizeof(struct isp_tuning_wdr_table_cfg);
 		}
+#endif
 #if (ISP_VERSION >= 521)
 		if (cfg_ids & HW_ISP_CFG_TUNING_LCA_TBL)
 		{
@@ -1741,6 +2019,28 @@ HW_S32 isp_tuning_set_cfg(struct hw_isp_device *isp, HW_U8 group_id, HW_U32 cfg_
 		    // lca_gf_satu_lut offset
 			data_ptr += sizeof(struct isp_tuning_lca_gf_satu_lut);
 			ret += sizeof(struct isp_tuning_lca_gf_satu_lut);
+		}
+		if (cfg_ids & HW_ISP_CFG_TUNING_MSC) /* isp_tuning_msc */
+		{
+			struct isp_tuning_msc_table_cfg *isp_tuning_msc = (struct isp_tuning_msc_table_cfg *)data_ptr;
+			tuning->params.isp_tunning_settings.mff_mod = isp_tuning_msc->mff_mod;
+			tuning->params.isp_tunning_settings.msc_mode = isp_tuning_msc->msc_mode;
+			memcpy(tuning->params.isp_tunning_settings.msc_blw_lut, isp_tuning_msc->msc_blw_lut,
+				sizeof(isp_tuning_msc->msc_blw_lut));
+			memcpy(tuning->params.isp_tunning_settings.msc_blh_lut, isp_tuning_msc->msc_blh_lut,
+				sizeof(isp_tuning_msc->msc_blh_lut));
+			memcpy(tuning->params.isp_tunning_settings.msc_blw_dlt_lut, isp_tuning_msc->msc_blw_dlt_lut,
+				sizeof(isp_tuning_msc->msc_blw_dlt_lut));
+			memcpy(tuning->params.isp_tunning_settings.msc_blh_dlt_lut, isp_tuning_msc->msc_blh_dlt_lut,
+				sizeof(isp_tuning_msc->msc_blh_dlt_lut));
+			memcpy(&(tuning->params.isp_tunning_settings.msc_tbl[0][0]), &(isp_tuning_msc->value[0][0]),
+				sizeof(isp_tuning_msc->value));
+			memcpy(tuning->params.isp_tunning_settings.msc_trig_cfg, isp_tuning_msc->color_temp_triggers,
+				sizeof(isp_tuning_msc->color_temp_triggers));
+
+			/* offset */
+			data_ptr += sizeof(struct isp_tuning_msc_table_cfg);
+			ret += sizeof(struct isp_tuning_msc_table_cfg);
 		}
 #endif
 		break;

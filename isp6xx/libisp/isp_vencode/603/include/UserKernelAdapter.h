@@ -1,3 +1,6 @@
+/* SPDX-License-Identifier: GPL-2.0-or-later */
+/* Copyright(c) 2020 - 2023 Allwinner Technology Co.,Ltd. All rights reserved. */
+
 #ifndef USERKERNELADAPTER_h
 #define USERKERNELADAPTER_h
 
@@ -24,16 +27,42 @@ int kernel_mutex_init(struct mutex *p_mutex);
 #define MUTEX_STRUCT struct mutex
 #define SEM_STRUCT struct semaphore
 #define THREAD_STRUCT struct task_struct*
-#define MALLOC(size) kmalloc(size, GFP_KERNEL)
+#define MALLOC(size) kmalloc(size, GFP_KERNEL | __GFP_ZERO)
 #define MALLOC_BIG(size) vmalloc(size)
 #define CALLOC(num, size)  kcalloc(num, size, GFP_KERNEL)
-#define FREE(poiter) kfree(poiter)
-#define FREE_BIG(poiter) vfree(poiter)
+#if 1
+#define FREE(poiter) do {\
+	if (poiter) {\
+		kfree(poiter);\
+		poiter = NULL;\
+	} \
+} while (0)
 
-#define THREAD_CREATE(p_thread, attr, func, arg, name)\
-do { \
-    p_thread = kthread_run(func, (void*)arg, name); \
-} while(0)
+#define FREE_BIG(poiter) do {\
+	if (poiter) {\
+		vfree(poiter);\
+		poiter = NULL;\
+	} \
+} while (0)
+#else
+#define FREE(poiter) do {\
+    if (poiter) {\
+		logd("poiter 0x%px", poiter);\
+		kfree(poiter);\
+	poiter = NULL;\
+    } \
+} while (0)
+
+#define FREE_BIG(poiter) do {\
+    if (poiter) {\
+		vfree(poiter);\
+		poiter = NULL;\
+    } \
+} while (0)
+#endif
+#define THREAD_CREATE(p_thread, attr, func, arg, name) do { \
+	p_thread = kthread_run(func, (void *)arg, name); \
+} while (0)
 
 #define THREAD_JOIN(thread, pp_ret) kthread_stop(thread)
 
@@ -46,8 +75,8 @@ do { \
 #define SEM_INIT(p_sem, shared, value) sema_init(p_sem, value)
 #define SEM_POST(p_sem) up(p_sem)
 #define SEM_WAIT(p_sem) down(p_sem)
-#define SEM_TRYWAIT(p_sem) (void)down_trylock(p_sem)
-#define SEM_GETVALUME(p_sem, cnt) ((*cnt) = p_sem.count)
+#define SEM_TRYWAIT(p_sem) ((void)down_trylock(p_sem))
+#define SEM_GETVALUME(p_sem, cnt) ((*cnt) = (p_sem)->count)
 #define SEM_DESTROY(p_sem)
 
 #define MEMOPS_STRUCT struct mem_interface
@@ -66,10 +95,10 @@ do { \
 #ifndef VENC_SUPPORT_EXT_PARAM
 #define VENC_SUPPORT_EXT_PARAM 0
 
-typedef void* devfd_t;
-typedef void* ionfd_t;
+typedef void *devfd_t;
+typedef void *ionfd_t;
 
-#define IOCTL(fd, cmd, arg) _cedardev_ioctl(fd, cmd, arg)
+#define IOCTL(fd, cmd, arg) rt_cedardev_ioctl(fd, cmd, arg)
 #endif
 
 #else//not CONFIG_AW_VIDEO_KERNEL_ENC
@@ -83,17 +112,21 @@ typedef void* ionfd_t;
 #define MALLOC(size) malloc(size)
 #define MALLOC_BIG(size) malloc(size)
 #define CALLOC(num, size)  calloc(num, size)
-#define FREE(poiter) if (poiter) {\
-    free(poiter);\
-    poiter = NULL;\
-}
+#define FREE(poiter) do {\
+    if (poiter) {\
+		free(poiter);\
+		poiter = NULL;\
+    } \
+} while (0)
 
-#define FREE_BIG(poiter) if (poiter) {\
-    free(poiter);\
-    poiter = NULL;\
-}
+#define FREE_BIG(poiter) do {\
+    if (poiter) {\
+		free(poiter);\
+		poiter = NULL;\
+    } \
+} while (0)
 
-#define THREAD_CREATE(thread, attr, func, arg, name) pthread_create(&thread, attr, func, (void*)arg)
+#define THREAD_CREATE(thread, attr, func, arg, name) pthread_create(&thread, attr, func, (void *)arg)
 #define THREAD_JOIN(thread, pp_ret) pthread_join(thread, pp_ret)
 
 #define DEF_STATIC_MUTEX(Mutex) static MUTEX_STRUCT Mutex = PTHREAD_MUTEX_INITIALIZER
@@ -124,6 +157,10 @@ typedef void* ionfd_t;
 
 int user_write_file(unsigned char *data0, int size0, unsigned char *data1, int size1, char *file_name);
 int user_write_file_fd(unsigned char *data0, int size0, unsigned char *data1, int size1, FILE_STRUCT *fp);
+
+#ifndef VENC_SUPPORT_EXT_PARAM
+#define VENC_SUPPORT_EXT_PARAM 1
+#endif
 
 typedef int devfd_t;
 typedef int ionfd_t;
@@ -166,7 +203,7 @@ typedef enum MEMORY_TYPE {
 }MEMORY_TYPE;
 
 
-int ComputeLbcParameter(ve_lbc_in_param* in_param, ve_lbc_out_param* out_param);
+int ComputeLbcParameter(ve_lbc_in_param *in_param, ve_lbc_out_param *out_param);
 */
 int get_random_number(void);
 

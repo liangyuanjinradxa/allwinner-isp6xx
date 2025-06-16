@@ -16,9 +16,11 @@ typedef struct isp_pltm_param {
 	int isp_platform_id;
 	int pltm_frame_id;
 	HW_BOOL pltm_enable;
+	HW_BOOL ae_enable;
 	pltm_ini_cfg_t pltm_ini;
 	isp_sensor_info_t sensor_info;
 	HW_U16 *pltm_table;
+	int wdr_bit_offset;
 } pltm_param_t;
 
 typedef struct isp_pltm_stats {
@@ -36,10 +38,16 @@ typedef struct isp_pltm_result {
 	HW_U32 pltm_statistic_div;
 	HW_U16 pltm_tbl[768];
 	HW_U8 pltm_ae_comp;
-	HW_U16 pltm_old_stren;
-	HW_U16 pltm_next_stren;
-	HW_U16 pltm_cal_stren;
+	HW_S16 pltm_old_stren;
+	HW_S16 pltm_next_stren;
+	HW_S16 pltm_cal_stren;
 	HW_U16 pltm_min_th;
+	HW_U32 pltm_mean;
+	HW_U32 pltm_sad;
+	HW_U32 targetLum;
+	HW_U8 pltm_algo_sel;
+	HW_U16 lum_idx;
+
 } pltm_result_t;
 
 typedef struct isp_pltm_core_ops {

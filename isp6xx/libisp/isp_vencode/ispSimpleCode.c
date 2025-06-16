@@ -1245,6 +1245,7 @@ static int setEncParam(VideoEncoder *pVideoEnc ,encode_param_t *encode_param)
 		VencMotionSearchParam MotionSearchParam;
 		MotionSearchParam.en_motion_search = vencoder_tuning_param->motion_search_cfg.motion_search_en;
 		if (MotionSearchParam.en_motion_search > 0) {
+#if (ISP_VERSION == 600)
 			MotionSearchParam.dis_default_para = vencoder_tuning_param->motion_search_cfg.dis_default_para;
 			MotionSearchParam.hor_region_num = vencoder_tuning_param->motion_search_cfg.hor_region_num;
 			MotionSearchParam.ver_region_num = vencoder_tuning_param->motion_search_cfg.ver_region_num;
@@ -1252,6 +1253,20 @@ static int setEncParam(VideoEncoder *pVideoEnc ,encode_param_t *encode_param)
 			MotionSearchParam.large_mv_ratio_th = vencoder_tuning_param->motion_search_cfg.large_mv_ratio_th;
 			MotionSearchParam.non_zero_mv_ratio_th = vencoder_tuning_param->motion_search_cfg.non_zero_mv_ratio_th;
 			MotionSearchParam.large_sad_ratio_th = vencoder_tuning_param->motion_search_cfg.large_sad_ratio_th;
+#else
+			MotionSearchParam.dis_default_para = vencoder_tuning_param->motion_search_cfg.dis_default_para;
+			MotionSearchParam.hor_region_num = vencoder_tuning_param->motion_search_cfg.hor_region_num;
+			MotionSearchParam.ver_region_num = vencoder_tuning_param->motion_search_cfg.ver_region_num;
+			MotionSearchParam.en_check_mv = 0;
+			MotionSearchParam.en_check_mad = 0;
+			MotionSearchParam.en_morpholog = 0;
+			MotionSearchParam.large_mv_th = vencoder_tuning_param->motion_search_cfg.large_mv_th;
+			MotionSearchParam.large_mad_th = 0;
+			MotionSearchParam.background_weight = 0;
+			MotionSearchParam.large_mv_ratio_th = vencoder_tuning_param->motion_search_cfg.large_mv_ratio_th;
+			MotionSearchParam.non_zero_mv_ratio_th = vencoder_tuning_param->motion_search_cfg.non_zero_mv_ratio_th;
+			MotionSearchParam.large_mad_ratio_th = 0;
+#endif
 			VideoEncSetParameterDl(pVideoEnc, VENC_IndexParamMotionSearchParam, &MotionSearchParam);
 		}
 
@@ -1346,6 +1361,7 @@ static int setEncParam(VideoEncoder *pVideoEnc ,encode_param_t *encode_param)
 		VencMotionSearchParam MotionSearchParam;
 		MotionSearchParam.en_motion_search = vencoder_tuning_param->motion_search_cfg.motion_search_en;
 		if (MotionSearchParam.en_motion_search > 0) {
+#if (ISP_VERSION == 600)
 			MotionSearchParam.dis_default_para = vencoder_tuning_param->motion_search_cfg.dis_default_para;
 			MotionSearchParam.hor_region_num = vencoder_tuning_param->motion_search_cfg.hor_region_num;
 			MotionSearchParam.ver_region_num = vencoder_tuning_param->motion_search_cfg.ver_region_num;
@@ -1353,6 +1369,20 @@ static int setEncParam(VideoEncoder *pVideoEnc ,encode_param_t *encode_param)
 			MotionSearchParam.large_mv_ratio_th = vencoder_tuning_param->motion_search_cfg.large_mv_ratio_th;
 			MotionSearchParam.non_zero_mv_ratio_th = vencoder_tuning_param->motion_search_cfg.non_zero_mv_ratio_th;
 			MotionSearchParam.large_sad_ratio_th = vencoder_tuning_param->motion_search_cfg.large_sad_ratio_th;
+#else
+			MotionSearchParam.dis_default_para = vencoder_tuning_param->motion_search_cfg.dis_default_para;
+			MotionSearchParam.hor_region_num = vencoder_tuning_param->motion_search_cfg.hor_region_num;
+			MotionSearchParam.ver_region_num = vencoder_tuning_param->motion_search_cfg.ver_region_num;
+			MotionSearchParam.en_check_mv = 0;
+			MotionSearchParam.en_check_mad = 0;
+			MotionSearchParam.en_morpholog = 0;
+			MotionSearchParam.large_mv_th = vencoder_tuning_param->motion_search_cfg.large_mv_th;
+			MotionSearchParam.large_mad_th = 0;
+			MotionSearchParam.background_weight = 0;
+			MotionSearchParam.large_mv_ratio_th = vencoder_tuning_param->motion_search_cfg.large_mv_ratio_th;
+			MotionSearchParam.non_zero_mv_ratio_th = vencoder_tuning_param->motion_search_cfg.non_zero_mv_ratio_th;
+			MotionSearchParam.large_mad_ratio_th = 0;
+#endif
 			VideoEncSetParameterDl(pVideoEnc, VENC_IndexParamMotionSearchParam, &MotionSearchParam);
 		}
 
@@ -1634,13 +1664,24 @@ int EncoderOpen(VENC_CODEC_TYPE type)
 	VideoEncoderSetFreqDl         = (VideoEncSetFreqFunc)dlsym(vencoderLib, "VencSetFreq");
 	VideoEncSetCallbacksDl         = (VideoEncSetCallbacksFunc)dlsym(vencoderLib, "VencSetCallbacks");
 #else //isp600
-	vencoderLib = dlopen("/system/lib64/libvencoder.so", RTLD_NOW);
+	/*vencoderLib = dlopen("/system/lib64/libvencoder.so", RTLD_NOW);
 	if(vencoderLib == NULL)
 	{
 		loge("Could not open /system/lib64/libvencoder.so library: %s", dlerror());
 		return VIDEOCODEC_FAIL;
-	}
+	}*/
 	/* Clear any existing error */
+	vencoderLib = dlopen("/usr/lib/libvencoder.so", RTLD_NOW);
+	if(vencoderLib == NULL)
+	{
+		loge("Could not open /usr/lib/libvencoder.so library: %s", dlerror());
+		vencoderLib = dlopen("/usr/lib/aarch64-linux-gnu/libvencoder.so", RTLD_NOW);
+		if(vencoderLib == NULL)
+		{
+			loge("Could not open /usr/lib/aarch64-linux-gnu/libvencoder.so library: %s", dlerror());
+			return VIDEOCODEC_FAIL;
+		}
+	}
 	dlerror();
 
 	VideoEncCreateDl              = (VideoEncCreateFunc)dlsym(vencoderLib, "VideoEncCreate");
@@ -1786,6 +1827,9 @@ int EncoderPrepare(encode_param_t *encode_param)
 	baseConfig.bLbcLossyComEnFlag2_5x = encode_param->bLbcLossyComEnFlag2_5x;
 #endif
 	baseConfig.bEncH264Nalu = 0;
+#if (ISP_VERSION == 603)
+	baseConfig.bOnlineMode = 1;
+#endif
 	ret = setEncParam(pVideoEnc, encode_param);
 	if(ret)
 	{
@@ -1837,6 +1881,7 @@ int EncoderParamUpdate(encode_param_t *encode_param)
 
 #if (ISP_VERSION == 600 || ISP_VERSION == 603)
 	struct VeProcSet mProcSet;
+	memset(&mProcSet, 0, sizeof(mProcSet));
 	mProcSet.bProcEnable = vencoder_tuning_param->proc_cfg.ProcEnable;
 	mProcSet.nProcFreq = vencoder_tuning_param->proc_cfg.ProcFreq;
 	mProcSet.nStatisBitRateTime = vencoder_tuning_param->proc_cfg.StatisBitRateTime;
@@ -1844,12 +1889,14 @@ int EncoderParamUpdate(encode_param_t *encode_param)
 	VideoEncSetParameterDl(pVideoEnc, VENC_IndexParamProcSet, &mProcSet);
 
 	struct VencFixQP FixQP;
+	memset(&FixQP, 0, sizeof(FixQP));
 	FixQP.bEnable = vencoder_tuning_param->QPcontrol_cfg.FixQPEn;
 	FixQP.nIQp = vencoder_tuning_param->QPcontrol_cfg.Fix_I_Qp;
 	FixQP.nPQp = vencoder_tuning_param->QPcontrol_cfg.Fix_P_Qp;
 	VideoEncSetParameterDl(pVideoEnc, VENC_IndexParamH264FixQP, &FixQP);
 
 	struct VencQPRange QPRange;
+	memset(&QPRange, 0, sizeof(QPRange));
 	QPRange.nQpInit = vencoder_tuning_param->QPcontrol_cfg.InitQp;
 	QPRange.nMinqp = vencoder_tuning_param->QPcontrol_cfg.Min_I_Qp;
 	QPRange.nMaxqp = vencoder_tuning_param->QPcontrol_cfg.Max_I_Qp;
@@ -1859,6 +1906,7 @@ int EncoderParamUpdate(encode_param_t *encode_param)
 	VideoEncSetParameterDl(pVideoEnc, VENC_IndexParamH264QPRange, &QPRange);
 
 	VencIPTargetBitsRatio IPTargetBitsRatio;
+	memset(&IPTargetBitsRatio, 0, sizeof(IPTargetBitsRatio));
 	IPTargetBitsRatio.nSceneCoef[0] = (float)vencoder_tuning_param->vbr_cfg.I2PSceneCoef[0] / 100.0;
 	IPTargetBitsRatio.nSceneCoef[1] = (float)vencoder_tuning_param->vbr_cfg.I2PSceneCoef[1] / 100.0;
 	IPTargetBitsRatio.nSceneCoef[2] = (float)vencoder_tuning_param->vbr_cfg.I2PSceneCoef[2] / 100.0;
@@ -1870,6 +1918,7 @@ int EncoderParamUpdate(encode_param_t *encode_param)
 	VideoEncSetParameterDl(pVideoEnc, VENC_IndexParamIPTargetBitsRatio, &IPTargetBitsRatio);
 
 	VencTargetBitsClipParam TargetBitsClipParam;
+	memset(&TargetBitsClipParam, 0, sizeof(TargetBitsClipParam));
 	TargetBitsClipParam.dis_default_para = vencoder_tuning_param->vbr_cfg.BitsClipDisDefault;
 	TargetBitsClipParam.mode = vencoder_tuning_param->vbr_cfg.BitsClipMode;
 	TargetBitsClipParam.coef_th[0][0] = (float)vencoder_tuning_param->vbr_cfg.BitsClipCoef[0][0] / 100.0;
@@ -1888,7 +1937,9 @@ int EncoderParamUpdate(encode_param_t *encode_param)
 	TargetBitsClipParam.gop_bit_ratio_th[2] = (float)vencoder_tuning_param->vbr_cfg.BitsClipGopRtTh[2] / 100.0;
 	VideoEncSetParameterDl(pVideoEnc, VENC_IndexParamTargetBitsClipParam, &TargetBitsClipParam);
 
+#if (ISP_VERSION == 600)
 	VencExtremeD3DParam ExtremeD3DParam;
+	memset(&ExtremeD3DParam, 0, sizeof(ExtremeD3DParam));
 	ExtremeD3DParam.en_extreme_d3d = vencoder_tuning_param->d3d_cfg.extreme_d3d_en;
 	ExtremeD3DParam.zero_mv_ratio_th = vencoder_tuning_param->d3d_cfg.zero_mv_ratio_th;
 	ExtremeD3DParam.ex_d3d_param.enable_3d_filter = vencoder_tuning_param->d3d_cfg.extreme_d3d_en;
@@ -1902,6 +1953,7 @@ int EncoderParamUpdate(encode_param_t *encode_param)
 	VideoEncSetParameterDl(pVideoEnc, VENC_IndexParamSetExtremeD3D, &ExtremeD3DParam);
 
 	struct s3DfilterParam encoder_3d_param;
+	memset(&encoder_3d_param, 0, sizeof(encoder_3d_param));
 	encoder_3d_param.enable_3d_filter = vencoder_tuning_param->d3d_cfg.d3d_en;
 	encoder_3d_param.max_mv_th = vencoder_tuning_param->d3d_cfg.d3d_max_mv_th;
 	encoder_3d_param.max_mad_th = vencoder_tuning_param->d3d_cfg.d3d_max_mad_th;
@@ -1913,6 +1965,7 @@ int EncoderParamUpdate(encode_param_t *encode_param)
 	VideoEncSetParameterDl(pVideoEnc, VENC_IndexParam3DFilterNew, &encoder_3d_param);
 
 	VencRegionD3DParam RegionD3DParam;
+	memset(&RegionD3DParam, 0, sizeof(RegionD3DParam));
 	RegionD3DParam.en_region_d3d = vencoder_tuning_param->region_d3d_cfg.region_d3d_en;
 	RegionD3DParam.dis_default_para = vencoder_tuning_param->region_d3d_cfg.dis_default_para;
 	RegionD3DParam.hor_region_num = vencoder_tuning_param->region_d3d_cfg.hor_region_num;
@@ -1931,6 +1984,70 @@ int EncoderParamUpdate(encode_param_t *encode_param)
 	RegionD3DParam.motion_coef[2] = vencoder_tuning_param->region_d3d_cfg.motion_coef[2];
 	RegionD3DParam.motion_coef[3] = vencoder_tuning_param->region_d3d_cfg.motion_coef[3];
 	VideoEncSetParameterDl(pVideoEnc, VENC_IndexParamRegionD3DParam, &RegionD3DParam);
+#else
+	struct Venc3dFilterParam encoder_3d_param;
+	memset(&encoder_3d_param, 0, sizeof(encoder_3d_param));
+	encoder_3d_param.e3dEn = vencoder_tuning_param->d3d_cfg.d3d_en;
+	encoder_3d_param.e3dDefaultDis = 0;
+	encoder_3d_param.e3dLumaEn = 1;
+	encoder_3d_param.e3dChromaEn = 0;
+	encoder_3d_param.e3dMoveStatusEn = 1;
+	encoder_3d_param.e3dPixDiffEn = 0;
+	encoder_3d_param.e3dCoefAutoMode = 1;
+	encoder_3d_param.e3dMaxCoef = 16;
+	encoder_3d_param.e3dMinCoef = 0;
+	encoder_3d_param.noiseModeEn = 0;
+	encoder_3d_param.lambdaOffset = 0;
+	encoder_3d_param.noiseEstVal = 64;
+	encoder_3d_param.e3dStatusTh[0] = 0;
+	encoder_3d_param.e3dStatusTh[1] = 0;
+	encoder_3d_param.e3dStatusTh[2] = 0;
+	encoder_3d_param.e3dMoveStrengthMvTh[0] = 0;
+	encoder_3d_param.e3dMoveStrengthMvTh[1] = 0;
+	encoder_3d_param.e3dMoveStrengthMvTh[2] = 0;
+	encoder_3d_param.e3dAutoModeAvgTh[0] = 0;
+	encoder_3d_param.e3dAutoModeAvgTh[1] = 0;
+	encoder_3d_param.e3dAutoModeAvgTh[2] = 0;
+	encoder_3d_param.e3dAutoModeAvgTh[3] = 0;
+	encoder_3d_param.e3dAutoModeAvgTh[4] = 0;
+	encoder_3d_param.e3dAutoModeAvgTh[5] = 0;
+	encoder_3d_param.e3dAutoModeAvgTh[6] = 0;
+	encoder_3d_param.e3dAutoModeAvgTh[7] = 0;
+	encoder_3d_param.e3dAutoModeAvgTh[8] = 0;
+	encoder_3d_param.e3dAutoModeAvgTh[9] = 0;
+	encoder_3d_param.e3dAutoModeCoef[0] = 0;
+	encoder_3d_param.e3dAutoModeCoef[1] = 0;
+	encoder_3d_param.e3dAutoModeCoef[2] = 0;
+	encoder_3d_param.e3dAutoModeCoef[3] = 0;
+	encoder_3d_param.e3dAutoModeCoef[4] = 0;
+	encoder_3d_param.e3dAutoModeCoef[5] = 0;
+	encoder_3d_param.e3dAutoModeCoef[6] = 0;
+	encoder_3d_param.e3dAutoModeCoef[7] = 0;
+	encoder_3d_param.e3dAutoModeCoef[8] = 0;
+	encoder_3d_param.e3dAutoModeCoef[9] = 0;
+	encoder_3d_param.e3dAutoModeCoef[10] = 0;
+
+	encoder_3d_param.sParam.uRegionWidth = 0;
+	encoder_3d_param.sParam.uRegionHeight = 0;
+	encoder_3d_param.sParam.uRegionHorNum = 11;
+	encoder_3d_param.sParam.uRegionVerNum = 11;
+	encoder_3d_param.sParam.uRegionTotalNum = (encoder_3d_param.sParam.uRegionHorNum + 1) * (encoder_3d_param.sParam.uRegionVerNum + 1);
+	encoder_3d_param.sParam.e3dRegionEnable = 0;
+	encoder_3d_param.sParam.e3dRegionAutoMode = 1;
+	encoder_3d_param.sParam.e3dRegionUpDownExpandEn = 1;
+	encoder_3d_param.sParam.e3dRegionLeftRightExpandEn = 1;
+	encoder_3d_param.sParam.histogramRegionMvLevelReadEn = 1;
+	encoder_3d_param.sParam.histogramRegionMvLevelWriteEn = 1;
+	encoder_3d_param.sParam.regionHeightDiv16 = 0;
+	encoder_3d_param.sParam.regionWidthDiv16 = 0;
+	encoder_3d_param.sParam.smallMvLevelMaxnum[0] = 0;
+	encoder_3d_param.sParam.smallMvLevelMaxnum[1] = 0;
+	encoder_3d_param.sParam.regionMvLevelRatioTh[0] = 256;
+	encoder_3d_param.sParam.regionMvLevelRatioTh[1] = 256;
+	encoder_3d_param.sParam.regionMvLevelRatioTh[2] = 256;
+
+	VideoEncSetParameterDl(pVideoEnc, VENC_IndexParam3DFilter, &encoder_3d_param);
+#endif
 
 	struct VencROIConfig ROIConfig;
 	ROIConfig.index = vencoder_tuning_param->roi_cfg.roi_idx;
@@ -1978,6 +2095,7 @@ int EncoderParamUpdate(encode_param_t *encode_param)
 	VencMotionSearchParam MotionSearchParam;
 	MotionSearchParam.en_motion_search = vencoder_tuning_param->motion_search_cfg.motion_search_en;
 	if (MotionSearchParam.en_motion_search > 0) {
+#if (ISP_VERSION == 600)
 		MotionSearchParam.dis_default_para = vencoder_tuning_param->motion_search_cfg.dis_default_para;
 		MotionSearchParam.hor_region_num = vencoder_tuning_param->motion_search_cfg.hor_region_num;
 		MotionSearchParam.ver_region_num = vencoder_tuning_param->motion_search_cfg.ver_region_num;
@@ -1985,6 +2103,20 @@ int EncoderParamUpdate(encode_param_t *encode_param)
 		MotionSearchParam.large_mv_ratio_th = vencoder_tuning_param->motion_search_cfg.large_mv_ratio_th;
 		MotionSearchParam.non_zero_mv_ratio_th = vencoder_tuning_param->motion_search_cfg.non_zero_mv_ratio_th;
 		MotionSearchParam.large_sad_ratio_th = vencoder_tuning_param->motion_search_cfg.large_sad_ratio_th;
+#else
+		MotionSearchParam.dis_default_para = vencoder_tuning_param->motion_search_cfg.dis_default_para;
+		MotionSearchParam.hor_region_num = vencoder_tuning_param->motion_search_cfg.hor_region_num;
+		MotionSearchParam.ver_region_num = vencoder_tuning_param->motion_search_cfg.ver_region_num;
+		MotionSearchParam.en_check_mv = 0;
+		MotionSearchParam.en_check_mad = 0;
+		MotionSearchParam.en_morpholog = 0;
+		MotionSearchParam.large_mv_th = vencoder_tuning_param->motion_search_cfg.large_mv_th;
+		MotionSearchParam.large_mad_th = 0;
+		MotionSearchParam.background_weight = 0;
+		MotionSearchParam.large_mv_ratio_th = vencoder_tuning_param->motion_search_cfg.large_mv_ratio_th;
+		MotionSearchParam.non_zero_mv_ratio_th = vencoder_tuning_param->motion_search_cfg.non_zero_mv_ratio_th;
+		MotionSearchParam.large_mad_ratio_th = 0;
+#endif
 	}
 	VideoEncSetParameterDl(pVideoEnc, VENC_IndexParamMotionSearchParam, &MotionSearchParam);
 #endif
@@ -2140,6 +2272,7 @@ int EncoderSetParamColorSpace(encode_param_t *encode_param, VENC_COLOR_SPACE eCo
     }
 }
 
+#if (ISP_VERSION == 600)
 int EncoderSetParam3DFliter(encode_param_t *encode_param, s3DfilterParam *p3dFilterParam)
 {
     if(pVideoEnc)
@@ -2148,6 +2281,7 @@ int EncoderSetParam3DFliter(encode_param_t *encode_param, s3DfilterParam *p3dFil
     }
     return 0;
 }
+#endif
 
 int EncoderSetParam2DFliter(encode_param_t *encode_param, s2DfilterParam *p2dFilterParam)
 {

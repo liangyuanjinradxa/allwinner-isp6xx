@@ -10,7 +10,7 @@ int main(int argc, const char *argv[])
 {
 	int ret = -1;
 	int port = SERVER_PORT;
-	
+
 #if SERVER_DEBUG_EN
 	if (argc >= 2) {
 		init_logger(argv[1], "wb");
@@ -30,7 +30,7 @@ int main(int argc, const char *argv[])
 	if (argc > 1) {
 		port = atoi(argv[1]);
 	}
-	
+
 	ret = init_server(port);
 	if (!ret) {
 		LOG(              "==========   Hawkview Tools Tuning Server Starts up, Enjoy tuning now!  ==========\n"

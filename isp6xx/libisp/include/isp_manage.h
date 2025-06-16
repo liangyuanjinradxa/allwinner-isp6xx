@@ -42,13 +42,12 @@
 
 #include "V4l2Camera/sunxi_camera_v2.h"
 #include "../isp_tuning/isp_tuning_priv.h"
+#include "device/isp_dev.h"
 
 extern unsigned int isp_lib_log_param;
 
 #define ISP_AI_SCENE_CONF	0
 // #define AI_SCENE_SMOOTH
-
-#define ISP_LIB_USE_OTP 0
 
 #define LDCI_PIC_WIDTH 160
 #define LDCI_PIC_HEIGHT 90
@@ -104,6 +103,13 @@ extern unsigned int isp_lib_log_param;
 #define MIPI_SWITCH_AWB_OFFSET_MIN 9000
 #define MIPI_SWITCH_AWB_OFFSET_MAX 11000
 #define MIPI_SWITCH_DEFAULT_PRECISION 10000
+
+/* OTP Buff Size */
+#define OTP_MSC_SIZE (16 * 16 * 3)
+#define OTP_MSC_SIZE_2IN1 (OTP_MSC_SIZE * 2)
+#define OTP_WB_SIZE 8
+#define OTP_AF_SIZE 2
+#define OTP_BUF_SIZE (OTP_MSC_SIZE_2IN1 + OTP_WB_SIZE + OTP_AF_SIZE)
 
 enum colorfx {
 	ISP_COLORFX_NONE = 0,
@@ -384,6 +390,8 @@ struct isp_ai_scene_tune_setting {
 	HW_S32 denoise_level;
 	HW_S32 hue_level;
 	HW_S32 tdf_level;
+	HW_S32 r_gain;
+	HW_S32 b_gain;
 	HW_U8 ae_table_night_length;
 	HW_S32 ae_ai_night_table[42];
 };
@@ -393,6 +401,34 @@ struct isp_ai_scene {
 	struct isp_ai_scene_tune_setting last_tune_settings;
 	HW_U16 scene_change_flag;
 	HW_S32 scene_frame_cnt;  //for smooth transitions
+};
+
+struct local_wb_data_save {
+	float gain_r_save[ISP_LENS_TBL_SIZE * 2];
+	float gain_b_save[ISP_LENS_TBL_SIZE * 2];
+	unsigned short tbl_save[ISP_LENS_TBL_SIZE * 4 * 2];
+	float gain_max;
+};
+
+struct isp_algo_save {
+	HW_U16 wb_rgain_last[2];
+	HW_U16 wb_bgain_last[2];
+	HW_S8 wb_l_shift;
+	HW_U8 byr_act_bit;
+	HW_U16 lsc_color_temp_save;
+	HW_U16 lsc_comp_save;
+	HW_U16 lsc_vcm_std_pos_save;
+	HW_U8 lsc_hflip_save;
+	HW_U8 lsc_vflip_save;
+
+	//d3d_k_stat
+	HW_U8 d3d_k_cnt;
+	HW_U8 d3d_k_tdnf_en_last;
+	HW_U8 d3d_k_cal_start_avg;
+	HW_U8 d3d_k_start_avg_save[10];
+
+	//local_adaptive_white_balance
+	struct local_wb_data_save *local_wb_save;
 };
 
 struct sensor_mipi_switch_entity_info {
@@ -410,6 +446,27 @@ struct sensor_mipi_switch_entity_info {
 	struct isp_awb_stats_s *sensorB_awb_stats;
 	struct isp_video_device *mipi_switch_video;
 };
+
+struct otp_info_cfg {
+	unsigned short otp_buf[OTP_BUF_SIZE];
+	float msc_golden_ratio[OTP_MSC_SIZE_2IN1];
+	float msc_r_ratio;
+	HW_U8 msc_golden_flag[OTP_MSC_SIZE / 3];
+	float msc_adjust_ratio[ISP_MSC_TEMP_NUM];
+	float msc_adjust_ratio_less[ISP_MSC_TEMP_NUM];
+	float wb_golden_ratio[AWB_CH_NUM];
+	int af_min_code_offset;
+	int af_max_code_offset;
+};
+
+struct isp_sensor_otp_cfg {
+	unsigned char otp_enable;
+	unsigned short *pmsc_table;
+	unsigned short *pwb_table;
+	unsigned short *paf_table;
+	struct otp_info_cfg *otp_info;
+};
+
 
 /*
  *
@@ -489,17 +546,7 @@ struct isp_lib_context {
 	/* ISP ir flag */
 	HW_U8 isp_ir_flag;
 	/* otp information*/
-	int otp_enable;
-	void *pmsc_table;		/*msc table  22x22x3 = ISP_MSC_TBL_LENGTH, default mode using 16x16x3  */
-	void *pwb_table;
-#if ISP_LIB_USE_OTP
-	float msc_golden_ratio[ISP_MSC_TBL_LENGTH];
-	float msc_r_ratio;
-	HW_U8 msc_golden_flag[ISP_MSC_TBL_LENGTH];
-	float msc_adjust_ratio[ISP_MSC_TEMP_NUM];
-	float msc_adjust_ratio_less[ISP_MSC_TEMP_NUM];
-	float wb_golden_ratio[AWB_CH_NUM];
-#endif
+	struct isp_sensor_otp_cfg sensor_otp;
 	unsigned short nr_msc_tab_ori[ISP_MSC_TBL_SIZE];
 	struct enc_VencVe2IspParam VencVe2IspParam;
 	struct npu_face_nr_config npu_nr_cfg;
@@ -513,9 +560,13 @@ struct isp_lib_context {
 	struct isp_debug_info debug_param_info;
 	struct sensor_mipi_switch_entity_info switch_info;
 	struct isp_ai_scene ai_scene;
+	struct isp_algo_save algo_save;
+	struct isp_initial_cfg initial_cfg;
+	HW_U8 isp_tuning_ver;
 	HW_U8 isp_ir_flag_last;
 	HW_U8 stitch_mode;
 	HW_U8 ai_isp_en;
+	HW_U8 isp_ctx_save_init_flag;
 };
 
 /*

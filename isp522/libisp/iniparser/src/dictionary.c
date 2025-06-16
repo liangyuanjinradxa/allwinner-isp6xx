@@ -15,7 +15,7 @@
  ---------------------------------------------------------------------------*/
 #include "dictionary.h"
 
-#if ISP_LIB_USE_INIPARSER
+//#if ISP_LIB_USE_INIPARSER
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -399,4 +399,4 @@ int main(int argc, char *argv[])
 #endif
 /* vim: set ts=4 et sw=4 tw=75 */
 
-#endif
+//#endif

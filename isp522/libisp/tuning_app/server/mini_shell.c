@@ -5,9 +5,9 @@
  * date:   20160803
  * http://www.allwinnertech.com
  */
-#include <stdio.h>
-#include <stdlib.h>
-#include <string.h>
+// #include <stdio.h>
+// #include <stdlib.h>
+// #include <string.h>
 
 #include "mini_shell.h"
 
@@ -284,7 +284,7 @@ int init_mini_shell(const char *log_file)
 	}
 
 	sti->func = subproc_waiter_service;
-	sti->cookie = (void*)pid;
+	sti->cookie = (void*)(intptr_t)pid;
 	sti->fd = fd_ptmx;
 
 	if (adb_thread_create( &t, service_bootstrap_func, sti)) {
@@ -342,7 +342,7 @@ int mini_shell_exec(const char *command, char *reply)
 		adb_read(fd_ptmx, cmd_reply, sizeof(cmd_reply));
 		D("%s: %s\n", __FUNCTION__, cmd_reply);
 		if (reply)
-			strncpy(reply, cmd_reply, sizeof(cmd_reply));
+			strncpy(cmd_reply, reply, sizeof(cmd_reply));
 
 		if (fd_log_file >= 0) {
 			D("%s: %s\n", __FUNCTION__, reply);
@@ -367,7 +367,7 @@ int mini_shell_stdout(const char *outputs)
 {
 	if (stdout_copy >= 0)
 		return adb_write(stdout_copy, outputs, strlen(outputs));
-	printf("%s\n", outputs);
+	puts(outputs);
 	return -1;
 }
 
@@ -375,7 +375,7 @@ int mini_shell_stderr(const char *error)
 {
 	if (stderr_copy >= 0)
 		return adb_write(stderr_copy, error, strlen(error));
-	printf("%s\n", error);
+	puts(error);
 	return -1;
 }
 

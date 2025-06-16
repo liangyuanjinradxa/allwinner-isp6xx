@@ -18,6 +18,8 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <math.h>
+// #include <sys/io.h>
 #include <sys/types.h>
 #include <sys/stat.h>
 #include "../iniparser/src/iniparser.h"
@@ -26,22 +28,22 @@
 #include "../include/isp_debug.h"
 #include "../isp_dev/tools.h"
 
-#if !ISP_LIB_USE_INIPARSER
+#define ISP_LIB_USE_INIPARSER 1
+
 #if (ISP_VERSION >= 522)
 #include "SENSOR_H/imx317_default_ini_a100.h"
 #include "SENSOR_H/ar0238_default_ini_a100.h"
-#include "SENSOR_H/imx278_mipi_mr813.h"
 #include "SENSOR_H/gc2385_mipi_a100.h"
 #include "SENSOR_H/gc030a_mipi_a100.h"
-#include "SENSOR_H/sc031gs_mipi_gray.h"
-#include "SENSOR_H/ov2735_mipi_mr813.h"
-#include "SENSOR_H/ov7251_mipi_gray_mr813.h"
+#include "SENSOR_H/gc5025_mipi_a100.h"
+#include "SENSOR_H/gc02m1_mipi_r818.h"
+#include "SENSOR_H/sc035hgs_mipi_mr153.h"
+
 #elif (ISP_VERSION >= 521)
 #include "SENSOR_H/imx317_default_ini_v459.h"
 #include "SENSOR_H/imx317_wdr_ini_v459.h"
 #include "SENSOR_H/sc2323_mipi_1080p_30fps_normal_v459.h"
 #include "SENSOR_H/sc2323_mipi_1080p_30fps_wdr_v459.h"
-
 #elif (ISP_VERSION >= 520)
 #include "SENSOR_H/imx278_full_v200.h"
 #include "SENSOR_H/imx278_4k_v200.h"
@@ -64,7 +66,7 @@
 #include "SENSOR_H/ov2775_mipi.h"
 #include "SENSOR_H/gc2355_mipi.h"
 #include "SENSOR_H/gc5024_a50.h"
-#endif
+
 #endif
 
 unsigned int isp_cfg_log_param = ISP_LOG_CFG;
@@ -86,6 +88,17 @@ void set_##key(struct isp_param_config *isp_ini_cfg, void *value, int len) \
 	int i, *tmp = (int *)value;\
 	for (i = 0; i < len; i++) \
 		isp_ini_cfg->struct_name.key[i] = tmp[i];\
+}
+
+#define SET_ISP_ARRAY_VALUE_2(struct_name, key) \
+void set_##key(struct isp_param_config *isp_ini_cfg, void *value, int len) \
+{\
+	int i, j, *tmp = (int *)value, cnt = (int)sqrt((double)len);\
+	for (i = 0; i < cnt; i++) {\
+		for (j = 0; j < cnt; j++) {\
+			isp_ini_cfg->struct_name.key[i][j] = tmp[i*cnt+j];\
+		}\
+	}\
 }
 
 #define SET_ISP_ARRAY_INT(struct_name, key) \
@@ -173,6 +186,9 @@ SET_ISP_SINGLE_VALUE(isp_test_settings, denoise_en 	    );
 SET_ISP_SINGLE_VALUE(isp_test_settings, drc_en 		    );
 SET_ISP_SINGLE_VALUE(isp_test_settings, cem_en	    );
 SET_ISP_SINGLE_VALUE(isp_test_settings, lsc_en 		    );
+#if (ISP_VERSION >= 521)
+SET_ISP_SINGLE_VALUE(isp_test_settings, msc_en 		    );
+#endif
 SET_ISP_SINGLE_VALUE(isp_test_settings, gamma_en	    );
 SET_ISP_SINGLE_VALUE(isp_test_settings, cm_en 		    );
 SET_ISP_SINGLE_VALUE(isp_test_settings, ae_en 		    );
@@ -194,10 +210,10 @@ SET_ISP_SINGLE_VALUE(isp_test_settings, dig_gain_en     );
 SET_ISP_SINGLE_VALUE(isp_test_settings, pltm_en   );
 SET_ISP_SINGLE_VALUE(isp_test_settings, wdr_en);
 SET_ISP_SINGLE_VALUE(isp_test_settings, ctc_en);
-SET_ISP_SINGLE_VALUE(isp_test_settings, msc_en 		    );
-SET_ISP_SINGLE_VALUE(isp_test_settings, lsc_en 		    );
+#if (ISP_VERSION >= 521)
 SET_ISP_SINGLE_VALUE(isp_test_settings, lca_en 		    );
 SET_ISP_SINGLE_VALUE(isp_test_settings, gca_en 		    );
+#endif
 
 
 SET_ISP_SINGLE_VALUE(isp_3a_settings, define_ae_table);
@@ -270,26 +286,40 @@ SET_ISP_SINGLE_VALUE(isp_tunning_settings, flash_gain);
 SET_ISP_SINGLE_VALUE(isp_tunning_settings, flash_delay_frame);
 SET_ISP_SINGLE_VALUE(isp_tunning_settings, flicker_type);
 SET_ISP_SINGLE_VALUE(isp_tunning_settings, flicker_ratio);
+SET_ISP_SINGLE_VALUE(isp_tunning_settings, hor_visual_angle);
+SET_ISP_SINGLE_VALUE(isp_tunning_settings, ver_visual_angle);
+SET_ISP_SINGLE_VALUE(isp_tunning_settings, focus_length);
+SET_ISP_SINGLE_VALUE(isp_tunning_settings, gamma_num);
+SET_ISP_SINGLE_VALUE(isp_tunning_settings, rolloff_ratio);
+SET_ISP_SINGLE_VALUE(isp_tunning_settings, gtm_type);
+SET_ISP_SINGLE_VALUE(isp_tunning_settings, gamma_type);
+SET_ISP_SINGLE_VALUE(isp_tunning_settings, auto_alpha_en);
+SET_ISP_SINGLE_VALUE(isp_tunning_settings, hist_pix_cnt);
+SET_ISP_SINGLE_VALUE(isp_tunning_settings, dark_minval);
+SET_ISP_SINGLE_VALUE(isp_tunning_settings, bright_minval);
+
+
 SET_ISP_SINGLE_VALUE(isp_tunning_settings, cfa_dir_th);
+#if (ISP_VERSION >= 521)
+SET_ISP_SINGLE_VALUE(isp_tunning_settings, cfa_interp_mode);
+SET_ISP_SINGLE_VALUE(isp_tunning_settings, cfa_zig_zag);
+#endif
 SET_ISP_SINGLE_VALUE(isp_tunning_settings, ctc_th_max);
 SET_ISP_SINGLE_VALUE(isp_tunning_settings, ctc_th_min);
 SET_ISP_SINGLE_VALUE(isp_tunning_settings, ctc_th_slope);
 SET_ISP_SINGLE_VALUE(isp_tunning_settings, ctc_dir_wt);
 SET_ISP_SINGLE_VALUE(isp_tunning_settings, ctc_dir_th);
-SET_ISP_SINGLE_VALUE(isp_tunning_settings, hor_visual_angle);
-SET_ISP_SINGLE_VALUE(isp_tunning_settings, ver_visual_angle);
-SET_ISP_SINGLE_VALUE(isp_tunning_settings, focus_length);
 
+SET_ISP_SINGLE_VALUE(isp_tunning_settings, ff_mod);
+#if (ISP_VERSION >= 521)
+SET_ISP_SINGLE_VALUE(isp_tunning_settings, lsc_mode);
+#endif
 SET_ISP_SINGLE_VALUE(isp_tunning_settings, lsc_center_x);
 SET_ISP_SINGLE_VALUE(isp_tunning_settings, lsc_center_y);
-
-
-SET_ISP_SINGLE_VALUE(isp_tunning_settings, gtm_type);
-SET_ISP_SINGLE_VALUE(isp_tunning_settings, auto_alpha_en);
-SET_ISP_SINGLE_VALUE(isp_tunning_settings, gamma_type);
-SET_ISP_SINGLE_VALUE(isp_tunning_settings, ff_mod);
-SET_ISP_SINGLE_VALUE(isp_tunning_settings, lsc_mode);
-
+#if (ISP_VERSION >= 521)
+SET_ISP_SINGLE_VALUE(isp_tunning_settings, mff_mod);
+SET_ISP_SINGLE_VALUE(isp_tunning_settings, msc_mode);
+#endif
 
 SET_ISP_ARRAY_VALUE(isp_3a_settings, awb_light_info);
 SET_ISP_ARRAY_VALUE(isp_3a_settings, awb_ext_light_info);
@@ -305,13 +335,25 @@ SET_ISP_ARRAY_VALUE(isp_3a_settings, ae_win_weight);
 SET_ISP_ARRAY_VALUE(isp_3a_settings, ae_gain_range);
 SET_ISP_ARRAY_VALUE(isp_3a_settings, af_std_code_tbl);
 SET_ISP_ARRAY_VALUE(isp_3a_settings, af_tolerance_value_tbl);
-SET_ISP_ARRAY_VALUE(isp_3a_settings, rsc_center_cfg);
-SET_ISP_ARRAY_VALUE(isp_3a_settings, af_tolerance_value_tbl);
 
+SET_ISP_ARRAY_VALUE_2(isp_tunning_settings, plum_var);
 SET_ISP_ARRAY_VALUE(isp_tunning_settings, bayer_gain);
 SET_ISP_ARRAY_VALUE(isp_tunning_settings, lsc_trig_cfg);
+#if (ISP_VERSION >= 521)
+SET_ISP_ARRAY_VALUE(isp_tunning_settings, msc_trig_cfg);
+SET_ISP_ARRAY_VALUE(isp_tunning_settings, msc_blw_lut);
+SET_ISP_ARRAY_VALUE(isp_tunning_settings, msc_blh_lut);
+SET_ISP_ARRAY_VALUE(isp_tunning_settings, msc_blw_dlt_lut);
+SET_ISP_ARRAY_VALUE(isp_tunning_settings, msc_blh_dlt_lut);
+#endif
 SET_ISP_ARRAY_VALUE(isp_tunning_settings, gamma_trig_cfg);
 SET_ISP_ARRAY_VALUE(isp_tunning_settings, cm_trig_cfg);
+#if (ISP_VERSION >= 521)
+SET_ISP_ARRAY_VALUE(isp_tunning_settings, gca_cfg);
+SET_ISP_ARRAY_VALUE(isp_tunning_settings, lca_pf_satu_lut);
+SET_ISP_ARRAY_VALUE(isp_tunning_settings, lca_gf_satu_lut);
+#endif
+SET_ISP_ARRAY_VALUE(isp_tunning_settings, pltm_cfg);
 SET_ISP_ARRAY_VALUE(isp_tunning_settings, isp_bdnf_th);
 SET_ISP_ARRAY_VALUE(isp_tunning_settings, isp_tdnf_th);
 SET_ISP_ARRAY_VALUE(isp_tunning_settings, isp_tdnf_ref_noise);
@@ -320,9 +362,15 @@ SET_ISP_ARRAY_VALUE(isp_tunning_settings, isp_contrast_val);
 SET_ISP_ARRAY_VALUE(isp_tunning_settings, isp_contrast_lum);
 SET_ISP_ARRAY_VALUE(isp_tunning_settings, isp_sharp_val);
 SET_ISP_ARRAY_VALUE(isp_tunning_settings, isp_sharp_lum);
+#if (ISP_VERSION >= 520)
+SET_ISP_ARRAY_VALUE(isp_tunning_settings, isp_d3d_k3d_incre_curve);
+SET_ISP_ARRAY_VALUE(isp_tunning_settings, isp_sharp_edge_lum);
+SET_ISP_ARRAY_VALUE(isp_tunning_settings, isp_sharp_hfrq_lum);
+SET_ISP_ARRAY_VALUE(isp_tunning_settings, isp_sharp_hsv);
+SET_ISP_ARRAY_VALUE(isp_tunning_settings, isp_sharp_s_map);
+#endif
 SET_ISP_ARRAY_VALUE(isp_tunning_settings, isp_tdnf_diff);
 SET_ISP_ARRAY_VALUE(isp_tunning_settings, isp_contrat_pe);
-SET_ISP_ARRAY_VALUE(isp_tunning_settings, pltm_cfg);
 
 
 SET_ISP_STRUCT_INT(isp_iso_settings, triger);
@@ -394,6 +442,9 @@ static struct IspParamAttribute IspTestParam[] = {
 	ISP_FILE_SINGLE_ATTR(isp_en_cfg, drc_en),
 	ISP_FILE_SINGLE_ATTR(isp_en_cfg, cem_en),
 	ISP_FILE_SINGLE_ATTR(isp_en_cfg, lsc_en),
+#if (ISP_VERSION >= 521)
+	ISP_FILE_SINGLE_ATTR(isp_en_cfg, msc_en),
+#endif
 	ISP_FILE_SINGLE_ATTR(isp_en_cfg, gamma_en),
 	ISP_FILE_SINGLE_ATTR(isp_en_cfg, cm_en),
 	ISP_FILE_SINGLE_ATTR(isp_en_cfg, ae_en),
@@ -407,6 +458,10 @@ static struct IspParamAttribute IspTestParam[] = {
 	ISP_FILE_SINGLE_ATTR(isp_en_cfg, cfa_en),
 	ISP_FILE_SINGLE_ATTR(isp_en_cfg, tdf_en),
 	ISP_FILE_SINGLE_ATTR(isp_en_cfg, cnr_en),
+#if (ISP_VERSION >= 521)
+	ISP_FILE_SINGLE_ATTR(isp_en_cfg, lca_en),
+	ISP_FILE_SINGLE_ATTR(isp_en_cfg, gca_en),
+#endif
 	ISP_FILE_SINGLE_ATTR(isp_en_cfg, satur_en),
 	ISP_FILE_SINGLE_ATTR(isp_en_cfg, defog_en),
 	ISP_FILE_SINGLE_ATTR(isp_en_cfg, linear_en),
@@ -424,13 +479,13 @@ static struct IspParamAttribute Isp3aParam[] = {
 	ISP_FILE_SINGLE_ATTR(isp_ae_cfg, ae_table_capture_length),
 	ISP_FILE_SINGLE_ATTR(isp_ae_cfg, ae_table_video_length),
 
-	ISP_FILE_ARRAY_ATTR(isp_ae_cfg, ae_fno_step, 16),
-	ISP_FILE_ARRAY_ATTR(isp_ae_cfg, ae_fno_step, 3),
 	ISP_FILE_ARRAY_ATTR(isp_ae_cfg, ae_table_preview, 42),
 	ISP_FILE_ARRAY_ATTR(isp_ae_cfg, ae_table_capture, 42),
 	ISP_FILE_ARRAY_ATTR(isp_ae_cfg, ae_table_video, 42),
 	ISP_FILE_ARRAY_ATTR(isp_ae_cfg, ae_win_weight, 64),
 	ISP_FILE_ARRAY_ATTR(isp_ae_cfg, ae_gain_range, 4),
+	ISP_FILE_ARRAY_ATTR(isp_ae_cfg, ae_fno_step, 16),
+	ISP_FILE_ARRAY_ATTR(isp_ae_cfg, wdr_cfg, ISP_WDR_CFG_MAX),
 
 	ISP_FILE_SINGLE_ATTR(isp_ae_cfg, ae_hist_mod_en),
 	ISP_FILE_SINGLE_ATTR(isp_ae_cfg, ae_hist_sel),
@@ -506,7 +561,11 @@ static struct IspParamAttribute Isp3aParam[] = {
 };
 
 static struct IspParamAttribute IspDynamicParam[] = {
+#if  (ISP_VERSION >= 521)
+	ISP_FILE_ARRAY_ATTR(isp_dynamic_gbl, triger, 17),
+#else
 	ISP_FILE_ARRAY_ATTR(isp_dynamic_gbl, triger, 16),
+#endif
 	ISP_FILE_ARRAY_ATTR(isp_dynamic_gbl, isp_lum_mapping_point, 14),
 	ISP_FILE_ARRAY_ATTR(isp_dynamic_gbl, isp_gain_mapping_point, 14),
 	ISP_FILE_STRUCT_ARRAY_ATTR(isp_dynamic_cfg_0, iso_param, sizeof(struct isp_dynamic_config) / sizeof(HW_S32)),
@@ -528,42 +587,59 @@ static struct IspParamAttribute IspDynamicParam[] = {
 static struct IspParamAttribute IspTuningParam[] = {
 	ISP_FILE_SINGLE_ATTR(isp_tuning_cfg, flash_gain),
 	ISP_FILE_SINGLE_ATTR(isp_tuning_cfg, flash_delay_frame),
-	ISP_FILE_SINGLE_ATTR(isp_tuning_cfg, cfa_dir_th),
-
-	ISP_FILE_SINGLE_ATTR(isp_tuning_cfg, ctc_th_max),
-	ISP_FILE_SINGLE_ATTR(isp_tuning_cfg, ctc_th_min),
-	ISP_FILE_SINGLE_ATTR(isp_tuning_cfg, ctc_th_slope),
-	ISP_FILE_SINGLE_ATTR(isp_tuning_cfg, ctc_dir_wt),
-	ISP_FILE_SINGLE_ATTR(isp_tuning_cfg, ctc_dir_th),
-
 	ISP_FILE_SINGLE_ATTR(isp_tuning_cfg, flicker_type),
 	ISP_FILE_SINGLE_ATTR(isp_tuning_cfg, flicker_ratio),
 	ISP_FILE_SINGLE_ATTR(isp_tuning_cfg, hor_visual_angle),
 	ISP_FILE_SINGLE_ATTR(isp_tuning_cfg, ver_visual_angle),
 	ISP_FILE_SINGLE_ATTR(isp_tuning_cfg, focus_length),
+	ISP_FILE_SINGLE_ATTR(isp_tuning_cfg, gamma_num),
+	ISP_FILE_SINGLE_ATTR(isp_tuning_cfg, rolloff_ratio),
+	ISP_FILE_SINGLE_ATTR(isp_tuning_cfg, gtm_type),
+	ISP_FILE_SINGLE_ATTR(isp_tuning_cfg, gamma_type),
+	ISP_FILE_SINGLE_ATTR(isp_tuning_cfg, auto_alpha_en),
+	ISP_FILE_SINGLE_ATTR(isp_tuning_cfg, hist_pix_cnt),
+	ISP_FILE_SINGLE_ATTR(isp_tuning_cfg, dark_minval),
+	ISP_FILE_SINGLE_ATTR(isp_tuning_cfg, bright_minval),
+	ISP_FILE_ARRAY_ATTR(isp_tuning_cfg, plum_var, GTM_LUM_IDX_NUM*GTM_VAR_IDX_NUM),//GTM_LUM_IDX_NUM = GTM_VAR_IDX_NUM
+
+	ISP_FILE_SINGLE_ATTR(isp_tuning_cfg, cfa_dir_th),
+#if (ISP_VERSION >= 521)
+	ISP_FILE_SINGLE_ATTR(isp_tuning_cfg, cfa_interp_mode),
+	ISP_FILE_SINGLE_ATTR(isp_tuning_cfg, cfa_zig_zag),
+#endif
+	ISP_FILE_SINGLE_ATTR(isp_tuning_cfg, ctc_th_max),
+	ISP_FILE_SINGLE_ATTR(isp_tuning_cfg, ctc_th_min),
+	ISP_FILE_SINGLE_ATTR(isp_tuning_cfg, ctc_th_slope),
+	ISP_FILE_SINGLE_ATTR(isp_tuning_cfg, ctc_dir_wt),
+	ISP_FILE_SINGLE_ATTR(isp_tuning_cfg, ctc_dir_th),
+	ISP_FILE_ARRAY_ATTR(isp_tuning_cfg, bayer_gain, ISP_RAW_CH_MAX),
+
+	ISP_FILE_SINGLE_ATTR(isp_tuning_cfg, ff_mod),
+#if (ISP_VERSION >= 521)
+	ISP_FILE_SINGLE_ATTR(isp_tuning_cfg, lsc_mode),
+#endif
 	ISP_FILE_SINGLE_ATTR(isp_tuning_cfg, lsc_center_x),
 	ISP_FILE_SINGLE_ATTR(isp_tuning_cfg, lsc_center_y),
+	ISP_FILE_ARRAY_ATTR(isp_tuning_cfg, lsc_trig_cfg, ISP_LSC_TEMP_NUM),
 
-	ISP_FILE_ARRAY_ATTR(isp_tuning_cfg, bayer_gain, 4),
-
-	ISP_FILE_SINGLE_ATTR(isp_tuning_cfg, gtm_type),
-	ISP_FILE_SINGLE_ATTR(isp_tuning_cfg, auto_alpha_en),
-	ISP_FILE_SINGLE_ATTR(isp_tuning_cfg, gamma_type),
-
-	ISP_FILE_SINGLE_ATTR(isp_tuning_cfg, lsc_mode),
-	ISP_FILE_SINGLE_ATTR(isp_tuning_cfg, ff_mod),
-	ISP_FILE_ARRAY_ATTR(isp_tuning_cfg, lsc_trig_cfg, 6),
-
+#if (ISP_VERSION >= 521)
 	ISP_FILE_SINGLE_ATTR(isp_tuning_cfg, mff_mod),
 	ISP_FILE_SINGLE_ATTR(isp_tuning_cfg, msc_mode),
-	ISP_FILE_ARRAY_ATTR(isp_tuning_cfg, msc_blw_lut, 12),
-	ISP_FILE_ARRAY_ATTR(isp_tuning_cfg, msc_blh_lut, 12),
+	ISP_FILE_ARRAY_ATTR(isp_tuning_cfg, msc_trig_cfg, ISP_MSC_TEMP_NUM),
+	ISP_FILE_ARRAY_ATTR(isp_tuning_cfg, msc_blw_lut, ISP_MSC_TBL_LUT_SIZE),
+	ISP_FILE_ARRAY_ATTR(isp_tuning_cfg, msc_blh_lut, ISP_MSC_TBL_LUT_SIZE),
+	ISP_FILE_ARRAY_ATTR(isp_tuning_cfg, msc_blw_dlt_lut, ISP_MSC_TBL_LUT_DLT_SIZE),
+	ISP_FILE_ARRAY_ATTR(isp_tuning_cfg, msc_blh_dlt_lut, ISP_MSC_TBL_LUT_DLT_SIZE),
+#endif
 
 	ISP_FILE_ARRAY_ATTR(isp_tuning_cfg, gamma_trig_cfg, 5),
 	ISP_FILE_ARRAY_ATTR(isp_tuning_cfg, cm_trig_cfg, 3),
 
+#if (ISP_VERSION >= 521)
 	ISP_FILE_ARRAY_ATTR(isp_tuning_cfg, gca_cfg, ISP_GCA_MAX),
-	ISP_FILE_ARRAY_ATTR(isp_tuning_cfg, lca_cfg, ISP_LCA_MAX),
+	ISP_FILE_ARRAY_ATTR(isp_tuning_cfg, lca_pf_satu_lut, ISP_REG_TBL_LENGTH),
+	ISP_FILE_ARRAY_ATTR(isp_tuning_cfg, lca_gf_satu_lut, ISP_REG_TBL_LENGTH),
+#endif
 
 	ISP_FILE_ARRAY_ATTR(isp_tuning_cfg, pltm_cfg, ISP_PLTM_MAX),
 	ISP_FILE_ARRAY_ATTR(isp_tuning_cfg, isp_bdnf_th, ISP_REG_TBL_LENGTH),
@@ -574,6 +650,14 @@ static struct IspParamAttribute IspTuningParam[] = {
 	ISP_FILE_ARRAY_ATTR(isp_tuning_cfg, isp_contrast_lum, ISP_REG_TBL_LENGTH),
 	ISP_FILE_ARRAY_ATTR(isp_tuning_cfg, isp_sharp_val, ISP_REG_TBL_LENGTH),
 	ISP_FILE_ARRAY_ATTR(isp_tuning_cfg, isp_sharp_lum, ISP_REG_TBL_LENGTH),
+#if (ISP_VERSION >= 520)
+	ISP_FILE_ARRAY_ATTR(isp_tuning_cfg, isp_sharp_edge_lum, ISP_REG_TBL_LENGTH),
+	ISP_FILE_ARRAY_ATTR(isp_tuning_cfg, isp_sharp_hfrq_lum, ISP_REG_TBL_LENGTH),
+	ISP_FILE_ARRAY_ATTR(isp_tuning_cfg, isp_sharp_hsv, 46),
+	ISP_FILE_ARRAY_ATTR(isp_tuning_cfg, isp_sharp_s_map, ISP_REG_TBL_LENGTH),
+	ISP_FILE_ARRAY_ATTR(isp_tuning_cfg, isp_d3d_k3d_incre_curve, 256),
+#endif
+
 	ISP_FILE_ARRAY_ATTR(isp_tuning_cfg, isp_tdnf_diff, 256),
 	ISP_FILE_ARRAY_ATTR(isp_tuning_cfg, isp_contrat_pe, 128),
 
@@ -675,7 +759,7 @@ int isp_read_file(char *file_path, char *buf, size_t len)
 	}
 
 	buf_len = fread(buf, 1, s.st_size, fp);
-	ISP_CFG_LOG(ISP_LOG_CFG, "%s len = %Zu, expect len = %ld\n", file_path, buf_len, s.st_size);
+	ISP_CFG_LOG(ISP_LOG_CFG, "%s len = %d, expect len = %ld\n", file_path, (unsigned int)buf_len, (unsigned long)s.st_size);
 	fclose(fp);
 
 	if (buf_len <= 0)
@@ -734,18 +818,27 @@ int isp_parser_tbl(struct isp_param_config *isp_ini_cfg, char *tbl_patch)
 	int len, ret = 0;
 	char isp_gamma_tbl_path[128] = "\0";
 	char isp_lsc_tbl_path[128] = "\0";
+	char isp_msc_tbl_path[128] = "\0";
+	char isp_linear_tbl_path[128] = "\0";
+	char isp_disc_tbl_path[128] = "\0";
 	char isp_cem_tbl_path[128] = "\0";
 	char isp_pltm_tbl_path[128] = "\0";
 	char isp_wdr_tbl_path[128] = "\0";
 
 	strcpy(isp_gamma_tbl_path, tbl_patch);
 	strcpy(isp_lsc_tbl_path, tbl_patch);
+	strcpy(isp_msc_tbl_path, tbl_patch);
+	strcpy(isp_linear_tbl_path, tbl_patch);
+	strcpy(isp_disc_tbl_path, tbl_patch);
 	strcpy(isp_cem_tbl_path, tbl_patch);
 	strcpy(isp_pltm_tbl_path, tbl_patch);
 	strcpy(isp_wdr_tbl_path, tbl_patch);
 
 	strcat(isp_gamma_tbl_path, "gamma_tbl.bin");
 	strcat(isp_lsc_tbl_path, "lsc_tbl.bin");
+	strcat(isp_msc_tbl_path, "msc_tbl.bin");
+	strcat(isp_linear_tbl_path, "linear_tbl.bin");
+	strcat(isp_disc_tbl_path, "disc_tbl.bin");
 	strcat(isp_cem_tbl_path, "cem_tbl.bin");
 	strcat(isp_pltm_tbl_path, "pltm_tbl.bin");
 	strcat(isp_wdr_tbl_path, "wdr_tbl.bin");
@@ -756,7 +849,7 @@ int isp_parser_tbl(struct isp_param_config *isp_ini_cfg, char *tbl_patch)
 	len = isp_read_file(isp_gamma_tbl_path, (char *)isp_ini_cfg->isp_tunning_settings.gamma_tbl_ini, SIZE_OF_GAMMA_TBL);
 	if (len < 0 || len != SIZE_OF_GAMMA_TBL) {
 		ISP_WARN("read gamma_tbl from failed! len = %d, but %d is required\n", len, SIZE_OF_GAMMA_TBL);
-		isp_ini_cfg->isp_test_settings.gamma_en = 1;
+		isp_ini_cfg->isp_test_settings.gamma_en = 0;
 	}
 
 	/* fetch lsc table! */
@@ -766,10 +859,31 @@ int isp_parser_tbl(struct isp_param_config *isp_ini_cfg, char *tbl_patch)
 		isp_ini_cfg->isp_test_settings.lsc_en = 0;
 	}
 
+#if (ISP_VERSION >= 521)
+	/* fetch msc table! */
+	len = isp_read_file(isp_msc_tbl_path, (char *)isp_ini_cfg->isp_tunning_settings.msc_tbl, sizeof(isp_ini_cfg->isp_tunning_settings.msc_tbl));
+	if (len < 0 || len != sizeof(isp_ini_cfg->isp_tunning_settings.msc_tbl)) {
+		ISP_WARN("read msc_tbl from failed! len = %d, but %d is required\n", len, sizeof(isp_ini_cfg->isp_tunning_settings.msc_tbl));
+		isp_ini_cfg->isp_test_settings.msc_en = 0;
+	}
+#endif
+
+	/* fetch linear table! */
+	len = isp_read_file(isp_linear_tbl_path, (char *)isp_ini_cfg->isp_tunning_settings.linear_tbl, sizeof(isp_ini_cfg->isp_tunning_settings.linear_tbl));
+	if (len < 0 || len != sizeof(isp_ini_cfg->isp_tunning_settings.linear_tbl)) {
+		ISP_WARN("read linear_tbl from failed! len = %d, but %d is required\n", len, sizeof(isp_ini_cfg->isp_tunning_settings.linear_tbl));
+	}
+
+	/* fetch disc table! */
+	len = isp_read_file(isp_disc_tbl_path, (char *)isp_ini_cfg->isp_tunning_settings.disc_tbl, sizeof(isp_ini_cfg->isp_tunning_settings.disc_tbl));
+	if (len < 0 || len != sizeof(isp_ini_cfg->isp_tunning_settings.disc_tbl)) {
+		ISP_WARN("read disc_tbl from failed! len = %d, but %d is required\n", len, sizeof(isp_ini_cfg->isp_tunning_settings.disc_tbl));
+	}
+
 	/* fetch cem table! */
-	len = isp_read_file(isp_cem_tbl_path, (char *)isp_ini_cfg->isp_tunning_settings.isp_cem_table, ISP_CEM_MEM_SIZE);
-	if (len < 0 || len != ISP_CEM_MEM_SIZE) {
-		ISP_WARN("read cem_tbl from failed! len = %d, but %d is required\n", len, ISP_CEM_MEM_SIZE);
+	len = isp_read_file(isp_cem_tbl_path, (char *)isp_ini_cfg->isp_tunning_settings.isp_cem_table, ISP_CEM_MEM_SIZE + ISP_CEM_MEM_SIZE);
+	if (len < 0 || len != ISP_CEM_MEM_SIZE + ISP_CEM_MEM_SIZE) {
+		ISP_WARN("read cem_tbl from failed! len = %d, but %d is required\n", len, ISP_CEM_MEM_SIZE + ISP_CEM_MEM_SIZE);
 		isp_ini_cfg->isp_test_settings.cem_en = 0;
 	}
 
@@ -784,28 +898,26 @@ int isp_parser_tbl(struct isp_param_config *isp_ini_cfg, char *tbl_patch)
 	len = isp_read_file(isp_wdr_tbl_path, (char *)isp_ini_cfg->isp_tunning_settings.isp_wdr_table, ISP_WDR_MEM_SIZE);
 	if (len < 0 || len != ISP_WDR_MEM_SIZE) {
 		ISP_WARN("read wdr_table from wdr_table.bin len = %d, but %d is required\n", len, ISP_WDR_MEM_SIZE);
-		isp_ini_cfg->isp_test_settings.wdr_en = 0;
 	}
 
 	return ret;
 }
-#else
+#endif
 
 struct isp_cfg_array cfg_arr[] = {
 #if (ISP_VERSION >= 522)
 	{"imx317_mipi", "imx317_default_ini_a100", 1920, 1080, 30, 0, 0, &imx317_default_ini_a100},
 	{"ar0238", "ar0238_default_ini_a100", 1920, 1080, 30, 0, 0, &ar0238_default_ini_a100},
-	{"imx278_mipi", "imx278_mipi_default_ini_mr813", 2048, 1152, 60, 0, 0, &imx278_mipi_isp_cfg},
 	{"gc2385_mipi", "gc2385_mipi_isp_cfg", 1600, 1200, 30, 0, 0, &gc2385_mipi_isp_cfg},
 	{"gc030a_mipi", "gc030a_mipi_isp_cfg", 640, 480, 30, 0, 0, &gc030a_mipi_isp_cfg},
-	{"sc031gs_mipi", "sc031gs_mipi_gray_isp_cfg_MR813", 640, 480, 30, 0, 0, &sc031gs_mipi_gray_isp_cfg},
-	{"ov2735_mipi", "ov2735_mipi_isp_cfg_MR813", 1920, 1080, 30, 0, 0, &ov2735_mipi_mr813_isp_cfg},
-	{"ov7251_mipi", "ov7251_mipi_gray_isp_cfg_MR813", 640, 480, 30, 0, 0, &ov7251_mipi_gray_isp_cfg},
+	{"gc5025_mipi", "gc5025_mipi_isp_cfg", 2592, 1944, 25, 0, 0, &gc5025_mipi_isp_cfg},
+	{"gc02m1_mipi", "gc02m1_mipi_isp_cfg", 1600, 1200, 30, 0, 0, &gc02m1_mipi_isp_cfg},
+	{"sc035hgs_mipi", "sc035hgs_mipi_isp_cfg", 640, 480, 120, 0, 0, &sc035hgs_mipi_isp_cfg},
 #elif (ISP_VERSION >= 521)
 	{"imx317_mipi", "imx317_default_ini_v459", 1920, 1080, 30, 0, 0, &imx317_default_ini_v459},
 	{"imx317_mipi", "imx317_wdr_ini_4v5", 1920, 1080, 30, 1, 0, &imx317_wdr_ini_v459},
 	{"sc2323_mipi", "sc2323_default_ini_v459", 1920, 1080, 30, 0, 0, &sc2323_mipi_isp_cfg},
-	{"sc2323_mipi", "sc2323_wdr_ini_v459", 1920, 1080, 30, 1, 0, &sc2323_mipi_wdr_isp_cfg},
+	{"sc2323_mipi", "sc2323_wdr_ini_v459", 1920, 1080, 25, 1, 0, &sc2323_mipi_wdr_isp_cfg},
 #elif (ISP_VERSION >= 520)
 	{"imx278", "imx278_full_v5", 4208, 3120, 20, 0, 0, &imx278_full_v5},
 	{"imx278", "imx278_full_v5", 4160, 3120, 20, 0, 0, &imx278_full_v5},
@@ -880,7 +992,7 @@ int parser_sync_info(struct isp_param_config *param, char *isp_cfg_name, int isp
 
 	sprintf(fdstr, "/mnt/extsd/%s_%d.bin", isp_cfg_name, isp_id);
 	file_fd = fopen(fdstr, "rb");
-	if (!file_fd) {
+	if (file_fd == NULL) {
 		ISP_ERR("open bin failed.\n");
 		return -1;
 	} else {
@@ -980,7 +1092,6 @@ lsc_tbl:
 	}
 	return 0;
 }
-#endif
 
 int isp_save_tbl(struct isp_param_config *param, char *tbl_patch)
 {
@@ -989,7 +1100,7 @@ int isp_save_tbl(struct isp_param_config *param, char *tbl_patch)
 
 	sprintf(fdstr, "%s/gamma_tbl.bin", tbl_patch);
 	file_fd = fopen(fdstr, "wb");
-	if (!file_fd) {
+	if (file_fd == NULL) {
 		ISP_WARN("open %s failed!!!\n", fdstr);
 		return -1;
 	} else {
@@ -1000,7 +1111,7 @@ int isp_save_tbl(struct isp_param_config *param, char *tbl_patch)
 
 	sprintf(fdstr, "%s/lsc_tbl.bin", tbl_patch);
 	file_fd = fopen(fdstr, "wb");
-	if (!file_fd) {
+	if (file_fd == NULL) {
 		ISP_WARN("open %s failed!!!\n", fdstr);
 		return -1;
 	} else {
@@ -1011,7 +1122,7 @@ int isp_save_tbl(struct isp_param_config *param, char *tbl_patch)
 
 	sprintf(fdstr, "%s/cem_tbl.bin", tbl_patch);
 	file_fd = fopen(fdstr, "wb");
-	if (!file_fd) {
+	if (file_fd == NULL) {
 		ISP_WARN("open %s failed!!!\n", fdstr);
 		return -1;
 	} else {
@@ -1022,7 +1133,7 @@ int isp_save_tbl(struct isp_param_config *param, char *tbl_patch)
 
 	sprintf(fdstr, "%s/cem_tbl.bin", tbl_patch);
 	file_fd = fopen(fdstr, "wb");
-	if (!file_fd) {
+	if (file_fd == NULL) {
 		ISP_WARN("open %s failed!!!\n", fdstr);
 		return -1;
 	} else {
@@ -1033,7 +1144,7 @@ int isp_save_tbl(struct isp_param_config *param, char *tbl_patch)
 
 	sprintf(fdstr, "%s/pltm_tbl.bin", tbl_patch);
 	file_fd = fopen(fdstr, "wb");
-	if (!file_fd) {
+	if (file_fd == NULL) {
 		ISP_WARN("open %s failed!!!\n", fdstr);
 		return -1;
 	} else {
@@ -1044,7 +1155,7 @@ int isp_save_tbl(struct isp_param_config *param, char *tbl_patch)
 
 	sprintf(fdstr, "%s/wdr_tbl.bin", tbl_patch);
 	file_fd = fopen(fdstr, "wb");
-	if (!file_fd) {
+	if (file_fd == NULL) {
 		ISP_WARN("open %s failed!!!\n", fdstr);
 		return -1;
 	} else {
@@ -1060,55 +1171,14 @@ int parser_ini_info(struct isp_param_config *param, char *sensor_name,
 			int w, int h, int fps, int wdr, int ir, int sync_mode, int isp_id)
 {
 	int i, ret = 0;
-#if !ISP_LIB_USE_INIPARSER
 	struct isp_cfg_pt *cfg = NULL;
 
-	for (i = 0; i < array_size(cfg_arr); i++) {
-		if (!strncmp(sensor_name, cfg_arr[i].sensor_name, 6) &&
-		    (w == cfg_arr[i].width) && (h == cfg_arr[i].height) &&
-		    (fps == cfg_arr[i].fps) && (wdr == cfg_arr[i].wdr)) {
-			cfg = cfg_arr[i].cfg;
-            ISP_PRINT("find %s_%d_%d_%d_%d [%s] isp config\n", cfg_arr[i].sensor_name,
-                cfg_arr[i].width, cfg_arr[i].height, cfg_arr[i].fps, cfg_arr[i].wdr, cfg_arr[i].isp_cfg_name);
-			break;
-		}
-	}
-
-	if (i == array_size(cfg_arr)) {
-		for (i = 0; i < array_size(cfg_arr); i++) {
-			if (!strncmp(sensor_name, cfg_arr[i].sensor_name, 6) && (0 == cfg_arr[i].wdr)) {
-				cfg = cfg_arr[i].cfg;
-				ISP_WARN("cannot find %s_%d_%d_%d_%d isp config, use %s_%d_%d_%d_%d!\n", sensor_name, w, h, fps, wdr,
-					cfg_arr[i].sensor_name,	cfg_arr[i].width, cfg_arr[i].height, cfg_arr[i].fps, cfg_arr[i].wdr);
-				break;
-			}
-		}
-		if (i == array_size(cfg_arr)) {
-			i = array_size(cfg_arr)-1;
-			cfg = cfg_arr[i].cfg;
-			ISP_WARN("cannot find %s_%d_%d_%d_%d isp config, use cfg_arr[%d]:   %s_%d_%d_%d_%d!!!\n", sensor_name, w, h, fps, wdr,
-					i, cfg_arr[i].sensor_name,	cfg_arr[i].width, cfg_arr[i].height, cfg_arr[i].fps, cfg_arr[i].wdr);
-		}
-	}
-
-	if (cfg) {
-		param->isp_test_settings = *cfg->isp_test_settings;
-		param->isp_3a_settings = *cfg->isp_3a_settings;
-		param->isp_iso_settings = *cfg->isp_iso_settings;
-		param->isp_tunning_settings = *cfg->isp_tunning_settings;
-	}
-
-	//isp_save_tbl(param, "/mnt/extsd");
-
-	if(sync_mode)
-		parser_sync_info(param, cfg_arr[i].isp_cfg_name, isp_id);
-
-	return 0;
-#else
+#if ISP_LIB_USE_INIPARSER
 	char path[20] = "/mnt/extsd/";
 	char isp_cfg_path[128], isp_tbl_path[128], file_name[128];
 	dictionary *ini;
 
+	//load ini parameter
 	if (strcmp(sensor_name, "")) {
 		sprintf(isp_cfg_path, "%s%s/", path, sensor_name);
 		sprintf(isp_tbl_path, "%s%s/bin/", path, sensor_name);
@@ -1117,26 +1187,69 @@ int parser_ini_info(struct isp_param_config *param, char *sensor_name,
 		return -1;
 	}
 
-	ISP_PRINT("read ini start!!!\n");
+	if (access(isp_cfg_path, F_OK) == 0) {
+		ISP_PRINT("find %s, read ini start!!!\n", isp_cfg_path);
+		for (i = 0; i < array_size(FileAttr); i++) {
+			sprintf(file_name, "%s%s", isp_cfg_path, FileAttr[i].file_name);
+			ISP_PRINT("Fetch ini file form \"%s\"\n", file_name);
 
-	for (i = 0; i < array_size(FileAttr); i++) {
-		sprintf(file_name, "%s%s", isp_cfg_path, FileAttr[i].file_name);
-		ISP_PRINT("Fetch ini file form \"%s\"\n", file_name);
-
-		ini = iniparser_load(file_name);
-		if (ini == NULL) {
-			ISP_ERR("read ini error!!!\n");
-			return -1;
+			ini = iniparser_load(file_name);
+			if (ini == NULL) {
+				ISP_ERR("read ini error!!!\n");
+				return -1;
+			}
+			isp_parser_cfg(param, ini, &FileAttr[i]);
+			iniparser_freedict(ini);
 		}
-		isp_parser_cfg(param, ini, &FileAttr[i]);
-		iniparser_freedict(ini);
+
+		isp_parser_tbl(param, isp_tbl_path);
+
+		ISP_PRINT("read ini end!!!\n");
+		return 0;
 	}
-	isp_parser_tbl(param, isp_tbl_path);
-
-	ISP_PRINT("read ini end!!!\n");
-
-	return ret;
 #endif
+
+	//load header parameter
+	for (i = 0; i < array_size(cfg_arr); i++) {
+		if (!strncmp(sensor_name, cfg_arr[i].sensor_name, 6) &&
+		    (w == cfg_arr[i].width) && (h == cfg_arr[i].height) &&
+		    (fps == cfg_arr[i].fps) && (wdr == cfg_arr[i].wdr) &&
+		    (ir == cfg_arr[i].ir)) {
+				cfg = cfg_arr[i].cfg;
+				ISP_PRINT("find %s_%d_%d_%d_%d [%s] isp config\n", cfg_arr[i].sensor_name,
+					cfg_arr[i].width, cfg_arr[i].height, cfg_arr[i].fps, cfg_arr[i].wdr, cfg_arr[i].isp_cfg_name);
+				break;
+		}
+	}
+
+	if (i == array_size(cfg_arr)) {
+		for (i = 0; i < array_size(cfg_arr); i++) {
+			if (!strncmp(sensor_name, cfg_arr[i].sensor_name, 6) && (0 == cfg_arr[i].wdr)) {
+				cfg = cfg_arr[i].cfg;
+				ISP_WARN("cannot find %s_%d_%d_%d_%d_%d isp config, use %s_%d_%d_%d_%d_%d -> [%s]\n", sensor_name, w, h, fps, wdr, ir,
+					cfg_arr[i].sensor_name,	cfg_arr[i].width, cfg_arr[i].height, cfg_arr[i].fps, cfg_arr[i].wdr,
+					cfg_arr[i].ir, cfg_arr[i].isp_cfg_name);
+				break;
+			}
+		}
+		if (i == array_size(cfg_arr)) {
+			ISP_WARN("cannot find %s_%d_%d_%d_%d_%d isp config, use default config [%s]\n",
+				sensor_name, w, h, fps, wdr, ir, cfg_arr[i-1].isp_cfg_name);
+			cfg = cfg_arr[i-1].cfg;// use the last one
+		}
+	}
+
+	param->isp_test_settings = *cfg->isp_test_settings;
+	param->isp_3a_settings = *cfg->isp_3a_settings;
+	param->isp_iso_settings = *cfg->isp_iso_settings;
+	param->isp_tunning_settings = *cfg->isp_tunning_settings;
+
+	//isp_save_tbl(param, "/mnt/extsd");
+
+	if(sync_mode)
+		parser_sync_info(param, cfg_arr[i].isp_cfg_name, isp_id);
+
+	return 0;
 }
 
 
