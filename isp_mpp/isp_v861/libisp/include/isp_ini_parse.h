@@ -41,21 +41,14 @@ struct isp_cfg_array
 };
 
 #define ISP_CFG_BIN_PATH_LEN 128
-#define ISP_CFG_BIN_VER_DATA_LEN 256
-struct load_isp_param_str {
-	char str_path[64];
-};
-
 struct load_isp_param_t {
 	char path[ISP_CFG_BIN_PATH_LEN];
 	char *isp_param_settings;
 	int size;
 };
-
-int parser_sync_info(struct isp_param_config *param, char *isp_cfg_name, int isp_id);
 int parser_ini_info(struct isp_param_config *param, char *isp_cfg_name, char *sensor_name,
 			int w, int h, int fps, int wdr, int ir, int sync_mode, int isp_id);
-int parse_isp_cfg(struct isp_param_config *param, char *isp_cfg_name, int isp_id, int sync_mode, int ir_flag, char *isp_cfg_bin_path);
+int parse_isp_cfg(struct isp_param_config *param, char *isp_cfg_name, char *sensor_name, int isp_id, int ir, char *isp_cfg_path);
 
 #endif	/*_ISP_INI_PARSE_H_*/
 

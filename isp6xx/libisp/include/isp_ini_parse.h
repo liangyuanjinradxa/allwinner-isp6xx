@@ -20,6 +20,8 @@
 #include "isp_manage.h"
 #include "isp_debug.h"
 
+#define ISP_CFG_BIN_PATH_LEN 128
+
 struct isp_cfg_pt
 {
 	struct isp_test_param          *isp_test_settings;
@@ -39,9 +41,9 @@ struct isp_cfg_array
 	int ir;
 	struct isp_cfg_pt *cfg;
 };
-int parser_sync_info(struct isp_param_config *param, char *isp_cfg_name, int isp_id);
-int parser_ini_info(struct isp_param_config *param, char *sensor_name,
+int parser_ini_info(struct isp_param_config *param, char *isp_cfg_name, char *sensor_name,
 			int w, int h, int fps, int wdr, int ir, int sync_mode, int isp_id);
+int parse_isp_cfg(struct isp_param_config *param, char *isp_cfg_name, char *sensor_name, int isp_id, int ir, char *isp_cfg_path);
 
 #endif	/*_ISP_INI_PARSE_H_*/
 

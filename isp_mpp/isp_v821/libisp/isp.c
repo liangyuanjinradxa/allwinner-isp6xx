@@ -2200,6 +2200,12 @@ HW_S32 isp_get_attr_cfg(int dev_id, HW_U32 ctrl_id, void *value)
 		case ISP_CTRL_AE_WEIGHT_LUM:
 			*(HW_S32 *)value = isp_gen->ae_entity_ctx.ae_result.ae_weight_lum;
 			break;
+		case ISP_CTRL_AF_OUTPUT_REAL_CODE:
+			*(HW_S32 *)value = isp_gen->af_entity_ctx.af_result.real_code_output;
+			break;
+		case ISP_CTRL_AF_OUTPUT_STD_CODE:
+			*(HW_S32 *)value = isp_gen->af_entity_ctx.af_result.std_code_output;
+			break;
 		default:
 			ISP_ERR("Unknown ctrl.\n");
 			break;

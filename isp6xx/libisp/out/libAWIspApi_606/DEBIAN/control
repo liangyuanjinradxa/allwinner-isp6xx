@@ -1,0 +1,9 @@
+Package: libAWIspApi-isp-606-arm64
+Version: 1.0.1
+Section: free
+Priority: optional
+Essential: no
+Architecture: arm64
+Maintainer: allwinner
+Provides: allwinner
+Description: add the libAWIspApi isp 606 deb support

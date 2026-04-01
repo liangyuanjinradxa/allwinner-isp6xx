@@ -27,6 +27,8 @@
 #define INI_PATH "/tmp/"
 #endif
 
+#define TUNING_USE_INI_CFG 0
+
 #define AW_ERR_VI_INVALID_PARA            -1
 #define AW_ERR_VI_INVALID_DEVID           -2
 #define AW_ERR_VI_INVALID_CHNID           -3
@@ -104,6 +106,9 @@ typedef enum {
 	/* wdr */
 	HW_ISP_CFG_WDR_SPLIT                       = 0x00400000,
 	HW_ISP_CFG_WDR_STITCH                      = 0x00800000,
+	/* pdaf */
+	HW_ISP_CFG_AF_PDAF                         = 0x01000000,
+	HW_ISP_CFG_AF_PDAF_STAT_ALGO               = 0x02000000,
 } hw_isp_cfg_3a_ids;
 
 typedef enum {
@@ -179,6 +184,7 @@ typedef enum {
 	HW_ISP_CFG_DYNAMIC_ENCPP_LDCI              = 0x00800000,
 	HW_ISP_CFG_DYNAMIC_ENCPP_TOP               = 0x01000000,
 	HW_ISP_CFG_DYNAMIC_NRP                     = 0x02000000,
+	HW_ISP_CFG_DYNAMIC_AF                      = 0x04000000,
 } hw_isp_cfg_dynamic_ids;
 
 typedef enum {
@@ -213,8 +219,10 @@ typedef enum {
 	ISP_CTRL_WB_MGAIN,
 	ISP_CTRL_AGAIN_DGAIN,
 	ISP_CTRL_COLOR_EFFECT,
-	ISP_CTRL_AE_ROI, //10
+	ISP_CTRL_AE_ROI,
 	ISP_CTRL_AF_METERING,
+	ISP_CTRL_AF_OUTPUT_STD_CODE,
+	ISP_CTRL_AF_OUTPUT_REAL_CODE,
 	ISP_CTRL_COLOR_TEMP,
 	ISP_CTRL_EV_IDX,
 	ISP_CTRL_MAX_EV_IDX,
@@ -223,7 +231,7 @@ typedef enum {
 	ISP_CTRL_COLOR_SPACE,
 	ISP_CTRL_VENC2ISP_PARAM,
 	ISP_CTRL_NPU_NR_PARAM,
-	ISP_CTRL_TOTAL_GAIN, //20
+	ISP_CTRL_TOTAL_GAIN,
 	ISP_CTRL_AE_EV_LV,
 	ISP_CTRL_AE_EV_LV_ADJ,
 	ISP_CTRL_AE_WEIGHT_LUM,
@@ -233,7 +241,7 @@ typedef enum {
 	ISP_CTRL_SET_AE_TARGER,
 	ISP_CTRL_SET_AE_WEIGHT,
 	ISP_CTRL_AE_TABLE,
-	ISP_CTRL_AE_STATS, //30
+	ISP_CTRL_AE_STATS,
 	ISP_CTRL_IR_STATUS,
 	ISP_CTRL_IR_AWB_GAIN,
 	ISP_CTRL_READ_BIN_PARAM,
@@ -366,8 +374,8 @@ struct isp_ae_pub_cfg {
 	HW_S32		fno_table[16];
 	HW_S32		ev_step;
 	HW_S32		conv_data_index;
-	HW_S32		blowout_pre_en;
-	HW_S32		blowout_attr;
+	HW_S32		flicker_comp_en;
+	HW_S32		flicker_comp_max;
 	HW_S32		w_num;
 	HW_S32		h_num;
 	HW_S32		gain_favor;
@@ -474,6 +482,7 @@ struct isp_af_fine_search_cfg {
 	HW_S32		auto_en;
 	HW_S32		single_en;
 	HW_S32		step;
+	HW_S32		delay_frame;
 	HW_S32		reserve0;
 	HW_S32		reserve1;
 	HW_S32		reserve2;
@@ -506,6 +515,43 @@ struct isp_af_scene_cfg {
 	HW_S32		move_minus;
 	HW_S32		still_minus;
 	HW_S32		scene_motion_thres;
+};
+
+struct isp_af_pdaf_cfg {
+	HW_S32		pdaf_en;
+	HW_S32		pdaf_width;
+	HW_S32		pdaf_height;
+	HW_S32		pdaf_pd_w_num;
+	HW_S32		pdaf_pd_h_num;
+	HW_S32		pdaf_dcc_map_w_num;
+	HW_S32		pdaf_dcc_map_h_num;
+	HW_S32		pdaf_gain_map_w_num;
+	HW_S32		pdaf_gain_map_h_num;
+	HW_S32		pdaf_win_conf_th;
+	HW_S32		pdaf_weight_conf_th;
+	HW_S32		pdaf_defocus_begin_th;
+	HW_S32		pdaf_max_step;
+	HW_S32		pdaf_defocus_step0_th;
+	HW_S32		pdaf_defocus_step0_coef;
+	HW_S32		pdaf_defocus_step1_th;
+	HW_S32		pdaf_defocus_step1_coef;
+	HW_S32		pdaf_defocus_step2_th;
+	HW_S32		pdaf_defocus_step2_coef;
+	HW_S32		pdaf_defocus_continue_th;
+	HW_S32		pdaf_delay;
+	HW_S32		pdaf_pd_err_th1;
+	HW_S32		pdaf_pd_err_th2;
+	HW_S32		pdaf_weight_win[64];
+};
+
+struct isp_af_pdaf_stat_algo_cfg {
+	HW_S32		pdaf_algo_type;
+	HW_S32		pdaf_algo_touch_en;
+	HW_S32		pdaf_algo_calc_tbl[48];
+	HW_S32		pdaf_algo_conf_th;
+	HW_S32		pdaf_algo_blk_calc_times;
+	HW_S32		pdaf_algo_conf_coef;
+	HW_S32		pdaf_algo_overexp_th;
 };
 
 /* isp_3a_param cfg*/
@@ -1079,7 +1125,11 @@ struct isp_dynamic_sharp_ndir_ls_item {
 };
 
 struct isp_dynamic_sharp_comm_item {
-	HW_S16		value[ISP_SHARP_MAX - ISP_SHARP_NDIR_HS_MIX_LW_CLIP];
+	HW_S16		value[ISP_SHARP_RED_GAIN - ISP_SHARP_NDIR_HS_MIX_LW_CLIP];
+};
+
+struct isp_dynamic_sharp_special_item {
+	HW_S16		value[ISP_SHARP_MAX - ISP_SHARP_RED_GAIN];
 };
 
 struct isp_dynamic_sharp_cfg {
@@ -1091,6 +1141,7 @@ struct isp_dynamic_sharp_cfg {
 	struct isp_dynamic_sharp_dir_ls_item tuning_dir_ls_cfg[ISP_DYNAMIC_GROUP_COUNT];
 	struct isp_dynamic_sharp_ndir_ls_item tuning_ndir_ls_cfg[ISP_DYNAMIC_GROUP_COUNT];
 	struct isp_dynamic_sharp_comm_item tuning_comm_cfg[ISP_DYNAMIC_GROUP_COUNT];
+	struct isp_dynamic_sharp_special_item tuning_special_cfg[ISP_DYNAMIC_GROUP_COUNT];
 };
 
 struct isp_dynamic_denoise_dnr_item {
@@ -1243,7 +1294,11 @@ struct isp_dynamic_encpp_sharp_ndir_ms_item {
 };
 
 struct isp_dynamic_encpp_sharp_comm_item {
-	HW_S16		value[ENCPP_SHARP_MAX - ENCPP_SHARP_NDIR_HS_MIX_LW_CLIP];
+	HW_S16		value[ENCPP_SHARP_RED_GAIN - ENCPP_SHARP_NDIR_HS_MIX_LW_CLIP];
+};
+
+struct isp_dynamic_encpp_sharp_special_item {
+	HW_S16		value[ENCPP_SHARP_MAX - ENCPP_SHARP_RED_GAIN];
 };
 
 struct isp_dynamic_encpp_sharp_cfg {
@@ -1253,6 +1308,7 @@ struct isp_dynamic_encpp_sharp_cfg {
 	struct isp_dynamic_encpp_sharp_dir_ms_item tuning_dir_ms_cfg[ISP_DYNAMIC_GROUP_COUNT];
 	struct isp_dynamic_encpp_sharp_ndir_ms_item tuning_ndir_ms_cfg[ISP_DYNAMIC_GROUP_COUNT];
 	struct isp_dynamic_encpp_sharp_comm_item tuning_comm_cfg[ISP_DYNAMIC_GROUP_COUNT];
+	struct isp_dynamic_encpp_sharp_special_item tuning_special_cfg[ISP_DYNAMIC_GROUP_COUNT];
 };
 
 struct isp_dynamic_encoder_denoise_3dnr_item {
@@ -1326,6 +1382,15 @@ struct isp_dynamic_nrp_item {
 struct isp_dynamic_nrp_cfg {
 	HW_S16		trigger;
 	struct isp_dynamic_nrp_item tuning_cfg[ISP_DYNAMIC_GROUP_COUNT];
+};
+
+struct isp_dynamic_af_item {
+	HW_S16		value[ISP_AF_MAX];
+};
+
+struct isp_dynamic_af_cfg {
+	HW_S16		trigger;
+	struct isp_dynamic_af_item tuning_cfg[ISP_DYNAMIC_GROUP_COUNT];
 };
 
 /* isp_dynamic_param cfg */
@@ -1467,7 +1532,7 @@ int isp_cfg_bin_parse(struct hw_isp_device *isp, int rst_en, char *isp_cfg_bin_p
 int isp_tuning_reset(struct hw_isp_device *isp, struct isp_param_config *param);
 
 int isp_tuning_update(struct hw_isp_device *isp);
-struct isp_tuning * isp_tuning_init(struct hw_isp_device *isp, const struct isp_param_config *params);
+struct isp_tuning * isp_tuning_init(struct hw_isp_device *isp, struct isp_param_config *params);
 void isp_tuning_exit(struct hw_isp_device *isp);
 void isp_ini_tuning_run(struct hw_isp_device *isp);
 

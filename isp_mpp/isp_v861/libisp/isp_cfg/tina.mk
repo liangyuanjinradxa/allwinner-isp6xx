@@ -168,6 +168,27 @@ ifeq ($(findstring cv8002,$(SENSOR_NAME)), cv8002)
     LOCAL_CFLAGS += -DSENSOR_CV8002=1
     LOCAL_CXXFLAGS += -DSENSOR_CV8002=1
 endif
+ifeq ($(findstring sc533hai,$(SENSOR_NAME)), sc533hai)
+    LOCAL_CFLAGS += -DSENSOR_SC533HAI=1
+    LOCAL_CXXFLAGS += -DSENSOR_SC533HAI=1
+endif
+ifeq ($(findstring cv2005,$(SENSOR_NAME)), cv2005)
+    LOCAL_CFLAGS += -DSENSOR_CV2005=1
+    LOCAL_CXXFLAGS += -DSENSOR_CV2005=1
+endif
+ifeq ($(findstring cv5003,$(SENSOR_NAME)), cv5003)
+    LOCAL_CFLAGS += -DSENSOR_CV5003=1
+    LOCAL_CXXFLAGS += -DSENSOR_CV5003=1
+endif
+ifeq ($(findstring imx681,$(SENSOR_NAME)), imx681)
+    LOCAL_CFLAGS += -DSENSOR_IMX681=1
+    LOCAL_CXXFLAGS += -DSENSOR_IMX681=1
+endif
+ifeq ($(findstring imx766,$(SENSOR_NAME)), imx766)
+    LOCAL_CFLAGS += -DSENSOR_IMX766=1
+    LOCAL_CXXFLAGS += -DSENSOR_IMX766=1
+endif
+
 #Extra flags to give to the C preprocessor and programs that use it (the C and Fortran compilers).
 LOCAL_CPPFLAGS := $(CPPFLAGS) $(LIBISP_CFG_CFLAGS)
 #target device arch: x86, arm

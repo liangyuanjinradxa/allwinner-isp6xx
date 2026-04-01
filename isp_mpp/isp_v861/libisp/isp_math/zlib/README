@@ -1,3 +1,0 @@
-# Compress isp_param_config.bin to isp_param_config.gz
-
-./zlib-demo ./isp_param_config.bin ./isp_param_config.gz

@@ -37,33 +37,41 @@ INCLUDE_DIRS := \
     $(PACKAGE_TOP)/libisp/include/device \
     $(PACKAGE_TOP)/libisp/include/V4l2Camera \
     $(PACKAGE_TOP)/libisp/isp_tuning \
-    $(PACKAGE_TOP)/libisp/tuning_app/isp_vencode/
+    $(PACKAGE_TOP)/libisp/tuning_app/isp_vencode \
+    $(PACKAGE_TOP)/libisp/tuning_app/isp_aiisp/610/include
+
 
 INCLUDE_DIRS += \
 	$(USR_INCLUDE)/libcedarc/base/include \
-    $(USR_INCLUDE)/libcedarc/include
+    $(USR_INCLUDE)/libcedarc/include \
 
 LOCAL_SHARED_LIBS :=
 LOCAL_STATIC_LIBS :=
 
-ifeq ($(LIBISP_CFG_TOOLCHAIN_LIBC), glibc)
+ifneq ($(filter glibc glibc64,$(LIBISP_CFG_TOOLCHAIN_LIBC)),)
 LOCAL_SHARED_LIBS += \
 	libdl
 endif
 
 ifeq ($(LIBISP_CFG_COMPILE_DYNAMIC_LIB), Y)
 LOCAL_SHARED_LIBS += \
-    liblog \
-    libawion \
-    libISP \
-    librt \
-    libpthread \
-    libvenc_codec \
-    libvencoder \
-    libvenc_base \
-    libMemAdapter \
-    libVE \
-    libcdc_base
+	liblog \
+	libawion \
+	libISP \
+	librt \
+	libpthread \
+	libvenc_common \
+	libvencoder \
+	libvenc_base \
+	libexpat \
+	libMemAdapter \
+	libVE \
+	libcdc_base \
+	libvenc_h264 \
+	libvenc_h265 \
+	libvenc_jpeg \
+	libawaiisp \
+	libawipubsp
 
 LOCAL_STATIC_LIBS :=
 
@@ -74,36 +82,42 @@ LOCAL_SHARED_LIBS += \
     liblog
 
 LOCAL_STATIC_LIBS += \
-    libISP \
-    libisp_dev \
-    libiniparser \
-    libisp_ini \
-    libisp_ae \
-    libisp_af \
-    libisp_afs \
-    libisp_awb \
-    libisp_base \
-    libisp_gtm \
-    libisp_iso \
-    libisp_math \
-    libisp_md \
-    libisp_pltm \
-    libisp_rolloff \
-    libawion \
-    libvenc_codec \
-    libvencoder \
-    libMemAdapter \
-    libVE \
-    libvenc_base \
-    libcdc_base
+	libISP \
+	libisp_dev \
+	libiniparser \
+	libisp_ini \
+	libisp_ae \
+	libisp_af \
+	libisp_afs \
+	libisp_awb \
+	libisp_base \
+	libisp_gtm \
+	libisp_iso \
+	libisp_math \
+	libisp_md \
+	libisp_pltm \
+	libisp_rolloff \
+	libawion \
+	libvenc_common \
+	libvencoder \
+	libexpat \
+	libMemAdapter \
+	libVE \
+	libvenc_base \
+	libcdc_base \
+	libvenc_h264 \
+	libvenc_h265 \
+	libvenc_jpeg \
+	libawaiisp \
+	libawipubsp
 endif
 
-COMMON_CFLAGS += -DANDROID_VENCODE=1
+COMMON_CFLAGS += -DANDROID_VENCODE=1 -DAWNN_AIISP
 
 #set dst file name: shared library, static library, execute bin.
 LOCAL_TARGET_DYNAMIC :=
 LOCAL_TARGET_STATIC :=
-LOCAL_TARGET_BIN := awTuningApp_isp603
+LOCAL_TARGET_BIN := awTuningApp_isp610
 
 #generate include directory flags for gcc.
 inc_paths := $(foreach inc,$(filter-out -I%,$(INCLUDE_DIRS)),$(addprefix -I, $(inc))) \
@@ -124,7 +138,9 @@ LIB_SEARCH_PATHS := \
     $(PACKAGE_TOP)/libisp/out \
     $(PACKAGE_TOP)/libisp/isp_ini \
     $(PACKAGE_TOP)/libisp/isp_dev \
-    $(PACKAGE_TOP)/libisp/iniparser
+    $(PACKAGE_TOP)/libisp/iniparser \
+    $(PACKAGE_TOP)/libisp/tuning_app/isp_aiisp/610/library/musl
+
 
 LIB_SEARCH_PATHS += \
     $(USR_LIBRARY)

@@ -19,7 +19,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <stdint.h>
-#include "../isp_version.h"
+#include "../../isp_version.h"
 #if (ISP_VERSION == 610)
 #include "610/include/vencoder.h"
 #include "610/include/memoryAdapter.h"
@@ -170,6 +170,8 @@ int EncoderStart(encode_param_t *encode_param, VencInputBuffer *input, VencOutpu
 int EncoderFreeOutputBuffer(VencOutputBuffer *outputBuffer);
 
 int EncoderClose(encode_param_t *encode_param);
+
+int EncoderPause(encode_param_t *encode_param);
 
 int EncoderGetWbYuv(encode_param_t *encode_param, unsigned char **dst_buf, unsigned int *buf_size);
 

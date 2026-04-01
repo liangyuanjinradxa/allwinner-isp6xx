@@ -29,6 +29,22 @@
 
 #define ISP_LIB_USE_AF		1
 
+/* pdaf */
+#define SPLIT_W 8
+#define SPLIT_H 6
+
+#define MIN_SPLIT_W 8
+#define MIN_SPLIT_H 6
+#define MAX_SPLIT_W 24
+#define MAX_SPLIT_H 18
+#define MAX_PD_WIDTH 2048
+#define MAX_PD_HEIGHT 1536
+#define MAX_BLOCK_W (MAX_PD_WIDTH / MIN_SPLIT_W)
+#define MAX_BLOCK_H (MAX_PD_HEIGHT / MIN_SPLIT_H)
+#define MAX_BLOCK_S (MAX_BLOCK_W > MAX_BLOCK_H ? MAX_BLOCK_W : MAX_BLOCK_H)
+#define FFT_SIZE_NEXT_POW2(size) ((size <= 1) ? 1 : (1 << (32 - __builtin_clz(size - 1))))
+#define MAX_FFT_SIZE FFT_SIZE_NEXT_POW2(2 * MAX_BLOCK_S)
+
 typedef struct isp_af_ini_cfg {
 	HW_S32 af_use_otp;
 	HW_S32 vcm_min_code;
@@ -58,7 +74,35 @@ typedef struct isp_af_ini_cfg {
 	HW_S32 af_std_code_tbl[20];
 	HW_S32 af_tolerance_value_tbl[20];
 	HW_U8 af_delay_frame;
-	HW_U8 af_touch_dist_ind;
+
+	HW_U8 af_pdaf_pd_w_num;
+	HW_U8 af_pdaf_pd_h_num;
+	HW_U8 af_pdaf_dcc_map_w_num;
+	HW_U8 af_pdaf_dcc_map_h_num;
+	HW_U8 af_pdaf_gain_map_w_num;
+	HW_U8 af_pdaf_gain_map_h_num;
+	HW_U8 af_pdaf_win_conf_th;
+	HW_U8 af_pdaf_weight_conf_th;
+	HW_S16 af_pdaf_defocus_begin_th;
+	HW_S16 af_pdaf_max_step;
+	HW_S16 af_pdaf_defocus_step0_th;
+	HW_S16 af_pdaf_defocus_step0_coef;
+	HW_S16 af_pdaf_defocus_step1_th;
+	HW_S16 af_pdaf_defocus_step1_coef;
+	HW_S16 af_pdaf_defocus_step2_th;
+	HW_S16 af_pdaf_defocus_step2_coef;
+	HW_S16 af_pdaf_defocus_continue_th;
+	HW_U8 af_pdaf_delay;
+	HW_U8 af_pdaf_pd_err_th1;
+	HW_U8 af_pdaf_pd_err_th2;
+	HW_S16 af_pdaf_weight_win[64];
+	HW_U8 af_pdaf_algo_type;
+	HW_U8 af_pdaf_algo_touch_en;
+	HW_U8 af_pdaf_algo_calc_tbl[48];
+	HW_U8 af_pdaf_algo_conf_th;
+	HW_U8 af_pdaf_algo_blk_calc_times;
+	HW_U8 af_pdaf_algo_conf_coef;
+	HW_U8 af_pdaf_algo_overexp_th;
 } af_ini_cfg_t;
 
 enum auto_focus_run_mode {
@@ -92,6 +136,13 @@ enum auto_focus_status {
 	AUTO_FOCUS_STATUS_FAILED	= 5,
 };
 
+enum isp_pdaf_mode {
+	PDAF_CLOSE           = 0,
+	PDAF_EMBED_DATA      = 1,
+	PDAF_VC_DATA         = 2,
+	PDAF_RAW_DATA        = 3,
+};
+
 typedef struct isp_af_test_config {
 	HW_S32 isp_test_mode;
 	HW_S32 isp_test_focus;
@@ -117,6 +168,15 @@ struct vcm_para {
 	HW_S32 vcm_min_code;
 };
 
+struct isp_pdaf_config {
+	HW_U8 pdaf_entity_id;
+	HW_U16 pdaf_video_in_chn;
+	HW_U8 pdaf_video_init_en;
+	HW_U8 pdaf_en;
+	HW_U32 pdaf_width;
+	HW_U32 pdaf_height;
+};
+
 /* struct auto_focus_settings - Stores the auto focuse related settings. */
 typedef struct isp_af_settings {
 	HW_S32 focus_absolute;
@@ -126,6 +186,8 @@ typedef struct isp_af_settings {
 	enum auto_focus_range_new af_range;
 	bool focus_lock;
 	struct isp_h3a_coor_win af_coor;
+
+	HW_S16 af_pdaf_noise_ref;
 } isp_af_settings_t;
 
 typedef struct isp_af_param {
@@ -145,6 +207,7 @@ typedef struct isp_af_param {
 	HW_S32 auto_focus_trigger;
 	HW_S32 mov;
 	isp_af_settings_t af_settings;
+	struct isp_pdaf_config pdaf_cfg;
 } af_param_t;
 
 typedef struct isp_af_stats {
@@ -167,6 +230,37 @@ typedef struct isp_af_core_ops {
 	HW_S32 (*isp_af_get_params)(void *af_core_obj, af_param_t **param);
 	HW_S32 (*isp_af_run)(void *af_core_obj, af_stats_t *stats, af_result_t *result);
 } isp_af_core_ops_t;
+
+enum isp_pd_pattern_mode {
+	PDAF_2_2OCL_FULL_RESOLUTION = 0,
+	PDAF_2_2OCL_Vbin            = 1,
+	PDAF_2_2OCL_HVbin           = 2,
+};
+
+typedef struct complex{
+	float real;
+	float imag;
+} Complex;
+
+typedef struct {
+	HW_U16 *data;
+	HW_U32 h;
+	HW_U32 w;
+} pd_img_t;
+
+typedef struct {
+	HW_U16 row_valid[MAX_BLOCK_S];
+	HW_FLOAT l_norm[MAX_BLOCK_S];
+	HW_FLOAT r_norm[MAX_BLOCK_S];
+	HW_FLOAT c_norm[MAX_BLOCK_S];
+	Complex fft_data[2 * MAX_FFT_SIZE];
+	HW_FLOAT tmp_data[2 * MAX_FFT_SIZE];
+} pdaf_stat_entity_t;
+
+typedef struct {
+	HW_S32 defocus[MAX_SPLIT_H][MAX_SPLIT_W];
+	HW_U8 confidence_val[MAX_SPLIT_H][MAX_SPLIT_W];
+} pdaf_stat_t;
 
 void* af_init(isp_af_core_ops_t **af_core_ops);
 void  af_exit(void *af_core_obj);

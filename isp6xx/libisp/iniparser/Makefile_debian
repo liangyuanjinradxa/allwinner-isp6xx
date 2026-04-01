@@ -1,0 +1,85 @@
+#
+# iniparser Makefile
+#
+
+# Compiler settings
+
+#ifeq ($(V),64)
+#	CC := $(TOOLCHAIN_DIR)/aarch64-linux-gnu-gcc
+#	AR := $(TOOLCHAIN_DIR)/aarch64-linux-gnu-ar
+#else
+#	CC := $(TOOLCHAIN_DIR)/arm-linux-gnueabi-gcc
+#	AR := $(TOOLCHAIN_DIR)/arm-linux-gnueabi-ar
+#endif
+
+CFLAGS	:=  -Os -pipe -fno-caller-saves -Wno-unused-result -g -D_FILE_OFFSET_BITS=64  -Wformat -Werror=format-security -fstack-protector -D_FORTIFY_SOURCE=1 -Wl,-z,now -Wl,-z,relro -fPIC -Wall -Wno-unused-function -Wno-unused-variable -Wno-unused-but-set-variable -Wno-unused-label -Werror=array-bounds -Wno-sign-compare -Iinclude -Iinclude/V4l2Camera -Iinclude/device -fPIC
+
+ifneq ($(findstring toolchain-sunxi-glibc,$(CC)),)
+ifeq ($(V),32)
+	CFLAGS	+= -mfpu=neon -mfloat-abi=hard
+endif
+endif
+
+ifneq ($(findstring toolchain-sunxi-musl,$(CC)),)
+ifeq ($(V),32)
+	CFLAGS	+= -mfpu=neon -mfloat-abi=hard
+endif
+endif
+
+ARFLAGS = rcv
+
+SHLD = ${CC} ${CFLAGS}
+LDSHFLAGS = -shared -Wl,-Bsymbolic  -Wl,-rpath -Wl,/usr/lib -Wl,-rpath,/usr/lib
+LDFLAGS = -Wl,-rpath -Wl,/usr/lib -Wl,-rpath,/usr/lib
+
+# Set RANLIB to ranlib on systems that require it (Sun OS < 4, Mac OSX)
+# RANLIB  = ranlib
+RANLIB = true
+
+RM      = rm -f
+
+
+# Implicit rules
+
+SUFFIXES = .o .c .h .a .so .sl
+
+COMPILE.c=$(CC) $(CFLAGS) -c
+.c.o:
+	@(echo "compiling $< ...")
+	@($(COMPILE.c) -o $@ $<)
+
+
+SRCS = src/iniparser.c \
+	   src/dictionary.c
+
+OBJS = $(SRCS:.c=.o)
+
+install: default
+	$(STP) --strip-debug --strip-unneeded *.a
+	$(STP) --strip-debug --strip-unneeded *.so
+	mv *.a ../out/$(TLDIR)
+	mv *.so ../out/$(TLDIR)
+
+default:	libiniparser.a libiniparser.so
+
+libiniparser.a:	$(OBJS)
+	@($(AR) $(ARFLAGS) libiniparser.a $(OBJS))
+	@($(RANLIB) libiniparser.a)
+
+libiniparser.so:	$(OBJS)
+	@$(SHLD) $(LDSHFLAGS) -o $@ $(OBJS) $(LDFLAGS) \
+		-Wl,-soname=`basename $@`
+
+clean:
+	$(RM) $(OBJS) libiniparser.a libiniparser.so
+
+veryclean:
+	$(RM) $(OBJS) libiniparser.a libiniparser.so
+	rm -rf ./html ; mkdir html
+	cd test ; $(MAKE) veryclean
+
+docs:
+	@(cd doc ; $(MAKE))
+
+check:
+	@(cd test ; $(MAKE))

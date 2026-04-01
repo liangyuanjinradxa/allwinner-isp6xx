@@ -17,6 +17,10 @@ ifeq ($(LIBISP_CFG_TOOLCHAIN_LIBC), musl)
 	LOCAL_PREBUILD_LIBS_PATH += $(CUR_PATH)/library/musl
 else ifeq ($(LIBISP_CFG_TOOLCHAIN_LIBC), glibc)
 	LOCAL_PREBUILD_LIBS_PATH += $(CUR_PATH)/library/glibc
+else ifeq ($(LIBISP_CFG_TOOLCHAIN_LIBC), musl64)
+	LOCAL_PREBUILD_LIBS_PATH += $(CUR_PATH)/library/musl64
+else ifeq ($(LIBISP_CFG_TOOLCHAIN_LIBC), glibc64)
+	LOCAL_PREBUILD_LIBS_PATH += $(CUR_PATH)/library/glibc64
 endif
 
 #set dst file name: shared library, static library, execute bin.

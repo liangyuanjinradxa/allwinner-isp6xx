@@ -57,10 +57,15 @@ int init_isp_module(int isp_id);
  */
 int exit_isp_module();
 /*
+ * detect vich enable
+ * returns 0 if detect success, <0 if something went wrong
+ */
+int detect_vich();
+/*
  * select isp node
  * returns 0 if init success, <0 if something went wrong
  */
-int select_isp(int id, int init_flag);
+int select_isp(int id);
 /*
  * select isp stitch
  * returns 0 if init success, <0 if something went wrong

@@ -85,17 +85,7 @@ LOCAL_STATIC_LIBS += \
 	libisp_math \
 	libisp_md \
 	libisp_pltm \
-	libisp_rolloff \
-	libawion \
-	libvenc_common \
-	libvenc_h264 \
-	libvenc_h265 \
-	libvenc_jpeg \
-	libvencoder \
-	libMemAdapter \
-	libVE \
-	libvenc_base \
-	libcdc_base
+	libisp_rolloff
 endif
 
 LIB_SEARCH_PATHS := \
@@ -120,9 +110,11 @@ local_CFLAGS := \
 OBJS := $(patsubst %.c, %.c.o, $(commonSources))
 
 $(TARGET):$(OBJS) libisp_mpp
-	$(CC) $(CFLAGS) $(LIBISP_CFG_CFLAGS) $(LDFLAGS) $(local_CFLAGS) -o $@ -fPIC \
+	$(CC) $(CFLAGS) $(LIBISP_CFG_CFLAGS) $(LDFLAGS) $(local_CFLAGS) -o $@ -fPIC $(OBJS) \
 	$(patsubst %,-L%,$(LIB_SEARCH_PATHS)) \
-	-Wl,--start-group $(foreach n, $(LOCAL_STATIC_LIBS), -l$(patsubst lib%,%,$(patsubst %.a,%,$(notdir $(n))))) -Wl,--end-group \
+	-Wl,-Bstatic \
+	-Wl,--whole-archive $(foreach n, $(LOCAL_STATIC_LIBS), -l$(patsubst lib%,%,$(patsubst %.a,%,$(notdir $(n))))) -Wl,--no-whole-archive \
+	-Wl,-Bdynamic \
 	$(foreach y, $(LOCAL_SHARED_LIBS), -l$(patsubst lib%,%,$(patsubst %.so,%,$(notdir $(y))))) \
 	-shared
 

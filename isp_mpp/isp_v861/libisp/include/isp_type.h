@@ -43,6 +43,7 @@ typedef short                   HW_S1Q15;
 
 typedef unsigned int            HW_U22Q10;
 typedef unsigned int            HW_U25Q7;
+typedef unsigned int            HW_U16Q16;
 
 typedef int                     HW_S25Q7;
 typedef int                     HW_S16Q16;

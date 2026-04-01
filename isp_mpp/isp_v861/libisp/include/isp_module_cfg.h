@@ -152,6 +152,7 @@ struct isp_mode_config {
 	HW_U8 hist0_mode;
 	HW_U8 hist1_mode;
 	HW_U8 gca_mode;
+	HW_U8 aiisp_en;
 };
 
 /*

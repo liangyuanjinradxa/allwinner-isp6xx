@@ -12,7 +12,7 @@
 //#if ISP_LIB_USE_INIPARSER
 
 /*---------------------------- Defines -------------------------------------*/
-#define ASCIILINESZ         (4096*2)
+#define ASCIILINESZ         (4096)
 #define INI_INVALID_KEY     ((char*)-1)
 
 /*---------------------------------------------------------------------------
@@ -666,9 +666,9 @@ static line_status iniparser_line(
         strcpy(section, strstrip(section));
         strcpy(section, strlwc(section));
         sta = LINE_SECTION ;
-    } else if (sscanf (line, "%1024[^=] = \"%1024[^\"]\"", key, value) == 2
-           ||  sscanf (line, "%1024[^=] = '%1024[^\']'",   key, value) == 2
-           ||  sscanf (line, "%1024[^=] = %1024[^;#]",     key, value) == 2) {
+    } else if (sscanf (line, "%4096[^=] = \"%4096[^\"]\"", key, value) == 2
+           ||  sscanf (line, "%4096[^=] = '%4096[^\']'",   key, value) == 2
+           ||  sscanf (line, "%4096[^=] = %4096[^;#]",     key, value) == 2) {
         /* Usual key=value, with or without comments */
         strcpy(key, strstrip(key));
         strcpy(key, strlwc(key));
@@ -681,8 +681,8 @@ static line_status iniparser_line(
             value[0]=0 ;
         }
         sta = LINE_VALUE ;
-    } else if (sscanf(line, "%1024[^=] = %1024[;#]", key, value)==2
-           ||  sscanf(line, "%1024[^=] %1024[=]", key, value) == 2) {
+    } else if (sscanf(line, "%4096[^=] = %4096[;#]", key, value)==2
+           ||  sscanf(line, "%4096[^=] %4096[=]", key, value) == 2) {
         /*
          * Special cases:
          * key=
@@ -742,10 +742,10 @@ dictionary * iniparser_load(const char * ininame)
         return NULL ;
     }
 
-    memset(line,    0, ASCIILINESZ);
-    memset(section, 0, ASCIILINESZ);
-    memset(key,     0, ASCIILINESZ);
-    memset(val,     0, ASCIILINESZ);
+    memset(line,    0, sizeof(line));
+    memset(section, 0, sizeof(section));
+    memset(key,     0, sizeof(key));
+    memset(val,     0, sizeof(val));
     last=0 ;
 
     while (fgets(line+last, ASCIILINESZ-last, in)!=NULL) {
@@ -802,7 +802,7 @@ dictionary * iniparser_load(const char * ininame)
             default:
             break ;
         }
-        memset(line, 0, ASCIILINESZ);
+        memset(line, 0, sizeof(line));
         last=0;
         if (errs<0) {
             fprintf(stderr, "iniparser: memory allocation failure\n");

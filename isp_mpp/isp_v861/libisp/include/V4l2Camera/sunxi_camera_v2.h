@@ -649,6 +649,20 @@ struct vin_vsync_event_data {
 	__u64 frame_number;
 };
 
+#define SEI_LEVEL1_LEN (40)
+#define SEI_LEVEL2_LEN (48)
+#define SEI_LEVEL3_LEN (7008)
+#define SEI_LEVEL4_LEN (176)
+
+typedef struct
+{
+	int nInfoBitFlags; // ISPInfoType_exp | ISPInfoType_colortemp | ISPInfoType_awb | ISPInfoType_version
+	char mInfoLevel1[SEI_LEVEL1_LEN];
+	char mInfoLevel2[SEI_LEVEL2_LEN];
+	char mInfoLevel3[SEI_LEVEL3_LEN];
+	char mInfoLevel4[SEI_LEVEL4_LEN];
+} ISPSeiInfo;
+
 /*
  * Statistics IOCTLs
  *
@@ -663,6 +677,9 @@ struct vin_vsync_event_data {
 	_IOWR('V', BASE_VIDIOC_PRIVATE + 32, struct vin_isp_stat_data)
 #define VIDIOC_VIN_ISP_STAT_EN \
 	_IOWR('V', BASE_VIDIOC_PRIVATE + 33, unsigned int)
+
+#define VIDIOC_GET_ISP_SEI_INFO \
+	_IOWR('V', BASE_VIDIOC_PRIVATE + 34, ISPSeiInfo)
 
 struct isp_tdm_map_cfg {
 	unsigned char en;
@@ -694,6 +711,12 @@ struct vin_isp_tdm_data {
 	_IOWR('V', BASE_VIDIOC_PRIVATE + 42, struct vin_isp_tdm_data)
 #define VIDIOC_VIN_TDM_SEND_DATA \
 	_IOWR('V', BASE_VIDIOC_PRIVATE + 43, struct vin_isp_tdm_data)
+
+struct pdaf_config {
+	unsigned char mode; /* 1:mean pd from embed mode, 2:mean pd from vc ch, 3:mean pd from raw data */
+	unsigned int pd_width; /* vc ch width&height */
+	unsigned int pd_height;
+};
 /*
 * large image dma merge mode
 *
@@ -702,6 +725,9 @@ struct vin_isp_tdm_data {
 */
 #define VIDIOC_SET_DMA_MERGE \
 	_IOWR('V', BASE_VIDIOC_PRIVATE + 50, unsigned char)
+#define VIDIOC_SET_PDAF_MODE \
+	_IOWR('V', BASE_VIDIOC_PRIVATE + 51, struct pdaf_config)
+
 
 struct sensor_config {
 	int width;
@@ -988,6 +1014,20 @@ struct isp_mcic_cfg {
 	struct isp_mcic_ch_cfg ch_cfg[2];
 };
 
+struct bk_share_buf {
+	unsigned char en;
+	unsigned char share_id;
+};
+
+enum bk_sync_direction {
+	BK_SYNC_DIR_INVALID_CACHE = 0,
+};
+
+struct bk_sync_cfg {
+	int buf_index;
+	enum bk_sync_direction dir;
+};
+
 #define VIDIOC_VIN_SET_TDMTIME_EMBED \
 	_IOWR('V', BASE_VIDIOC_PRIVATE + 120, unsigned int)
 #define VIDIOC_VIN_SET_ISPFE_EMBED \
@@ -1006,5 +1046,9 @@ struct isp_mcic_cfg {
 	_IOWR('V', BASE_VIDIOC_PRIVATE + 127, struct isp_mcic_cfg)
 #define VIDIOC_VIN_SET_VBV_SHARE_YUV \
 	_IOWR('V', BASE_VIDIOC_PRIVATE + 128, unsigned int)
+#define VIDIOC_VIN_SET_BUF_SHARE \
+	_IOWR('V', BASE_VIDIOC_PRIVATE + 129, struct bk_share_buf)
+#define VIDIOC_VIN_INVALID_CACHE \
+	_IOWR('V', BASE_VIDIOC_PRIVATE + 131, struct bk_sync_cfg)
 
 #endif /* _SUNXI_CAMERA_H_ */

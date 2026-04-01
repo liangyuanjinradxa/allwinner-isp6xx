@@ -1,0 +1,41 @@
+CFLAGS	:= -O2 -W -Wall -Wno-unused-parameter -Wno-unused-variable -Wno-unused-but-set-variable -Wno-sign-compare -Werror=array-bounds -nostdlib -fPIC
+ifneq ($(findstring toolchain-sunxi-glibc,$(CC)),)
+ifeq ($(V),32)
+	CFLAGS	+= -mfpu=neon -mfloat-abi=hard -fdiagnostics-color=auto
+endif
+endif
+
+ifneq ($(findstring toolchain-sunxi-musl,$(CC)),)
+ifeq ($(V),32)
+	CFLAGS	+= -mfpu=neon -mfloat-abi=hard -fdiagnostics-color=auto
+endif
+endif
+
+CFLAGS += -DISP_VERSION=$(ISP_VERSION)
+
+LIBPATH=$(shell pwd)
+
+LIB_INI = $(LIBPATH)/libisp_ini.a
+
+LIB_SO_INI = $(LIBPATH)/libisp_ini.so
+
+TARGET_INI := isp_ini_parse.o
+
+install:lib
+	$(STP) --strip-debug --strip-unneeded *.a
+	$(STP) --strip-debug --strip-unneeded *.so
+	rm -rf $(TARGET_INI)
+
+	mv *.a ../out/$(TLDIR)
+	mv *.so ../out/$(TLDIR)
+
+lib: $(LIB_INI)  $(LIB_SO_INI)
+
+$(LIB_INI) : $(TARGET_INI)
+	$(AR) -rcs $@ $^
+
+$(LIB_SO_INI) : $(TARGET_INI)
+	$(CC) -o $@ -shared $^
+
+clean:
+	rm -rf $(TARGET_INI) $(LIB_INI) $(LIB_SO_INI)

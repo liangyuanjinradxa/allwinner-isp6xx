@@ -1,0 +1,5 @@
+#!/bin/bash
+
+if [ "$1" = "upgrade" ] || [ "$1" = "install" ];then
+        echo "libAWIspApi 606 installing"
+fi

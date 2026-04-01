@@ -47,18 +47,18 @@ int check_device_exists(char *name);
 } while (0)
 #else
 #define FREE(poiter) do {\
-    if (poiter) {\
+	if (poiter) {\
 		logd("poiter 0x%px", poiter);\
 		kfree(poiter);\
 	poiter = NULL;\
-    } \
+	} \
 } while (0)
 
 #define FREE_BIG(poiter) do {\
-    if (poiter) {\
+	if (poiter) {\
 		vfree(poiter);\
 		poiter = NULL;\
-    } \
+	} \
 } while (0)
 #endif
 #define THREAD_CREATE(p_thread, attr, func, arg, name) do { \
@@ -77,32 +77,43 @@ int check_device_exists(char *name);
 #define SEM_POST(p_sem) up(p_sem)
 #define SEM_WAIT(p_sem) down(p_sem)
 #define SEM_TRYWAIT(p_sem) ({ \
-    int __ret = down_trylock(p_sem); \
-    if (__ret) { printk("err, ret %d\n", __ret); } \
-    __ret; \
+	int __ret = down_trylock(p_sem); \
+	if (__ret) { \
+		printk("err, ret %d\n", __ret); \
+	} \
+	__ret; \
 })
 #define SEM_GETVALUME(p_sem, cnt) ((*cnt) = (p_sem)->count)
 #define SEM_DESTROY(p_sem)
 
 #define FILE_STRUCT struct file
 
-static inline struct file* inline_filp_open(const char *path, int flags, umode_t mode)
+static inline struct file *inline_filp_open(const char *path, int flags, umode_t mode)
 {
-    struct file *filp = filp_open(path, O_WRONLY | O_CREAT, 0644);
-    if (IS_ERR(filp)) {
-        pr_err("filp_open failed for %s: %ld\n", path, PTR_ERR(filp));
-        return filp;
-    }
-    return filp;
+	struct file *filp = filp_open(path, flags, 0644);
+	if (IS_ERR(filp)) {
+		pr_err("filp_open failed for %s: %ld\n", path, PTR_ERR(filp));
+		return filp;
+	}
+	return filp;
 }
 
 #define FLOOR(x) ((x) >= 0 ? (int)(x) : (int)((x)-1))
 
-#define FOPEN_W(name, arg) inline_filp_open(name, O_WRONLY | O_CREAT, 0644);
+#define FOPEN_W(name, arg) inline_filp_open(name, O_WRONLY | O_CREAT | O_TRUNC, 0644);
 #define FOPEN_R(name, arg) inline_filp_open(name, O_RDONLY, 0644);
-#define FOPEN_A(name, arg) inline_filp_open(name, O_WRONLY | O_APPEND | O_CREAT, 0644);
-#define FWRITE(data, size, n, fd) if((fd)!=NULL){loff_t pos = 0;kernel_write(fd, data, size, &pos);}
-#define FCLOSE(p) if((p)!=NULL){filp_close(p, NULL);p=NULL;}
+#define FOPEN_A(name, arg) inline_filp_open(name, O_WRONLY | O_APPEND | O_CREAT | O_TRUNC, 0644);
+#define FWRITE(data, size, n, fd) do { \
+	if ((fd) != NULL) { \
+		kernel_write(fd, data, size * n, &fd->f_pos); \
+	} \
+} while (0)
+#define FCLOSE(p) do { \
+	if ((p) != NULL) { \
+		filp_close(p, NULL); \
+		(p) = NULL; \
+	} \
+} while (0)
 
 #define WRITE_FILE(data0, size0, data1, size1, file_name) kernel_write_file(data0, size0, data1, size1, file_name)
 #define WRITE_FILE_FD(data0, size0, data1, size1, fd)
@@ -115,7 +126,7 @@ static inline struct file* inline_filp_open(const char *path, int flags, umode_t
 #define ATOI(str) simple_strtol(str, NULL, 10)
 
 #ifndef VENC_SUPPORT_EXT_PARAM
-#define VENC_SUPPORT_EXT_PARAM 0
+#define VENC_SUPPORT_EXT_PARAM 1
 
 typedef void *devfd_t;
 typedef void *ionfd_t;
@@ -140,23 +151,22 @@ typedef void *ionfd_t;
 #define MALLOC_BIG(size) malloc(size)
 #define CALLOC(num, size)  calloc(num, size)
 #define FREE(poiter) do {\
-    if (poiter) {\
+	if (poiter) {\
 		free(poiter);\
 		poiter = NULL;\
-    } \
+	} \
 } while (0)
 
 #define FREE_BIG(poiter) do {\
-    if (poiter) {\
+	if (poiter) {\
 		free(poiter);\
 		poiter = NULL;\
-    } \
+	} \
 } while (0)
 
 #define THREAD_CREATE(thread, attr, func, arg, name) pthread_create(&thread, attr, func, (void *)arg)
 #define THREAD_JOIN(thread, pp_ret) pthread_join(thread, pp_ret)
 
-#define DEF_STATIC_MUTEX(Mutex) static MUTEX_STRUCT Mutex = PTHREAD_MUTEX_INITIALIZER
 #define MUTEX_INIT(p_mutex, p_mutex_attr)  pthread_mutex_init(p_mutex, p_mutex_attr)
 #define MUTEX_LOCK(p_mutex) pthread_mutex_lock(p_mutex)
 #define MUTEX_UNLOCK(p_mutex) pthread_mutex_unlock(p_mutex)
@@ -172,18 +182,19 @@ typedef void *ionfd_t;
 
 #define FILE_STRUCT FILE
 
-static inline FILE_STRUCT* safe_fopen(const char* filename, const char* mode) {
-    FILE* fd = fopen(filename, mode);
-    if (fd == NULL) {
+static inline FILE_STRUCT *safe_fopen(const char *filename, const char *mode)
+{
+	FILE *fd = fopen(filename, mode);
+	if (fd == NULL) {
 		printf("open file err: %s\n", filename);
-    }
-    return fd;
+	}
+	return fd;
 }
 #define FOPEN_W(name, arg) safe_fopen(name, "wb");
 #define FOPEN_R(name, arg) safe_fopen(name, "rb");
 #define FOPEN_A(name, arg) safe_fopen(name, "ab");
 #define FWRITE(data, size, n, fd) fwrite(data, size, n, fd)
-#define FCLOSE(p) if((p)!=NULL){fclose(p);p=NULL;}
+#define FCLOSE(p) do { if ((p) != NULL) { fclose(p); (p) = NULL; } } while (0)
 
 #define WRITE_FILE(data0, size0, data1, size1, file_name) user_write_file(data0, size0, data1, size1, file_name)
 #define WRITE_FILE_FD(data0, size0, data1, size1, fd) user_write_file_fd(data0, size0, data1, size1, fd)
@@ -210,6 +221,42 @@ typedef int ionfd_t;
 #define FILE_EXIST(name) (!access(name, F_OK))
 #endif//CONFIG_AW_VIDEO_KERNEL_ENC
 
+/*
+#define ALIGN_XXB(y, x) (((x) + ((y)-1)) & ~((y)-1))
+typedef enum eVeLbcMode {
+	LBC_MODE_DISABLE  = 0,
+	LBC_MODE_1_5X     = 1,
+	LBC_MODE_2_0X     = 2,
+	LBC_MODE_2_5X     = 3,
+	LBC_MODE_NO_LOSSY = 4,
+	LBC_MODE_1_0X     = 5,
+} eVeLbcMode;
+
+typedef struct ve_lbc_in_param
+{
+	eVeLbcMode   eLbcMode;
+	unsigned int nWidht;
+	unsigned int nHeight;
+} ve_lbc_in_param;
+
+typedef struct ve_lbc_out_param
+{
+	unsigned int header_size;
+	unsigned int buffer_size;
+	unsigned int seg_tar_bits;
+	unsigned int segline_tar_bits;
+	unsigned int is_lossy;
+	unsigned int seg_rc_en;
+} ve_lbc_out_param;
+
+typedef enum MEMORY_TYPE {
+	MEMORY_NORMAL,
+	MEMORY_IOMMU,
+} MEMORY_TYPE;
+
+
+int ComputeLbcParameter(ve_lbc_in_param *in_param, ve_lbc_out_param *out_param);
+*/
 int get_random_number(void);
 
 #endif//USERKERNELADAPTER_h

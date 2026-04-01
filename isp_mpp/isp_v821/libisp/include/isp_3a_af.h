@@ -56,7 +56,6 @@ typedef struct isp_af_ini_cfg {
 	HW_S32 af_std_code_tbl[20];
 	HW_S32 af_tolerance_value_tbl[20];
 	HW_U8 af_delay_frame;
-	HW_U8 af_touch_dist_ind;
 } af_ini_cfg_t;
 
 enum auto_focus_run_mode {

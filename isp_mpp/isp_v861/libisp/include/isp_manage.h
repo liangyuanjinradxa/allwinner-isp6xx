@@ -427,15 +427,18 @@ struct local_wb_data_save {
 };
 
 struct isp_algo_save {
-	HW_U16 wb_rgain_last[2];
-	HW_U16 wb_bgain_last[2];
+	HW_U16 wb_rgain_last[3];
+	HW_U16 wb_bgain_last[3];
 	HW_S8 wb_l_shift;
+	HW_U8 wb_stat_shif_limit;
+	HW_U8 wb_stat_delay;
 	HW_U8 byr_act_bit;
 	HW_U16 lsc_color_temp_save;
 	HW_U16 lsc_comp_save;
 	HW_U16 lsc_vcm_std_pos_save;
 	HW_U8 lsc_hflip_save;
 	HW_U8 lsc_vflip_save;
+	HW_U16 isp_pltm_gtm_tbl_save[ISP_PLTM_GTM_TBL_SIZE];
 
 	//d3d_k_stat
 	HW_U8 d3d_k_cnt;
@@ -589,7 +592,6 @@ struct isp_lib_context {
 	struct isp_initial_cfg initial_cfg;
 	HW_U8 isp_ir_flag_last;
 	HW_U8 stitch_mode;
-	HW_U8 ai_isp_en;
 	HW_U16 isp_algo_freq_div;
 	HW_U16 isp_algo_cnt;
 };

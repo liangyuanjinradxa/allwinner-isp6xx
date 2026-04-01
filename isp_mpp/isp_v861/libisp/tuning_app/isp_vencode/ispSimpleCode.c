@@ -929,6 +929,11 @@ static int setEncParam(VideoEncoder *pVideoEnc ,encode_param_t *encode_param, Ve
 
 	value = 0;
     VideoEncSetParameterDl(pVideoEnc, VENC_IndexParamIspbeEmbedEn, &value);
+
+	// must ve libcedarc supprot expat, need open compile expaty options
+	//value = 0;
+    //VideoEncSetParameterDl(pVideoEnc, VENC_IndexParamEnableXml, &value);
+
 /*
     if(encode_param->gdc_en == 1)
     {
@@ -1236,7 +1241,7 @@ static int encoder_doProcessData(encode_param_t *encode_param,
 		inputBuffer->sCropInfo.nHeight =  240;
 		inputBuffer->nPts += 1*1000/encode_param->frame_rate;
 		inputBuffer->envLV = 250;
-		inputBuffer->bNeedFlushCache = 1;
+		inputBuffer->bNeedFlushCache = 0;
 		inputBuffer->nWidth = encode_param->src_width;
 		inputBuffer->nHeight = encode_param->src_height;
 		VideoEncQueueInputBufDl(pVideoEnc, inputBuffer);
@@ -1472,8 +1477,8 @@ int EncoderPrepare(encode_param_t *encode_param)
 	gBaseConfig.bOnlineChannel = 0;
 	gBaseConfig.nOnlineShareBufNum  = 0;
 	gBaseConfig.nOnlineShareBufBk  = 0;
-	gBaseConfig.sensorId = 0;
-	gBaseConfig.bkId = 0;
+	gBaseConfig.sensor_id = 0;
+	gBaseConfig.bk_id = 0;
 	gBaseConfig.bLbcLossyComEnFlag1_5x = encode_param->bLbcLossyComEnFlag1_5x;
 	gBaseConfig.bLbcLossyComEnFlag2x = encode_param->bLbcLossyComEnFlag2x;
 	gBaseConfig.bLbcLossyComEnFlag2_5x = encode_param->bLbcLossyComEnFlag2_5x;
@@ -1732,6 +1737,14 @@ int EncoderStart(encode_param_t *encode_param, VencInputBuffer *input, VencOutpu
 	return VIDEOCODEC_OK;
 }
 
+int EncoderPause(encode_param_t *encode_param)
+{
+	if(pVideoEnc) {
+		VideoEncPauseDl(pVideoEnc);
+	}
+	return 0;
+}
+
 int EncoderClose(encode_param_t *encode_param)
 {
 	loge("close encoder");
@@ -1838,7 +1851,7 @@ int EncoderSetParamIspbeSharpConfig(encode_param_t *encode_param, sEncppIspbeSha
 {
 	if(pVideoEnc)
 	{
-		return VideoEncSetParameterDl(pVideoEnc, VENC_IndexParamIspbeSharpConfig, pIspbeSharpConfig);
+		return VideoEncSetParameterDl(pVideoEnc, VENC_IndexParamSharpConfig, pIspbeSharpConfig);
 	}
 	return 0;
 }

@@ -1,5 +1,5 @@
-/*
-* Copyright (c) 2008-2016 Allwinner Technology Co. Ltd.
+/* SPDX-License-Identifier: GPL-2.0-or-later */
+/* Copyright (c) 2019-2025 Allwinner Technology Co., Ltd. ALL rights reserved.
 * All rights reserved.
 *
 * File : ve_interface.h
@@ -8,7 +8,6 @@
 *   Author  : xyliu <xyliu@allwinnertech.com>
 *   Date    : 2016/04/13
 *   Comment :
-*
 *
 */
 
@@ -50,76 +49,73 @@ extern "C"
 #define REG_OFFSET_DEC_VCU      0x600 //* base of dec_vcu
 
 
-typedef enum VE_REGISTER_GROUP
-{
-    REG_GROUP_VETOP             = 0,
-    REG_GROUP_MPEG_DECODER      = 1,
-    REG_GROUP_H264_DECODER      = 2,
-    REG_GROUP_VC1_DECODER       = 3,
-    REG_GROUP_RV_DECODER        = 4,
-    REG_GROUP_H265_DECODER      = 5,
-    REG_GROUP_JPEG_DECODER      = 6,
-    REG_GROUP_AVS_DECODER       = 7,
-    REG_GROUP_VP9_DECODER       = 8,
-    REG_GROUP_AVS2_DECODER      = 9,
-    REG_GROUP_VETOP1            = 10,
+typedef enum VE_REGISTER_GROUP {
+	REG_GROUP_VETOP             = 0,
+	REG_GROUP_MPEG_DECODER      = 1,
+	REG_GROUP_H264_DECODER      = 2,
+	REG_GROUP_VC1_DECODER       = 3,
+	REG_GROUP_RV_DECODER        = 4,
+	REG_GROUP_H265_DECODER      = 5,
+	REG_GROUP_JPEG_DECODER      = 6,
+	REG_GROUP_AVS_DECODER       = 7,
+	REG_GROUP_VP9_DECODER       = 8,
+	REG_GROUP_AVS2_DECODER      = 9,
+	REG_GROUP_VETOP1            = 10,
 
-    REG_GROUP_VCU_ENCODER       = 11,
-    REG_GROUP_ENCPP_ENCODER     = 12,
-    REG_GROUP_JPEG_ENCODER      = 13,
-    REG_GROUP_H264_ENCODER      = 14,
-    REG_GROUP_H265_ENCODER      = 15,
-    REG_GROUP_H265_ENCODER_EXT  = 16,
-    REG_GROUP_H264_ENCODER_EXT  = 17,
-    REG_GROUP_VETOP_BAK    = 18,
-    REG_GROUP_VCU_DECODER  = 19,
-    REG_GROUP_VETOP_DEC,
-    REG_GROUP_VETOP_ENC,
-    REG_GROUP_H265_ENCODER_EXT2,
-    REG_GROUP_H264_ENCODER_EXT2,
-    REG_GROUP_ISPBE_ENCODER,
-}ve_register_group_e;
+	REG_GROUP_VCU_ENCODER       = 11,
+	REG_GROUP_ENCPP_ENCODER     = 12,
+	REG_GROUP_JPEG_ENCODER      = 13,
+	REG_GROUP_H264_ENCODER      = 14,
+	REG_GROUP_H265_ENCODER      = 15,
+	REG_GROUP_H265_ENCODER_EXT  = 16,
+	REG_GROUP_H264_ENCODER_EXT  = 17,
+	REG_GROUP_VETOP_BAK    = 18,
+	REG_GROUP_VCU_DECODER  = 19,
+	REG_GROUP_VETOP_DEC,
+	REG_GROUP_VETOP_ENC,
+	REG_GROUP_H265_ENCODER_EXT2,
+	REG_GROUP_H264_ENCODER_EXT2,
+	REG_GROUP_ISPBE_ENCODER,
+} ve_register_group_e;
 
 
-enum EVEOPSTYPE{
-    VE_OPS_TYPE_NORMAL = 0,
-    VE_OPS_TYPE_VP9    = 1,
+enum EVEOPSTYPE {
+	VE_OPS_TYPE_NORMAL = 0,
+	VE_OPS_TYPE_VP9    = 1,
 };
 
-enum DRAMTYPE
-{
-    DDRTYPE_DDR1_16BITS = 0,
-    DDRTYPE_DDR1_32BITS = 1,
-    DDRTYPE_DDR2_16BITS = 2,
-    DDRTYPE_DDR2_32BITS = 3,
-    DDRTYPE_DDR3_16BITS = 4,
-    DDRTYPE_DDR3_32BITS = 5,
-    DDRTYPE_DDR3_64BITS = 6,
-    DDRTYPE_DDR4_16BITS = 7,
-    DDRTYPE_DDR4_32BITS = 8,
-    DDRTYPE_DDR4_64BITS = 9,
-    DDRTYPE_LPDDR4      = 10,
+enum DRAMTYPE {
+	DDRTYPE_DDR1_16BITS = 0,
+	DDRTYPE_DDR1_32BITS = 1,
+	DDRTYPE_DDR2_16BITS = 2,
+	DDRTYPE_DDR2_32BITS = 3,
+	DDRTYPE_DDR3_16BITS = 4,
+	DDRTYPE_DDR3_32BITS = 5,
+	DDRTYPE_DDR3_64BITS = 6,
+	DDRTYPE_DDR4_16BITS = 7,
+	DDRTYPE_DDR4_32BITS = 8,
+	DDRTYPE_DDR4_64BITS = 9,
+	DDRTYPE_LPDDR4      = 10,
 
-    DDRTYPE_MIN = DDRTYPE_DDR1_16BITS,
-    DDRTYPE_MAX = DDRTYPE_LPDDR4,
+	DDRTYPE_MIN = DDRTYPE_DDR1_16BITS,
+	DDRTYPE_MAX = DDRTYPE_LPDDR4,
 };
 
-enum RESET_VE_MODE
-{
-    RESET_VE_NORMAL = 0,
-    RESET_VE_SPECIAL = 1,  // for dtmb, we should reset ve not reset decode
+enum RESET_VE_MODE {
+	RESET_VE_NORMAL = 0,
+	RESET_VE_SPECIAL = 1,  // for dtmb, we should reset ve not reset decode
 };
 #ifdef CONFIG_AW_VIDEO_KERNEL_ENC
 #include "UserKernelAdapter.h"
 #else
 enum VE_MODE {
-    VE_MODE_NULL = -1,
-    VE_MODE_ENCPP = 0,
-    VE_MODE_ENC,
-    VE_MODE_DE,
-    VE_MODE_VCUENC,
-    VE_MODE_VCUDEC,
-    VE_MODE_CNT,
+	VE_MODE_NULL = -1,
+	VE_MODE_ENCPP = 0,
+	VE_MODE_ENC,
+	VE_MODE_DE,
+	VE_MODE_VCUENC,
+	VE_MODE_VCUDEC,
+	VE_MODE_CNT,
 };
 typedef struct ve_channel_proc_info {
 	unsigned char *base_info_data;
@@ -130,229 +126,237 @@ typedef struct ve_channel_proc_info {
 } ve_channel_proc_info;
 
 struct user_iommu_param {
-    int            fd;
-    unsigned int   iommu_addr;
+	int            fd;
+	unsigned int   iommu_addr;
 };
 
-typedef struct VE_PROC_INFO
-{
-    unsigned char   channel_id;
-    unsigned int    proc_info_len;
-}ve_proc_info_t;
+typedef struct VE_PROC_INFO {
+	unsigned char   channel_id;
+	unsigned int    proc_info_len;
+} ve_proc_info_t;
 
 #endif
-enum VE_WORK_MODE
-{
-    VE_NORMAL_MODE = 0,
-    VE_DEC_MODE = 1,
-    VE_ENC_MODE = 2,
-    VE_JPG_DEC_MODE = 3,
+enum VE_WORK_MODE {
+	VE_NORMAL_MODE = 0,
+	VE_DEC_MODE = 1,
+	VE_ENC_MODE = 2,
+	VE_JPG_DEC_MODE = 3,
 };
 
-typedef struct VeConfig
-{
-    int nDecoderFlag;
-    int nEncoderFlag;
-    int nFormat;
-    int nWidth;
-    int nEnableAfbcFlag;
-    int nResetVeMode;
-    unsigned int nVeFreq;
-    struct ScMemOpsS *memops;
-    int nJustIspFlag;
-    int bNotSetVeFreq;
-    unsigned int EnableVcu;
-}VeConfig;
+typedef struct VeConfig {
+	int nDecoderFlag;
+	int nEncoderFlag;
+	int nFormat;
+	int nWidth;
+	int nEnableAfbcFlag;
+	int nResetVeMode;
+	unsigned int nVeFreq;
+	struct ScMemOpsS *memops;
+	int nJustIspFlag;
+	int bNotSetVeFreq;
+	unsigned int EnableVcu;
+} VeConfig;
 
-typedef struct VeOpsS
-{
-    void *(*init)(VeConfig*);
-    void (*release)(void*);
-    int (*lock)(void*);
-    int (*unlock)(void*);
-    void (*reset)(void*);
-    int  (*waitInterrupt)(void*);
+typedef struct VeOpsS {
+	void *(*init)(VeConfig *);
+	void (*release)(void *);
+	int (*lock)(void *);
+	int (*unlock)(void *);
+	void (*reset)(void *);
+	void (*forceReset)(void *);
+	int  (*waitInterrupt)(void *);
 
 #if CEDARC_DEBUG
-    void (*WriteValue)(void*, unsigned int);
-    unsigned int (*ReadValue)(void*, unsigned int);
-    void (*CleanValue)(void*);
+	void (*WriteValue)(void *, unsigned int);
+	unsigned int (*ReadValue)(void *, unsigned int);
+	void (*CleanValue)(void *);
 #endif
 
-    int          (*getChipId)(void*);
-    uint64_t     (*getIcVeVersion)(void*);
-    void*        (*getGroupRegAddr)(void*, int, int);
-    int          (*getDramType)(void*);
-    unsigned int (*getPhyOffset)(void*);
+	int          (*getChipId)(void *);
+	uint64_t     (*getIcVeVersion)(void *);
+	void*        (*getGroupRegAddr)(void *, int, int);
+	int          (*getDramType)(void *);
+	unsigned int (*getPhyOffset)(void *);
 
-    void (*setDramType)(void*);
-    void (*setDdrMode)(void*, int);
-    int  (*setSpeed)(void*, unsigned int);
-    void (*setEnableAfbcFlag)(void*, int);
-    void (*setAdjustDramSpeedFlag)(void*, int);
+	void (*setDramType)(void *);
+	void (*setDdrMode)(void *, int);
+	int  (*setSpeed)(void *, unsigned int);
+	int  (*getSpeed)(void *);
+	void (*setEnableAfbcFlag)(void *, int);
+	void (*setAdjustDramSpeedFlag)(void *, int);
 
-    void (*enableVe)(void*);
-    void (*disableVe)(void*);
+	void (*enableVe)(void *);
+	void (*disableVe)(void *);
 
-    void (*initEncoderPerformance)(void*, int);
-    void (*unInitEncoderPerformance)(void*, int);
+	void (*initEncoderPerformance)(void *, int);
+	void (*unInitEncoderPerformance)(void *, int);
 
-    int  (*getIommuAddr)(void* , struct user_iommu_param *);
-    int  (*freeIommuAddr)(void* , struct user_iommu_param *);
+	int  (*getIommuAddr)(void *, struct user_iommu_param *);
+	int  (*freeIommuAddr)(void *, struct user_iommu_param *);
 
-    void (*flush_cache)(void*, void* , int);
+	void (*flush_cache)(void *, void *, int, int);
 
 	int  (*setProcInfo)(void *, struct ve_channel_proc_info *);
-    int  (*stopProcInfo)(void*, unsigned char);
+	int  (*stopProcInfo)(void *, unsigned char);
 
-    int  (*procInfoUpdate)(void*, char*, int, int);
-    int  (*procInfoReset)(void*);
-    int  (*updateCaseLoad)(void*, int, int, int, int);
+	int  (*procInfoUpdate)(void *, char *, int, int);
+	int  (*procInfoReset)(void *);
+	int  (*updateCaseLoad)(void *, int, int, int, int);
 
-    int  (*getEncoderVersion)(void*);
+	int  (*getEncoderVersion)(void *);
 
-    //* for MR536 or A733
-    struct ve_int_sta *(*waitInterruptVcu)(void*,  unsigned int);
-    int (*setMode)(void *, enum VE_MODE);
-    //* for MR536 end
+	//* for platform which support vcu
+	struct ve_int_sta *(*waitInterruptVcu)(void*,  unsigned int);
+	int (*setMode)(void *, enum VE_MODE);
+	//* end
 	int  (*getLbcParameter)(void *, unsigned int, unsigned int, unsigned int, void *, void *);
-    void (*user_enc_stop)(void *);
+	void (*user_enc_stop)(void *);
 } VeOpsS;
 
-static inline void* CdcVeInit(VeOpsS *veops, VeConfig* pVeConfig)
+static inline void *CdcVeInit(VeOpsS *veops, VeConfig *pVeConfig)
 {
-    return veops->init(pVeConfig);
+	return veops->init(pVeConfig);
 }
 
 static inline void CdcVeRelease(VeOpsS *veops, void *p)
 {
-    veops->release(p);
+	veops->release(p);
 }
 
 static inline int CdcVeLock(VeOpsS *veops, void *p)
 {
-    return veops->lock(p);
+	return veops->lock(p);
 }
 
 static inline int CdcVeUnLock(VeOpsS *veops, void *p)
 {
-    return veops->unlock(p);
+	return veops->unlock(p);
 }
 
 static inline void CdcVeReset(VeOpsS *veops, void *p)
 {
-    veops->reset(p);
+	veops->reset(p);
+}
+
+static inline void CdcVeForceReset(VeOpsS *veops, void *p)
+{
+	veops->forceReset(p);
 }
 
 static inline int CdcVeWaitInterrupt(VeOpsS *veops, void *p)
 {
-    return veops->waitInterrupt(p);
+	return veops->waitInterrupt(p);
 }
 
 #if CEDARC_DEBUG
 static inline void CdcVeWriteValue(VeOpsS *veops, void *p, unsigned int value)
 {
-    return veops->WriteValue(p,value);
+	return veops->WriteValue(p, value);
 }
-static inline unsigned int CdcVeReadValue(VeOpsS *veops, void *p,unsigned int value)
+static inline unsigned int CdcVeReadValue(VeOpsS *veops, void *p, unsigned int value)
 {
-    return veops->ReadValue(p,value);
+	return veops->ReadValue(p, value);
 }
 static inline void CdcClearnValue(VeOpsS *veops, void *p)
 {
-    return veops->CleanValue(p);
+	return veops->CleanValue(p);
 }
 #endif
 
 static inline int CdcVeGetChipId(VeOpsS *veops, void *p)
 {
-    return veops->getChipId(p);
+	return veops->getChipId(p);
 }
 
 static inline uint64_t CdcVeGetIcVeVersion(VeOpsS *veops, void *p)
 {
-    return veops->getIcVeVersion(p);
+	return veops->getIcVeVersion(p);
 }
 
-static inline void* CdcVeGetGroupRegAddr(VeOpsS *veops, void *p, int nGroupId)
+static inline void *CdcVeGetGroupRegAddr(VeOpsS *veops, void *p, int nGroupId)
 {
-    return veops->getGroupRegAddr(p, nGroupId, 0);
+	return veops->getGroupRegAddr(p, nGroupId, 0);
 }
 
-static inline void* CdcVeGetGroupRegMapAddr(VeOpsS *veops, void *p, int nGroupId)
+static inline void *CdcVeGetGroupRegMapAddr(VeOpsS *veops, void *p, int nGroupId)
 {
-    return veops->getGroupRegAddr(p, nGroupId, 1);
+	return veops->getGroupRegAddr(p, nGroupId, 1);
 }
 
 static inline int CdcVeGetDramType(VeOpsS *veops, void *p)
 {
-    return veops->getDramType(p);
+	return veops->getDramType(p);
 }
 
 static inline unsigned int  CdcVeGetPhyOffset(VeOpsS *veops, void *p)
 {
-    return veops->getPhyOffset(p);
+	return veops->getPhyOffset(p);
 }
 
 static inline void CdcVeSetDramType(VeOpsS *veops, void *p)
 {
-    veops->setDramType(p);
+	veops->setDramType(p);
 }
 
 static inline void CdcVeSetDdrMode(VeOpsS *veops, void *p, int ddr_mode)
 {
-    veops->setDdrMode(p, ddr_mode);
+	veops->setDdrMode(p, ddr_mode);
 }
 
 static inline int CdcVeSetSpeed(VeOpsS *veops, void *p, int nSpeedMHz)
 {
-    return veops->setSpeed(p, nSpeedMHz);
+	return veops->setSpeed(p, nSpeedMHz);
+}
+
+static inline int CdcVeGetSpeed(VeOpsS *veops, void *p)
+{
+	return veops->getSpeed(p);
 }
 
 static inline void CdcVeSetEnableAfbcFlag(VeOpsS *veops, void *p, int bEnableFlag)
 {
-    veops->setEnableAfbcFlag(p, bEnableFlag);
+	veops->setEnableAfbcFlag(p, bEnableFlag);
 }
 
 static inline void CdcVeSetAdjustDramSpeedFlag(VeOpsS *veops, void *p, int bEnableFlag)
 {
-    veops->setAdjustDramSpeedFlag(p, bEnableFlag);
+	veops->setAdjustDramSpeedFlag(p, bEnableFlag);
 }
 
 
 static inline void CdcVeEnableVe(VeOpsS *veops, void *p)
 {
-    veops->enableVe(p);
+	veops->enableVe(p);
 }
 
 static inline void CdcVeDisableVe(VeOpsS *veops, void *p)
 {
-    veops->disableVe(p);
+	veops->disableVe(p);
 }
 
 static inline void CdcVeInitEncoderPerformance(VeOpsS *veops, void *p, int nMode)
 {
-    veops->initEncoderPerformance(p, nMode);
+	veops->initEncoderPerformance(p, nMode);
 }
 
 static inline void CdcVeUnInitEncoderPerformance(VeOpsS *veops, void *p, int nMode)
 {
-    veops->unInitEncoderPerformance(p, nMode);
+	veops->unInitEncoderPerformance(p, nMode);
 }
 
 static inline int CdcVeGetIommuAddr(VeOpsS *veops, void *p, struct user_iommu_param *iommu_buffer)
 {
-    return veops->getIommuAddr(p, iommu_buffer);
+	return veops->getIommuAddr(p, iommu_buffer);
 }
 
 static inline int CdcVeFreeIommuAddr(VeOpsS *veops, void *p, struct user_iommu_param *iommu_buffer)
 {
-    return veops->freeIommuAddr(p, iommu_buffer);
+	return veops->freeIommuAddr(p, iommu_buffer);
 }
 
-static inline void CdcVeFlushCache(VeOpsS *veops, void *p, void* startAddr, int size)
+static inline void CdcVeFlushCache(VeOpsS *veops, void *p, void *startAddr, int size, unsigned int dir)
 {
-    veops->flush_cache(p, startAddr, size);
+	veops->flush_cache(p, startAddr, size, dir);
 }
 
 static inline int CdcVeSetProcInfo(VeOpsS *veops, void *p, struct ve_channel_proc_info *ch_proc_info)
@@ -362,43 +366,44 @@ static inline int CdcVeSetProcInfo(VeOpsS *veops, void *p, struct ve_channel_pro
 
 static inline int CdcVeStopProcInfo(VeOpsS *veops, void *p, unsigned char cChannelNum)
 {
-    return veops->stopProcInfo(p, cChannelNum);
+	return veops->stopProcInfo(p, cChannelNum);
 }
 
 static inline int CdcVeProcInfoUpdate(VeOpsS *veops, void *p,
-                                              char* pData, int size, int bFinishFlag)
+											  char *pData, int size, int bFinishFlag)
 {
-    return veops->procInfoUpdate(p, pData, size, bFinishFlag);
+	return veops->procInfoUpdate(p, pData, size, bFinishFlag);
 }
 
 static inline int CdcVeProcInfoReset(VeOpsS *veops, void *p)
 {
-    return veops->procInfoReset(p);
+	return veops->procInfoReset(p);
 }
 
 static inline int CdcVeUpdateCaseLoad(VeOpsS *veops, void *p, int nWidht, int nHeight, int nFrameRate, int nCodecFormat)
 {
-    return veops->updateCaseLoad(p, nWidht, nHeight, nFrameRate, nCodecFormat);
+	return veops->updateCaseLoad(p, nWidht, nHeight, nFrameRate, nCodecFormat);
 }
 
 static inline int CdcVeGetEncoderVersion(VeOpsS *veops, void *p)
 {
-    return veops->getEncoderVersion(p);
+	return veops->getEncoderVersion(p);
 }
-//*for MR536 or A733
+
+//* for platform which support vcu
 static inline struct ve_int_sta *CdcVeWaitInterruptVcu(VeOpsS *veops, void *p, unsigned int coreIndex)
 {
-    return veops->waitInterruptVcu(p, coreIndex);
+	return veops->waitInterruptVcu(p, coreIndex);
 }
 static inline void CdcVeUserEncStop(VeOpsS *veops, void *p)
 {
-    veops->user_enc_stop(p);
+	veops->user_enc_stop(p);
 }
 static inline int CdcVeMode(VeOpsS *veops, void *p, enum VE_MODE mode)
 {
-    return veops->setMode(p, mode);
+	return veops->setMode(p, mode);
 }
-//*for MR536 or A733 end
+//*for end
 
 static inline int CdcGetLbcParameter(VeOpsS *veops, void *p, unsigned int nLbcMode, unsigned int nWidht, unsigned int bReduceBuf, void *p_lbc_ctl, void *p_lbc_seg_ctl)
 {

@@ -63,9 +63,45 @@ int isp_params_parse(struct hw_isp_device *isp, struct isp_param_config *params,
 	if (ctx == NULL)
 		return -1;
 
-	return parser_ini_info(params, ctx->sensor_info.name,
+	return parser_ini_info(params, ctx->debug_param_info.isp_cfg_version, ctx->sensor_info.name,
 		ctx->sensor_info.sensor_width, ctx->sensor_info.sensor_height,
 		ctx->sensor_info.fps_fixed, ctx->sensor_info.wdr_mode, ir, sync_mode, ctx->isp_id);
+}
+
+int isp_cfg_bin_parse(struct hw_isp_device *isp, int rst_en, char *isp_cfg_bin_path, int sync_mode)
+{
+	int ret = 0;
+	struct isp_lib_context *ctx = isp_dev_get_ctx(isp);
+	struct isp_tuning *tuning = isp_dev_get_tuning(isp);
+	if (ctx == NULL) {
+		ISP_ERR("ctx = NULL\n");
+		return -1;
+	}
+	if (tuning == NULL) {
+		ISP_ERR("tuning = NULL\n");
+		return -1;
+	}
+
+	if (rst_en) {
+		ret = parse_isp_cfg(&ctx->isp_ini_cfg, ctx->debug_param_info.isp_cfg_version, ctx->sensor_info.name, ctx->isp_id, ctx->isp_ir_flag, isp_cfg_bin_path);
+	} else {
+		ret = parse_isp_cfg(&tuning->params, ctx->debug_param_info.isp_cfg_version, ctx->sensor_info.name, ctx->isp_id, ctx->isp_ir_flag, isp_cfg_bin_path);
+	}
+	if (ret < 0) {
+		ISP_ERR("ISP read isp_cfg.bin error, please check the isp_cfg.bin!\n");
+		return ret;
+	}
+
+	if (rst_en) {
+		ret = isp_tuning_reset(isp, &ctx->isp_ini_cfg);
+	} else {
+		ret = isp_tuning_update(isp);
+	}
+	if (ret < 0) {
+		ISP_ERR("error: unable to %s isp tuning\n", rst_en ? "reset" : "update");
+		return ret;
+	}
+	return 0;
 }
 
 static int save_ini_tuning_file(struct hw_isp_device *isp, char *path, struct isp_param_config *param, char *sensor_name, int w, int h, int fps, int wdr)

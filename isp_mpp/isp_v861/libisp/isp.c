@@ -1110,23 +1110,17 @@ int isp_ir_reset(int dev_id, int mode_flag)
 		return -1;
 	}
 
-	if (mode_flag & 0x01) {
-		ISP_WARN("ISP select wdr config fail\n");
-	}
-
-	if (mode_flag & 0x02) {
-		if (mode_flag & 0x04) {
-			if (isp_ctx[dev_id].isp_ir_flag != ISP_AIISP_MODE) //original flag
-				rst_en = 1;
-			isp_ctx[dev_id].isp_ir_flag = ISP_AIISP_MODE;
-			isp_ctx[dev_id].initial_cfg.effect_hold_cnt = 3;
-			ISP_PRINT("ISP select ai-isp config\n");
-		} else {
-			if (isp_ctx[dev_id].isp_ir_flag == ISP_AIISP_MODE) //original flag
-				rst_en = 1;
-			isp_ctx[dev_id].isp_ir_flag = ISP_IR_MODE;
-			ISP_PRINT("ISP select ir config\n");
-		}
+	if (mode_flag == 2) {
+		if (isp_ctx[dev_id].isp_ir_flag != ISP_AIISP_MODE) //original flag
+			rst_en = 1;
+		isp_ctx[dev_id].isp_ir_flag = ISP_AIISP_MODE;
+		isp_ctx[dev_id].initial_cfg.effect_hold_cnt = 3;
+		ISP_PRINT("ISP select ai-isp config\n");
+	} else if (mode_flag == 1){
+		if (isp_ctx[dev_id].isp_ir_flag == ISP_AIISP_MODE) //original flag
+			rst_en = 1;
+		isp_ctx[dev_id].isp_ir_flag = ISP_IR_MODE;
+		ISP_PRINT("ISP select ir config\n");
 	} else {
 		if (isp_ctx[dev_id].isp_ir_flag == ISP_AIISP_MODE) //original flag
 			rst_en = 1;
@@ -1221,6 +1215,7 @@ int isp_init(int dev_id)
 	isp_stat_save_init(&isp_ctx[dev_id]);
 	isp_log_save_init(&isp_ctx[dev_id]);
 
+	isp_ctx[dev_id].module_cfg.mode_cfg.aiisp_en = 0;
 	isp_ctx[dev_id].isp_algo_freq_div = DIV_RATIO_MIN;
 	isp_ctx[dev_id].isp_algo_cnt = DIV_RATIO_MIN;
 	isp_ctx[dev_id].isp_ir_flag = ISP_COLOR_MODE; // default close ir config , colorful
@@ -1833,6 +1828,12 @@ HW_S32 isp_get_attr_cfg(int dev_id, HW_U32 ctrl_id, void *value)
 		case ISP_CTRL_AE_WEIGHT_LUM:
 			*(HW_S32 *)value = isp_gen->ae_entity_ctx.ae_result.ae_weight_lum;
 			break;
+		case ISP_CTRL_AF_OUTPUT_REAL_CODE:
+			*(HW_S32 *)value = isp_gen->af_entity_ctx.af_result.real_code_output;
+			break;
+		case ISP_CTRL_AF_OUTPUT_STD_CODE:
+			*(HW_S32 *)value = isp_gen->af_entity_ctx.af_result.std_code_output;
+			break;
 		default:
 			ISP_ERR("Unknown ctrl.\n");
 			break;
@@ -1935,7 +1936,7 @@ static void isp_set_attr_cfg_run(struct isp_lib_context *isp_gen, HW_U32 ctrl_id
 		{
 			isp_ai_isp_info ai_isp_info_entity;
 			ai_isp_info_entity = *(isp_ai_isp_info *)value;
-			isp_gen->ai_isp_en = ai_isp_info_entity.ai_isp_en;
+			isp_gen->module_cfg.mode_cfg.aiisp_en = ai_isp_info_entity.ai_isp_en;
 			isp_ctx_config_update(isp_gen);
 			break;
 		}
@@ -2479,8 +2480,8 @@ HW_S32 isp_set_ae_flicker_comp(int dev_id, HW_S16 enable)
 	if (isp_gen == NULL)
 		return -1;
 
-	isp_gen->ae_entity_ctx.ae_param->ae_ini.ae_blowout_pre_en = enable;
-	ISP_PRINT("Current flicker comp = %d\n", isp_gen->ae_entity_ctx.ae_param->ae_ini.ae_blowout_attr);
+	isp_gen->ae_entity_ctx.ae_param->ae_ini.ae_flicker_comp_en = enable;
+	ISP_PRINT("Current flicker comp = %d\n", isp_gen->ae_entity_ctx.ae_param->ae_ini.ae_flicker_comp_max);
 
 	return 0;
 }
@@ -4421,7 +4422,31 @@ HW_S32 isp_set_scene(int dev_id, scene_mode_t scene_mode)
 }
 #endif
 
-int isp_GetSEIInfo(int dev_id, ISPSeiInfo *pInfo)
+int isp_fastboot_GetSEIInfo(struct isp_video_device *video, ISPSeiInfo *pInfo)
+{
+	int ret;
+
+	if (pInfo == NULL) {
+		printf("%s: invalid parameter, pInfo is NULL\n", __func__);
+		return -1;
+	}
+
+	if (video == NULL) {
+		printf("%s: invalid parameter, video is NULL\n", __func__);
+		return -1;
+	}
+
+	ret = video_fastboot_get_sei_info_attr(video, pInfo);
+	if (ret != 0) {
+		printf("%s: failed to get SEI info, ret = %d\n", __func__, ret);
+		return ret;
+	}
+
+	return 0;
+}
+
+
+int isp_GetSEIInfo(int dev_id, struct isp_video_device *video, ISPSeiInfo *pInfo)
 {
 #if (LIBISP_CFG_FASTBOOT == 0)
 	struct hw_isp_device *isp = NULL;
@@ -4514,8 +4539,23 @@ int isp_GetSEIInfo(int dev_id, ISPSeiInfo *pInfo)
 
 	return 0;
 #else
-	ISP_PRINT("Could not get SEIInfo now\n");
-	return -1;
+	isp_fastboot_GetSEIInfo(video, pInfo);
+/*
+	int exp_line, analog_gain, lum_idx, color_temp, r_gain, b_gain, af_mov;
+
+	sscanf(pInfo->mInfoLevel1, "%05d%05d%05d%05d%05d%05d%05d",
+                 &exp_line, &analog_gain, &lum_idx, &color_temp,
+                 &r_gain, &b_gain, &af_mov);
+
+    printf("exp_line: %d\n", exp_line);
+    printf("analog_gain: %d (origin: %d)\n", analog_gain, analog_gain << 4);
+    printf("lum_idx: %d\n", lum_idx);
+    printf("color_temp: %d\n", color_temp);
+    printf("r_gain: %d\n", r_gain);
+    printf("b_gain: %d\n", b_gain);
+    printf("af_mov: %d\n", af_mov);
+*/
+	return 0;
 #endif
 }
 

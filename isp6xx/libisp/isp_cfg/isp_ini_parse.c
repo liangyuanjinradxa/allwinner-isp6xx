@@ -26,8 +26,6 @@
 #include "../include/isp_debug.h"
 #include "../isp_dev/tools.h"
 
-#define ISP_LIB_USE_INIPARSER 1
-
 #if (ISP_VERSION == 600)
 #include "SENSOR_H/gc2053_mipi_default_ini_v853.h"
 #include "SENSOR_H/gc4663_mipi_default_ini_v853.h"
@@ -36,6 +34,12 @@
 #include "SENSOR_H/s5k5e8_default_ini_a523.h"
 #include "SENSOR_H/imx386_mipi_default_ini_capture_a523.h"
 #include "SENSOR_H/imx386_mipi_default_ini_video_a523.h"
+#include "SENSOR_H/imx214_mipi_default_ini_capture_t527.h"
+#include "SENSOR_H/imx214_mipi_3840_2160_t527.h"
+#include "SENSOR_H/imx214_mipi_1080p_t527.h"
+#include "SENSOR_H/imx219_mipi_default_ini_capture_t527.h"
+#include "SENSOR_H/imx219_mipi_1080p_t527.h"
+#include "SENSOR_H/imx415_mipi_default_ini_capture_t527.h"
 #elif (ISP_VERSION == 602)
 #include "SENSOR_H/ov13850_mipi_default_ini_a733.h"
 #include "SENSOR_H/ov13850_mipi_default_ini_video_a733.h"
@@ -44,8 +48,16 @@
 #include "SENSOR_H/ov13b10_mipi_default_ini_video_a733.h"
 #include "SENSOR_H/ov13b10_mipi_default_ini_capture_a733.h"
 #include "SENSOR_H/gc05a2_mipi_default_ini_a733.h"
+#include "SENSOR_H/imx386_mipi_default_ini_capture_a733.h"
+#include "SENSOR_H/imx386_mipi_default_ini_video_a733.h"
 #include "SENSOR_H/gc030a_mipi_a733.h"
 #include "SENSOR_H/gc05a2_mipi_2_a733.h"
+#include "SENSOR_H/imx214_mipi_default_ini_capture_a733.h"
+#include "SENSOR_H/imx214_mipi_3840_2160.h"
+#include "SENSOR_H/imx214_mipi_1080p.h"
+#include "SENSOR_H/imx219_mipi_default_ini_capture_a733.h"
+#include "SENSOR_H/imx219_mipi_1080p.h"
+#include "SENSOR_H/imx415_mipi_default_ini_capture_a733.h"
 #elif (ISP_VERSION == 603)
 #include "SENSOR_H/gc1084_mipi_default_ini_v821.h"
 #include "SENSOR_H/gc2053_mipi_default_ini_v821.h"
@@ -56,6 +68,11 @@
 #else
 #include "SENSOR_H/imx319_mipi_default_ini_a523.h"
 #endif
+
+#define ISP_LIB_USE_INIPARSER 1
+#define EXTERNEL_BASE_PATH_COLOR "/mnt/"
+#define EXTERNEL_BASE_PATH_IR    "/tmp/isp_test/ir/"
+#define EXTERNEL_BASE_PATH_AIISP "/tmp/isp_test/aiisp/"
 
 unsigned int isp_cfg_log_param = ISP_LOG_CFG;
 
@@ -939,6 +956,12 @@ struct isp_cfg_array cfg_arr[] = {
 	{"imx319_mipi", "imx319_mipi_default_ini_a523", 3264, 2448, 30, 0, 0, &imx319_mipi_isp_cfg},
 	{"imx386_mipi", "imx386_mipi_default_ini_a523", 3840, 2160, 30, 0, 0, &imx386_mipi_capture_isp_cfg},
 	{"imx386_mipi", "imx386_mipi_default_ini_a523", 1920, 1080, 30, 0, 0, &imx386_mipi_video_isp_cfg},
+	{"imx214", "imx214_default_ini_a523", 4208, 3120, 30, 0, 0, &imx214_isp_cfg},
+	{"imx214", "imx214_isp_cfg", 3840, 2160, 30, 0, 0, &imx214_mipi_isp_cfg},
+	{"imx214", "imx214_isp_1080p_cfg", 1920, 1080, 30, 0, 0, &imx214_1080p_isp_cfg},
+	{"imx219", "imx219_default_ini_a523", 3280, 2464, 30, 0, 0, &imx219_isp_cfg},
+	{"imx219", "imx219_isp_cfg", 1920, 1080, 30, 0, 0, &imx219_mipi_1080p_isp_cfg},
+	{"imx415_mipi", "imx415_default_ini_a523", 3840, 2160, 30, 0, 0, &imx415_mipi_isp_cfg},
 #elif (ISP_VERSION == 602)
 	{"ov13850_mipi", "ov13850_mipi_default_ini_a733", 4224, 3136, 30, 0, 0, &ov13850_mipi_isp_cfg},
 	{"ov13850_mipi", "ov13850_mipi_default_ini_a733", 4224, 3136, 18, 0, 0, &ov13850_mipi_capture_isp_cfg},
@@ -947,8 +970,16 @@ struct isp_cfg_array cfg_arr[] = {
 	{"ov13b10_mipi", "ov13b10_mipi_default_ini_a733", 4160, 3120, 18, 0, 0, &ov13b10_mipi_capture_isp_cfg},
 	{"ov13b10_mipi", "ov13b10_mipi_default_ini_a733", 2104, 1560, 30, 0, 0, &ov13b10_mipi_video_isp_cfg},
 	{"gc05a2_mipi", "gc05a2_mipi_default_ini_a733", 2592, 1944, 30, 0, 0, &gc05a2_mipi_a733_isp_cfg},
+	{"imx386_mipi", "imx386_mipi_default_ini_a733", 3840, 2160, 30, 0, 0, &imx386_mipi_capture_isp_cfg},
+	{"imx386_mipi", "imx386_mipi_default_ini_a733", 1920, 1080, 30, 0, 0, &imx386_mipi_video_isp_cfg},
 	{"gc05a2_mipi_2", "gc05a2_mipi_2_a733", 2592, 1944, 30, 0, 0, &gc05a2_mipi_2_a733_isp_cfg},
 	{"gc030a_mipi", "gc030a_mipi_isp_cfg", 640, 480, 30, 0, 0, &gc030a_mipi_isp_cfg},
+	{"imx214_mipi", "imx214_mipi_default_ini_a733", 4208, 3120, 30, 0, 0, &imx214_isp_cfg},
+	{"imx214_mipi", "imx214_mipi_isp_cfg", 3840, 2160, 30, 0, 0, &imx214_mipi_isp_cfg},
+	{"imx214_mipi", "imx214_mipi_isp_1080p_cfg", 1920, 1080, 30, 0, 0, &imx214_mipi_1080p_isp_cfg},
+	{"imx219_mipi", "imx219_mipi_default_ini_a733", 3280, 2464, 30, 0, 0, &imx219_isp_cfg},
+	{"imx219_mipi", "imx219_mipi_isp_cfg", 1920, 1080, 30, 0, 0, &imx219_mipi_1080p_isp_cfg},
+	{"imx415_mipi", "imx415_mipi_default_ini_a733", 3840, 2160, 30, 0, 0, &imx415_mipi_isp_cfg},
 #elif (ISP_VERSION == 603)
 	{"gc1084_mipi", "gc1084_mipi_default_ini_v821", 1280, 720, 20, 0, 0, &gc1084_mipi_gj_color_isp_cfg},
 	{"gc2053_mipi", "gc2053_mipi_default_ini_v821", 1920, 1080, 20, 0, 0, &gc2053_mipi_v821_isp_cfg},
@@ -994,121 +1025,6 @@ int find_nearest_index(int mod, int temp)
 	ISP_CFG_LOG(ISP_LOG_CFG, "nearest temp index: %d.\n", index);
 	return index;
 }
-
-#if 0
-int parser_sync_info(struct isp_param_config *param, char *isp_cfg_name, int isp_id)
-{
-	FILE *file_fd = NULL;
-	char fdstr[50];
-	int sync_info[775];
-	int lsc_ind = 0, lsc_cnt = 0, lsc_tab_cnt = 0;
-	int version_num = 0;
-	int lsc_temp = 0;
-	int enable = 0;
-
-	sprintf(fdstr, "/mnt/extsd/%s_%d.bin", isp_cfg_name, isp_id);
-	file_fd = fopen(fdstr, "rb");
-	if (!file_fd) {
-		ISP_ERR("open bin failed.\n");
-		return -1;
-	} else {
-		fread(&sync_info[0], sizeof(int)*775, 1, file_fd);
-	}
-	fclose(file_fd);
-
-	version_num = sync_info[0];
-	enable = sync_info[1];
-
-	ISP_CFG_LOG(ISP_LOG_CFG, "%s enable mode = %d.\n", __func__, enable);
-
-	if (0 == enable) {
-		return 0;
-	} else if (1 == enable) {
-		memcpy(param->isp_tunning_settings.bayer_gain, &sync_info[2], sizeof(int)*ISP_RAW_CH_MAX);
-		return 0;
-	} else if (2 == enable) {
-		goto lsc_tbl;
-	}
-	memcpy(param->isp_tunning_settings.bayer_gain, &sync_info[2], sizeof(int)*ISP_RAW_CH_MAX);
-
-	ISP_CFG_LOG(ISP_LOG_CFG, "%s bayer_gain: %d, %d, %d, %d.\n", __func__,
-		param->isp_tunning_settings.bayer_gain[0], param->isp_tunning_settings.bayer_gain[1],
-		param->isp_tunning_settings.bayer_gain[2], param->isp_tunning_settings.bayer_gain[3]);
-lsc_tbl:
-	lsc_temp = sync_info[6];
-	lsc_ind = find_nearest_index(param->isp_tunning_settings.ff_mod, lsc_temp);
-	ISP_CFG_LOG(ISP_LOG_CFG, "%s lsc_ind: %d.\n", __func__, lsc_ind);
-
-	if(param->isp_tunning_settings.ff_mod == 1) {
-		for(lsc_tab_cnt = 0; lsc_tab_cnt < 4; lsc_tab_cnt++) {
-			if(lsc_tab_cnt == lsc_ind)
-				continue;
-			for(lsc_cnt = 0; lsc_cnt < 768; lsc_cnt++) {
-				param->isp_tunning_settings.lsc_tbl[lsc_tab_cnt][lsc_cnt]
-					= sync_info[7+lsc_cnt]*param->isp_tunning_settings.lsc_tbl[lsc_tab_cnt][lsc_cnt]/param->isp_tunning_settings.lsc_tbl[lsc_ind][lsc_cnt];
-			}
-		}
-
-		for(lsc_tab_cnt = 4; lsc_tab_cnt < 8; lsc_tab_cnt++) {
-			if(lsc_tab_cnt == (lsc_ind+4))
-				continue;
-			for(lsc_cnt = 0; lsc_cnt < 768; lsc_cnt++) {
-				param->isp_tunning_settings.lsc_tbl[lsc_tab_cnt][lsc_cnt]
-					= sync_info[7+lsc_cnt]*param->isp_tunning_settings.lsc_tbl[lsc_tab_cnt][lsc_cnt]/param->isp_tunning_settings.lsc_tbl[lsc_ind+4][lsc_cnt];
-			}
-		}
-		for(lsc_cnt = 0; lsc_cnt < 768; lsc_cnt++)
-			param->isp_tunning_settings.lsc_tbl[lsc_ind][lsc_cnt] = param->isp_tunning_settings.lsc_tbl[lsc_ind+4][lsc_cnt]
-				= sync_info[7+lsc_cnt];
-
-		ISP_CFG_LOG(ISP_LOG_CFG, "%s lsc_tbl_1 0: %d, 1: %d, 766: %d, 767: %d.\n", __func__,
-			param->isp_tunning_settings.lsc_tbl[1][0], param->isp_tunning_settings.lsc_tbl[1][1],
-			param->isp_tunning_settings.lsc_tbl[1][766], param->isp_tunning_settings.lsc_tbl[1][767]);
-	} else if(param->isp_tunning_settings.ff_mod == 2) {
-		for(lsc_tab_cnt = 0; lsc_tab_cnt < 6; lsc_tab_cnt++) {
-			if(lsc_tab_cnt == lsc_ind)
-				continue;
-			for(lsc_cnt = 0; lsc_cnt < 768; lsc_cnt++) {
-				if(param->isp_tunning_settings.lsc_tbl[lsc_ind][lsc_cnt] == 0) {
-					ISP_ERR("lsc_ind: %d, lsc_cnt: %d is zero.\n", lsc_ind, lsc_cnt);
-					continue;
-				} else
-					param->isp_tunning_settings.lsc_tbl[lsc_tab_cnt][lsc_cnt]
-						= sync_info[7+lsc_cnt]*param->isp_tunning_settings.lsc_tbl[lsc_tab_cnt][lsc_cnt]/param->isp_tunning_settings.lsc_tbl[lsc_ind][lsc_cnt];
-				if(param->isp_tunning_settings.lsc_tbl[lsc_tab_cnt][lsc_cnt] == 0) {
-					ISP_ERR("result------>lsc_ind: %d, lsc_cnt: %d is zero.\n", lsc_tab_cnt, lsc_cnt);
-				}
-			}
-		}
-
-		for(lsc_tab_cnt = 6; lsc_tab_cnt < 12; lsc_tab_cnt++) {
-			if(lsc_tab_cnt == (lsc_ind+6))
-				continue;
-			for(lsc_cnt = 0; lsc_cnt < 768; lsc_cnt++) {
-				if(param->isp_tunning_settings.lsc_tbl[lsc_ind + 7][lsc_cnt] == 0) {
-					ISP_ERR("lsc_ind: %d, lsc_cnt: %d is zero.\n", lsc_ind+6, lsc_cnt);
-					continue;
-				} else
-					param->isp_tunning_settings.lsc_tbl[lsc_tab_cnt][lsc_cnt]
-						= sync_info[7+lsc_cnt]*param->isp_tunning_settings.lsc_tbl[lsc_tab_cnt][lsc_cnt]/param->isp_tunning_settings.lsc_tbl[lsc_ind+6][lsc_cnt];
-				if(param->isp_tunning_settings.lsc_tbl[lsc_tab_cnt][lsc_cnt] == 0) {
-					ISP_ERR("result------>lsc_ind: %d, lsc_cnt: %d is zero.\n", lsc_tab_cnt, lsc_cnt);
-				}
-			}
-		}
-		for(lsc_cnt = 0; lsc_cnt < 768; lsc_cnt++)
-			param->isp_tunning_settings.lsc_tbl[lsc_ind][lsc_cnt] = param->isp_tunning_settings.lsc_tbl[lsc_ind+6][lsc_cnt]
-				= sync_info[7+lsc_cnt];
-
-		ISP_CFG_LOG(ISP_LOG_CFG, "%s lsc_tbl_1 0: %d, 1: %d, 766: %d, 767: %d.\n", __func__,
-			param->isp_tunning_settings.lsc_tbl[1][0], param->isp_tunning_settings.lsc_tbl[1][1],
-			param->isp_tunning_settings.lsc_tbl[1][766], param->isp_tunning_settings.lsc_tbl[1][767]);
-	} else {
-		ISP_ERR("isp ff_mod error.\n");
-	}
-	return 0;
-}
-#endif
 
 int isp_save_tbl(struct isp_param_config *param, char *tbl_patch)
 {
@@ -1195,7 +1111,7 @@ int isp_load_ini_param(struct isp_param_config *param, char *path)
 	return 0;
 }
 
-int isp_load_bin_param(struct isp_param_config *param, char *path)
+int isp_load_bin_param(struct isp_param_config *param, char *isp_cfg_name, char *path)
 {
 	char fdstr[128], time[20], notes[50];
 	unsigned int size;
@@ -1222,6 +1138,8 @@ int isp_load_bin_param(struct isp_param_config *param, char *path)
 			fclose(file_fd);
 			return -1;
 		}
+		/* update isp_cfg_name for isp_debug_info */
+		strcpy(isp_cfg_name, notes);
 		ISP_PRINT("Read seccess... Time:%s  Notes:%s\n", time, notes);
 	}
 	fclose(file_fd);
@@ -1252,29 +1170,46 @@ int isp_save_bin(struct isp_param_config *param, char *path)
 	return 0;
 }
 
-int parser_ini_info(struct isp_param_config *param, char *sensor_name,
-			int w, int h, int fps, int wdr, int ir, int sync_mode, int isp_id)
+int parse_isp_cfg(struct isp_param_config *param, char *isp_cfg_name, char *sensor_name, int isp_id, int ir, char *isp_cfg_path)
 {
-	int i, ret = 0;
-	struct isp_cfg_pt *cfg = NULL;
+	char isp_ini_path[ISP_CFG_BIN_PATH_LEN];
 
 #if ISP_LIB_USE_INIPARSER
-	char path[20] = "/mnt/extsd/";
-	char isp_cfg_path[128];
-
-	if (strcmp(sensor_name, "")) {
-		sprintf(isp_cfg_path, "%s%s/", path, sensor_name);
-	} else {
-		ISP_ERR("sensor cfg name is invalid\n");
-		return -1;
-	}
 	//load ini parameter
-	if (!isp_load_ini_param(param, isp_cfg_path))
+	sprintf(isp_ini_path, "%s%s/", isp_cfg_path, sensor_name);
+	if (!isp_load_ini_param(param, isp_ini_path))
 		return 0;
+#endif
 
 	//load bin parameter
-	if (!isp_load_bin_param(param, path))
+	if (!isp_load_bin_param(param, isp_cfg_name, isp_cfg_path))
 		return 0;
+
+	return -1;
+}
+
+int parser_ini_info(struct isp_param_config *param, char *isp_cfg_name, char *sensor_name,
+			int w, int h, int fps, int wdr, int ir, int sync_mode, int isp_id)
+{
+	int i;
+	struct isp_cfg_pt *cfg = NULL;
+	char isp_cfg_path[ISP_CFG_BIN_PATH_LEN];
+
+#if ISP_LIB_USE_INIPARSER
+	if (ir == 0) {
+		sprintf(isp_cfg_path, "%s", EXTERNEL_BASE_PATH_COLOR);
+	} else if (ir == 1) {
+		sprintf(isp_cfg_path, "%s", EXTERNEL_BASE_PATH_IR);
+	} else {
+		sprintf(isp_cfg_path, "%s", EXTERNEL_BASE_PATH_AIISP);
+	}
+
+	if(access(isp_cfg_path, F_OK) == 0) {
+		ISP_PRINT("detect %s success.\n", isp_cfg_path);
+		//load ini/bin parameter
+		if (!parse_isp_cfg(param, isp_cfg_name, sensor_name, isp_id, ir, isp_cfg_path))
+			return 0;
+	}
 #endif
 
 	//load header parameter
@@ -1317,19 +1252,19 @@ int parser_ini_info(struct isp_param_config *param, char *sensor_name,
 			cfg = cfg_arr[i-1].cfg;// use the last one
 		}
 	}
-
-	if (cfg != NULL) {
+	strcpy(isp_cfg_name, cfg_arr[i].isp_cfg_name);
+	if (cfg) {
 		param->isp_test_settings = *cfg->isp_test_settings;
 		param->isp_3a_settings = *cfg->isp_3a_settings;
 		param->isp_iso_settings = *cfg->isp_iso_settings;
 		param->isp_tunning_settings = *cfg->isp_tunning_settings;
+	} else {
+		ISP_ERR("isp%d cfg is NULL!\n", isp_id);
+		return -1;
 	}
 
 	//isp_save_tbl(param, "/mnt/extsd/");
 	//isp_save_bin(param, "/tmp/");
-
-	//if(sync_mode)
-	//	parser_sync_info(param, cfg_arr[i].isp_cfg_name, isp_id);
 
 	return 0;
 }

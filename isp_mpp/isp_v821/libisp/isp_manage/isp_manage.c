@@ -260,8 +260,6 @@ void __isp_rolloff_set_params(struct isp_lib_context *isp_gen)
 
 void __isp_rolloff_run(struct isp_lib_context *isp_gen)
 {
-	unsigned short *lens_tbl = (unsigned short *)isp_gen->module_cfg.lens_table;
-	int i;
 	isp_rolloff_entity_context_t *isp_rolloff_cxt = &isp_gen->rolloff_entity_ctx;
 
 	isp_rolloff_cxt->ops->isp_rolloff_run(isp_rolloff_cxt->rolloff_entity,
@@ -967,7 +965,7 @@ void __isp_pltm_run(struct isp_lib_context *isp_gen)
 	pltm_result_t *result = &isp_gen->pltm_entity_ctx.pltm_result;
 	struct isp_pltm_config *pltm_cfg = &isp_gen->module_cfg.pltm_cfg;
 	isp_pltm_entity_context_t *isp_pltm_ctx = &isp_gen->pltm_entity_ctx;
-	int ret = 0, dcc_ratio;
+	int ret = 0;
 
 	if (isp_gen->ops->pltm_done) {
 		ret = isp_gen->ops->pltm_done(isp_gen, &isp_pltm_ctx->pltm_result);
@@ -2530,7 +2528,6 @@ HW_S32 __isp_ctx_update_af_cfg(struct isp_lib_context *isp_gen)
 	memcpy(&isp_gen->af_entity_ctx.af_param->af_ini.af_tolerance_value_tbl[0],
 		&isp_gen->isp_ini_cfg.isp_3a_settings.af_tolerance_value_tbl[0], 20*sizeof(int));
 	isp_gen->af_entity_ctx.af_param->af_ini.af_delay_frame = isp_gen->isp_ini_cfg.isp_3a_settings.af_reserve_0;
-	isp_gen->af_entity_ctx.af_param->af_ini.af_touch_dist_ind = isp_gen->isp_ini_cfg.isp_3a_settings.af_reserve_1;
 	isp_af_set_params_helper(&isp_gen->af_entity_ctx, ISP_AF_INI_DATA);
 
 	isp_gen->af_entity_ctx.af_param->test_cfg.isp_test_mode = isp_gen->isp_ini_cfg.isp_test_settings.isp_test_mode;

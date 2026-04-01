@@ -38,6 +38,8 @@
 #include "../isp_vencode/ispSimpleCode.h"
 #endif
 
+#define NPU_MODEL_PATH "/mnt/extsd/npu_model/"
+
 typedef enum _capture_error_e {
 	CAP_ERR_NONE               = 0x00,
 	CAP_ERR_MPI_INIT,
@@ -78,6 +80,7 @@ typedef struct _capture_format_s {
 	int                      isp;
 	int                      stitch_mode;
 	int                      ptn_en;
+	int                      aiisp_en;
 } capture_format;
 
 typedef struct _sensor_input_s {
@@ -91,6 +94,7 @@ typedef struct _sensor_input_s {
 	int                      index; //rear:0 front:1
 	int                      stitch_mode;
 	int                      ptn_en;
+	int                      aiisp_en;
 } sensor_input;
 
 typedef struct _region_s
@@ -126,7 +130,7 @@ int update_ptn_count(int vich, unsigned char ptn_type, unsigned int start_frame,
  * set sensor input
  * returns capture_error code
  */
-int set_sensor_input(const sensor_input *sensor_in);
+int set_sensor_input(sensor_input *sensor_in);
 /*
  * get capture buffer
  * cap_fmt->buffer should alloc in advance

@@ -113,20 +113,8 @@ typedef enum
 	ISPInfoType_Level4 = 1 << 3,
 } ISPInfoType;
 
-#define SEI_LEVEL1_LEN (40)
-#define SEI_LEVEL2_LEN (48)
-#define SEI_LEVEL3_LEN (7008)
-#define SEI_LEVEL4_LEN (176)
-typedef struct
-{
-	int nInfoBitFlags; // ISPInfoType_exp | ISPInfoType_colortemp | ISPInfoType_awb | ISPInfoType_version
-	char mInfoLevel1[SEI_LEVEL1_LEN];
-	char mInfoLevel2[SEI_LEVEL2_LEN];
-	char mInfoLevel3[SEI_LEVEL3_LEN];
-	char mInfoLevel4[SEI_LEVEL4_LEN];
-} ISPSeiInfo;
 
-int isp_GetSEIInfo(int dev_id, ISPSeiInfo *pInfo);
+int isp_GetSEIInfo(int dev_id, struct isp_video_device *video, ISPSeiInfo *pInfo);
 
 #ifdef __cplusplus
 }

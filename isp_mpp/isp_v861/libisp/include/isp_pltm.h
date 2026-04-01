@@ -52,6 +52,8 @@ typedef struct isp_pltm_param {
 	HW_S32 wdr_ratio_real;
 	HW_U16 pltm_min_stren;
 	int ThreshValue;
+	int changeUpFrmCnt;
+	int changeDwFrmCnt;
 } pltm_param_t;
 
 typedef struct isp_pltm_stats {

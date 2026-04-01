@@ -1,0 +1,50 @@
+
+LINUX_DIR := ../include/V4l2Camera/
+
+CFLAGS	:=  -Os -pipe -fno-caller-saves -Wno-unused-result -g -D_FILE_OFFSET_BITS=64  -Wformat -Werror=format-security -fstack-protector \
+			-D_FORTIFY_SOURCE=1 -Wl,-z,now -Wl,-z,relro -fPIC -Wall -Wno-unused-function -Wno-unused-variable -Wno-unused-but-set-variable \
+			-Wno-unused-label -Werror=array-bounds -Wno-sign-compare -Iinclude -I$(LINUX_DIR) -Iinclude/device -fPIC
+
+ifneq ($(findstring toolchain-sunxi-glibc,$(CC)),)
+ifeq ($(V),32)
+	CFLAGS	+= -mfpu=neon -mfloat-abi=hard -fdiagnostics-color=auto
+endif
+endif
+
+ifneq ($(findstring toolchain-sunxi-musl,$(CC)),)
+ifeq ($(V),32)
+	CFLAGS	+= -mfpu=neon -mfloat-abi=hard -fdiagnostics-color=auto
+endif
+endif
+
+CFLAGS += -DISP_VERSION=$(ISP_VERSION)
+
+LDFLAGS	:=
+
+OBJECTS := media.o \
+	   isp_dev.o \
+	   video.o \
+	   isp_v4l2_helper.o
+
+install:libisp_dev.a libisp_dev.so
+	rm -rf  $(OBJECTS)
+	$(STP) --strip-debug --strip-unneeded *.a
+	$(STP) --strip-debug --strip-unneeded *.so
+	mv *.a ../out/$(TLDIR)
+	mv *.so ../out/$(TLDIR)
+
+%.o : %.c
+	$(CC) $(CFLAGS) -c -o $@ $<
+
+all: libisp_dev.a libisp_dev.so
+
+libisp_dev.a: $(OBJECTS)
+	$(AR) r $@ $^
+
+libisp_dev.so: $(OBJECTS)
+	$(CC) -o $@ -shared $^
+
+clean:
+	-$(RM) $(OBJECTS)
+	-$(RM) libisp_dev.so
+	-$(RM) libisp_dev.a

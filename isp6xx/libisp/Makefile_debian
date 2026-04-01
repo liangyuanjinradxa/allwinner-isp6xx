@@ -1,0 +1,141 @@
+CFLAGS	:=  -Os -pipe -fno-caller-saves -Wno-unused-result -g -D_FILE_OFFSET_BITS=64  -Wformat  -fstack-protector \
+			-D_FORTIFY_SOURCE=1 -Wl,-z,now -Wl,-z,relro -fPIC -Wall -Wno-unused-function -Wno-unused-variable \
+			-Wno-unused-but-set-variable -Wno-unused-label -Wall -Iinclude -Iinclude/V4l2Camera -Iinclude/device -fPIC
+mkfile_path := $(abspath $(lastword $(MAKEFILE_LIST)))i
+
+
+LDFLAGS := -static -lpthread -lc -lgcc_eh -L./out/$(TLDIR)
+ifneq ($(findstring toolchain-sunxi-glibc,$(CC)),)
+ifeq ($(V),32)
+CFLAGS += -mfpu=neon -mfloat-abi=hard -fdiagnostics-color=auto
+endif
+#ifeq ($(ISP_VERSION), 606)
+#CFLAGS += -Iisp_vencode/include -DANDROID_VENCODE
+#endif
+else ifneq ($(findstring toolchain-sunxi-musl,$(CC)),)
+ifeq ($(V),32)
+CFLAGS += -mfpu=neon -mfloat-abi=hard -fdiagnostics-color=auto -Iisp_vencode/include -DANDROID_VENCODE
+endif
+LDFLAGS += -L./isp_vencode/$(ISP_VERSION)/lib -L./isp_ai_awb/lib
+else ifneq ($(findstring nds32le-linux-musl-v5d,$(CC)),)
+ifeq ($(ISP_VERSION), 603)
+CFLAGS += -Iisp_vencode/include -DANDROID_VENCODE
+LDFLAGS += -L./isp_vencode/$(ISP_VERSION)/lib
+endif
+endif
+
+CFLAGS += -DISP_VERSION=$(ISP_VERSION)
+
+LIBS	:= -lisp_dev -lisp_algo -lisp_math \
+		 -lisp_ini -liniparser -lpthread -lrt -lm
+ifneq ($(findstring toolchain-sunxi-musl,$(CC)),)
+ifeq ($(V),32)
+LIBS += -lai_awb
+ifeq ($(ISP_VERSION), 600)
+LIBS += -lvencoder -lMemAdapter -lvenc_codec -lVE  -lvenc_base -lcdc_base
+endif
+endif
+else ifneq ($(findstring nds32le-linux-musl-v5d,$(CC)),)
+ifeq ($(ISP_VERSION), 603)
+LIBS += -lvencoder -lMemAdapter -lvenc_h264 -lvenc_jpeg -lvenc_common -lVE -lvenc_base -lcdc_base -lexpat
+endif
+endif
+
+OBJ_TOOLS := tuning_app/awTuningApp.o tuning_app/log_handle.o tuning_app/socket_protocol.o tuning_app/thread_pool.o \
+		tuning_app/server/capture_image.o tuning_app/server/isp_handle.o tuning_app/server/mini_shell.o \
+		tuning_app/server/server.o tuning_app/server/server_api.o tuning_app/server/server_core.o \
+		tuning_app/server/register_opt.o tuning_app/server/raw_flow_opt.o \
+		isp.o isp_events/events.o isp_tuning/isp_tuning.o isp_manage/isp_manage.o isp_manage/isp_helper.o
+ifneq ($(findstring toolchain-sunxi-glibc,$(CC)),)
+#ifeq ($(ISP_VERSION), 606)
+#OBJ_TOOLS += isp_vencode/ispSimpleCode.o
+#endif
+else ifneq ($(findstring toolchain-sunxi-musl,$(CC)),)
+ifeq ($(V),32)
+OBJ_TOOLS += isp_vencode/ispSimpleCode.o
+endif
+else ifneq ($(findstring nds32le-linux-musl-v5d,$(CC)),)
+ifeq ($(ISP_VERSION), 603)
+OBJ_TOOLS += isp_vencode/ispSimpleCode.o
+endif
+endif
+
+OBJ_LIBISP := isp.o isp_events/events.o isp_tuning/isp_tuning.o isp_manage/isp_manage.o isp_manage/isp_helper.o
+OBJ_LIBAWISP := ../AWIspApi.o
+local_AWISP_CFLAGS := \
+	-I./include/V4l2Camera \
+    -I./include/device \
+    -I./include \
+    -I./isp_dev \
+    -I./isp_tuning \
+    -I./
+
+%.o : %.c
+	$(CC) $(CFLAGS) -c -o $@ $<
+
+all: __isp_dev __libisp_cfg __libiniparser __libisp_math __out libisp.so libAWIspApi.so awTuningApp
+
+libisp.so: $(OBJ_LIBISP)
+	$(CC) -shared -fPIC -o $@ $^ -L. -L./out/$(TLDIR) -Wl,-Bstatic -lisp_algo -lisp_dev -lisp_math -lisp_ini -liniparser -Wl,-Bdynamic
+
+../AWIspApi.o: ../AWIspApi.c
+	$(CC) -c -fPIC $(local_AWISP_CFLAGS) $< -o $@
+
+libAWIspApi.so: $(OBJ_LIBAWISP)
+	$(CC) -shared -fPIC $(local_AWISP_CFLAGS) -o $@ $^ -L. -L./out/$(TLDIR) -lisp -lisp_ini
+
+awTuningApp: $(OBJ_TOOLS)
+	$(CC) $(SNAP_LDFLAGS) -o $@ $(OBJ_TOOLS) $(LDFLAGS) $(LIBS)
+
+#	$(STP) vin_test
+#	$(STP) vin_isp_test
+#	$(STP) server
+	$(STP) awTuningApp
+	$(STP) libisp.so
+	$(STP) libAWIspApi.so
+	
+	mv *.so ./out/$(TLDIR)
+	cp -f ./out/$(TLDIR)/libAWIspApi.so ./out/libAWIspApi_$(ISP_VERSION)/usr/lib/aarch64-linux-gnu/
+	cp -f ./out/$(TLDIR)/libisp.so ./out/libAWIspApi_$(ISP_VERSION)/usr/lib/aarch64-linux-gnu/
+	cp -f ./out/$(TLDIR)/libisp_ini.so ./out/libAWIspApi_$(ISP_VERSION)/usr/lib/aarch64-linux-gnu/
+	dpkg-deb -b ./out/libAWIspApi_$(ISP_VERSION) ./out/libAWIspApi_$(ISP_VERSION)_1.0.0_arm64.deb
+	
+__isp_dev:
+	$(MAKE) -C isp_dev CROSS_COMPILE=$(CROSS_COMPILE) KDIR=$(KDIR)
+
+__libisp_cfg:
+	$(MAKE) -C isp_cfg CROSS_COMPILE=$(CROSS_COMPILE) KDIR=$(KDIR)
+
+__libiniparser:
+	$(MAKE) -C iniparser CROSS_COMPILE=$(CROSS_COMPILE) KDIR=$(KDIR)
+
+__libisp_math:
+	$(MAKE) -C isp_math CROSS_COMPILE=$(CROSS_COMPILE) KDIR=$(KDIR)
+	
+__out:
+	$(MAKE) -C out CROSS_COMPILE=$(CROSS_COMPILE) KDIR=$(KDIR)
+
+clean:
+	$(MAKE) -C isp_dev clean
+	$(MAKE) -C isp_cfg clean
+	$(MAKE) -C iniparser clean
+	$(MAKE) -C isp_math clean
+	-$(RM) *.o
+	-$(RM) server
+#	-$(RM) vin_test
+#	-$(RM) vin_isp_test
+	-$(RM) libisp.so
+	-$(RM) isp_events/*.o
+	-$(RM) isp_tuning/*.o
+	-$(RM) isp_manage/*.o
+	-$(RM) libAWIspApi.so
+ifneq ($(findstring toolchain-sunxi-musl,$(CC)),)
+	-$(RM) isp_vencode/*.o
+else ifneq ($(findstring nds32le-linux-musl-v5d,$(CC)),)
+	-$(RM) isp_vencode/*.o
+endif
+	-$(RM) awTuningApp
+	-$(RM) tuning_app/*.o
+	-$(RM) tuning_app/server/*.o
+	-$(RM) out/$(TLDIR)/*.a
+	-$(RM) out/$(TLDIR)/*.so

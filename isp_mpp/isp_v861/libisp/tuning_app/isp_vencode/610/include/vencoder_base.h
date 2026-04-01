@@ -1,5 +1,6 @@
-/*
-* Copyright (c) 2019-2025 Allwinner Technology Co., Ltd. ALL rights reserved.
+/* SPDX-License-Identifier: GPL-2.0-or-later WITH Linux-syscall-note */
+
+/* Copyright (c) 2019-2025 Allwinner Technology Co., Ltd. ALL rights reserved.
 *
 * Allwinner is a trademark of Allwinner Technology Co.,Ltd., registered in
 * the the people's Republic of China and other countries.
@@ -7,12 +8,12 @@
 *
 * DISCLAIMER
 * THIRD PARTY LICENCES MAY BE REQUIRED TO IMPLEMENT THE SOLUTION/PRODUCT.
-* IF YOU NEED TO INTEGRATE THIRD PARTY’S TECHNOLOGY (SONY, DTS, DOLBY, AVS OR MPEGLA, ETC.)
-* IN ALLWINNERS’SDK OR PRODUCTS, YOU SHALL BE SOLELY RESPONSIBLE TO OBTAIN
+* IF YOU NEED TO INTEGRATE THIRD PARTY'S TECHNOLOGY (SONY, DTS, DOLBY, AVS OR MPEGLA, ETC.)
+* IN ALLWINNERS'SDK OR PRODUCTS, YOU SHALL BE SOLELY RESPONSIBLE TO OBTAIN
 * ALL APPROPRIATELY REQUIRED THIRD PARTY LICENCES.
 * ALLWINNER SHALL HAVE NO WARRANTY, INDEMNITY OR OTHER OBLIGATIONS WITH RESPECT TO MATTERS
 * COVERED UNDER ANY REQUIRED THIRD PARTY LICENSE.
-* YOU ARE SOLELY RESPONSIBLE FOR YOUR USAGE OF THIRD PARTY’S TECHNOLOGY.
+* YOU ARE SOLELY RESPONSIBLE FOR YOUR USAGE OF THIRD PARTY'S TECHNOLOGY.
 *
 *
 * THIS SOFTWARE IS PROVIDED BY ALLWINNER"AS IS" AND TO THE MAXIMUM EXTENT
@@ -37,8 +38,8 @@
   @author eric_wang
   @date 20241011
 */
-#ifndef _VENCODER_BASE_H_
-#define _VENCODER_BASE_H_
+#ifndef _VENCODER_BASE_SUN252IW1_H_
+#define _VENCODER_BASE_SUN252IW1_H_
 
 #ifdef __cplusplus
 extern "C" {
@@ -53,10 +54,17 @@ typedef struct VencRect {
 	int nHeight;
 } VencRect;
 
-typedef struct VencCropCfg {
-	int      bEnable;
-	VencRect Rect;
-} VencCropCfg;
+//typedef struct VencCropCfg {
+//	int      bEnable;
+//	VencRect Rect;
+//} VencCropCfg;
+typedef struct VencCropInfo {
+	unsigned int   bEnCrop;
+	unsigned int   bVirZoom;
+	VencRect CropRect;
+	unsigned int ori_out_width;
+	unsigned int ori_out_height;
+} VencCropInfo;
 
 typedef enum E_ISP_SCALER_RATIO {
 	VENC_ISP_SCALER_0		= 0, //no write back
@@ -713,7 +721,7 @@ typedef struct {
 typedef struct {
 	unsigned int            uMaxBitRate;
 	unsigned int            nMovingTh;      //range[1,31], 1:all frames are moving,
-										    //			  31:have no moving frame, default: 20
+											//			  31:have no moving frame, default: 20
 	int                     nQuality;       //range[1,20], 1:worst quality, 20:best quality
 
 	//*just support VE_ENCODER_VERSION_2, please check the comment in base/include/CdcPlatformConfig.h
@@ -763,6 +771,58 @@ typedef struct {
 } VencLambdaMapParcel;
 
 typedef struct {
+	unsigned qp                    : 6;  // [05:00]
+	unsigned skip                  : 1;  // [06]
+	unsigned qp_skip_en            : 1;  // [07]
+	unsigned lambda                : 8;  // [15:08]
+	unsigned skip_bias             : 6;  // [21:16]
+	unsigned reserve_22            : 1;  // [22]
+	unsigned skip_bias_en          : 1;  // [23]
+	unsigned inter_bias            : 6;  // [29:24]
+	unsigned reserve_30            : 1;  // [30]
+	unsigned inter_bias_en         : 1;  // [31]
+} VencMbModeLambdaQpMap;
+
+typedef struct {
+	unsigned inter8_cost_factor    : 6;  // [05:00]
+	unsigned inter16_cost_factor   : 6;  // [11:06]
+	unsigned inter_cost_factor_en  : 1;  // [12]
+	unsigned intra4_cost_factor    : 6;  // [18:13]
+	unsigned intra8_cost_factor    : 6;  // [24:19]
+	unsigned reserve_30_25         : 6;  // [30:25]
+	unsigned intra_cost_factor_en  : 1;  // [31]
+} VencMbSplitMap;
+
+typedef struct {
+	VencMbModeLambdaQpMap  low32;
+	VencMbSplitMap         high32;
+} VencMbMap;
+
+typedef struct {
+	unsigned int  sad_th;
+	unsigned int  sad_num;
+	int           hor_expand;
+	int           ver_expand;
+
+	unsigned int  mse_th[4];
+	int           mse_qp[5];
+	int           max_mse_qp;
+	int           min_mse_qp;
+
+	float         force_qp_ratio_th0;
+	float         force_qp_ratio_th1;
+} sQpMapPara;
+
+typedef struct {
+	unsigned int is_move    : 1;
+	unsigned int is_expand  : 1;
+	unsigned int en_mad     : 1;
+	unsigned int r0         : 5;
+	unsigned int mad_val    : 8;
+	unsigned int mse_val    : 16;
+} sCtuQpInfo;
+
+typedef struct {
 	// mode_ctrl_en & (0x01:QpMapEn | 0x02:ModeMapEn | 0x04:SplitMapEn | 0x08:LambdaMapEn)
 	unsigned char mode_ctrl_en;
 	unsigned char *p_info;
@@ -783,6 +843,11 @@ typedef struct {
 	float         force_qp_ratio;
 	sQpMapPara    qp_map_para;
 	sCtuQpInfo    *p_ctu_info;
+	unsigned char *p_map_info;
+	unsigned char qp_map_en;
+	unsigned char lambda_map_en;
+	unsigned char mode_map_en;
+	unsigned char split_map_en;
 	//*end
 } VencMBModeCtrl;
 
@@ -965,6 +1030,14 @@ typedef struct InsideVbrMosAicOptPar{
 	int                  nMosAicSliceDeltaQp;       // range[-10, 10], sliceQp adjustment range, the smaller the value, the bset the image quality, default value -6
 	float                nScaleDeltaRatio;          // range[0.0f, 3.0f], scale ratio for bit, use default
 	unsigned char        uCameraMoveMosaicEn;       // range[0, 1], used together with lens_moving_max_qp, defaule value is 0
+	unsigned char        uAccRecoverEn;             // range[0, 1], defaule value is 0
+	unsigned char        uAccRecoverSpeed;          // range[0,100], the larger the value, recover will be fast
+	unsigned char        uAccRecoverInterval;       // range[1,5], the smaller the value, recover will be fast
+	unsigned char        uAccRecoverMode;           // range[0,1], the large the value, recover will be fast
+	unsigned char        uAccUpdateSliceDeltaQpMode;// range[0,1], the large the value, recover will be fast
+	unsigned char        updateParamode;            // range[0, 1], 0: default value, 1: define
+	unsigned int         uIPQpParam[7];             // [0]~[2] range[0, 51], [3]~[6] range[0, 10]
+	unsigned int         uPPQpParam[7];             // [0]~[2] range[0, 51], [3]~[6] range[0, 10]
 } InsideVbrMosAicOptPar;
 
 typedef enum VENC_RC_PRIORITY {
@@ -989,6 +1062,14 @@ typedef enum VENC_PARAM_MODE {
 	VENC_VENC_PARAM_MODE_NUM,
 } VENC_PARAM_MODE;
 
+typedef enum VENC_PQ_STYLE {
+	VENC_PQ_CLOSE = 0,
+	VENC_PQ_TEND_CLEAN,
+	VENC_PQ_TEND_NORMAL,
+	VENC_PQ_TEND_TEX,
+	VENC_PQ_STYLE_NUM,
+} VENC_PQ_STYLE;
+
 typedef struct InsideVbrMoveToStaticPar{
 	unsigned int         uConstandMoveToStaticNumTh;                // range[1, maxKeyI - 1], not use
 	int                  nMoveToStaticSliceQpDelta[FACTOR_MAX_NUM]; // range[-10,10], adjustment range of sliceQp from different motion level to static scene, use default
@@ -1002,7 +1083,7 @@ typedef struct InsideClipQpFunc{
 	unsigned char MoveStatusTh;     // range[0, 4], motion status threshold, use default
 	unsigned int  MbQpTightLimitEn; // range[0, 1], enable macroblock qp narrowing adjustment amplitude, when MbQpTightLimitEn = 1, the best quality, default value 1
 	int           uAddDeltaQp;      // range[0, 10], limit classify adjustment qp amplitude, the large the value, the best the image quality, use default
-	unsigned int  uSliceQpMaxTh;    // range[minqp, maxqp], the smaller the value, the best the image quality, use default
+	unsigned int  uSliceQpMaxTh[2];    // range[minqp, maxqp], the smaller the value, the best the image quality, use default
 } InsideClipQpFunc;
 
 typedef struct InsideInstaneousBitRatePar{
@@ -1012,6 +1093,9 @@ typedef struct InsideInstaneousBitRatePar{
 	float         recodeExceedTarBrRatio; // range[0.1f, 3.0f], the smaller the value, the best the image quality, use default
 	float         fgAdjustFactorTh[FACTOR_MAX_NUM]; // range[0.01f, 3.0f], InstaneousBitRate exceed ratio, use default
 	float         fgAdjustFactor[FACTOR_MAX_NUM];   // range[0.01f, 1.0f], target bit adjust ratio, use default
+	unsigned char  uRtMedthod;       // range[0, 1], 0: old, 1:new
+	unsigned char  clipIMaxBitsEn;   // range[0, 1], when clipIMaxBitsEn = 1, the best quality, default value 0
+	unsigned int   uClipSpeed;       // range[0, 5], effective only for I-frames in non-scene-rotation scenarios, showing the fluctuation amplitude between consecutive I-frames.
 	unsigned char  dynamic_frame_qp_en;             // range[0, 1], 0: no need, 1: dynamic modify qp base on real time rt, default value 0
 	unsigned char  frame_qp_limit;                  // range[minqp, maxqp], default value 45
 	unsigned char  clpParamMode;                    // range[0, 2], 0: use soft param calc, 1: use hard param calc, 2: close func, default value 0
@@ -1033,6 +1117,8 @@ typedef struct InsideBreathFunc {
 	unsigned char uLimitQValue;    // range[minqp,maxqp]
 	unsigned char uSpeed;          // range[0,100], the larger the value, adjust speed will be fast
 	unsigned char uIPSliceClipEn;  // range[0,1], use for clip I and P sliceqp, defalue value 0
+	unsigned char uMethod;
+	unsigned char uSuperFrameFlagVaildEn; // range[0, 1], 0: non-vaild, rc no need adjust sliceqp, 1: rc need adjust qp
 } InsideBreathFunc;
 
 typedef struct InsideClassifyPar {
@@ -1045,6 +1131,8 @@ typedef struct InsideAdapQpLimit {
 	VENC_PARAM_MODE uParaUseMode;           // range[0, 1], 0: close, 1: user define, 2: adaptive adjustment
 	unsigned char increase_rt_slice_qp_low; // range[10, 51], default value 25, use for cbr, define when use_param_mode is 1 or 2
 	unsigned char decrease_rt_slice_qp_up;  // range[increase_rt_slice_qp_low, 51], default value 40, define when use_param_mode is 1 or 2
+	unsigned char camera_decrease_en;       // range[0, 1], 0: close, 1: open
+	unsigned char camera_qp_max[2];         // range[0, 51], [0]: I slice, [1]: P slice
 	int rt_bitrate_factor[8];               // range[1, 300], define when uParaUseMode is 1 or 2
 	int delta_qp[8];                        // range[-20, 20], default value 1, use for cbr, define when use_param_mode is 1 or 2
 	int envlvTh;                            // range[10, 1000], default value 50
@@ -1110,7 +1198,7 @@ typedef struct VencSplitParam {
 	unsigned char InterCoef[2];       // range[0,63], 0:32x32, 1:16x16
 	unsigned char ImeSadMaxMinMagn;   // range[0,63]
 	unsigned char ThColMvAbs;         // range[0,63]
-	unsigned char ThColMvAbsSmallMotion; // range[0,15]。
+	unsigned char ThColMvAbsSmallMotion; // range[0,15]
 	unsigned char ThMinMvAbs;            // range[0,15]
 	int ImeResiSadTh[2][6]; // range[0,127], [0][x]:32x32, [1][x]:16x16
 	int DeltaCoef[2];                 // range[-8,7], 0:32x32, 1:16x16
@@ -1130,6 +1218,7 @@ typedef struct VencSplitParam {
 typedef struct VencSaoParam {
 	unsigned char		mode; // range[0, 1], 0: adaptive mode, 1: user define
 	unsigned char		bSaoDenoiseEn; // range[0, 1]
+	unsigned char		bIModifyEn; // range[0, 1]
 	unsigned char		nFilStrMode[4]; // range[0, 9], 0:TexFil, 1:UncerFil, 2:NoiseFil, 3:MotionFil.
 										// value=0: user define filter strength, 0~8: apply the default Gaussian filter, with strength varying from low to high. 9 : close filter;
 	unsigned char		nTexFilStrTh[2]; // range[0, 63]
@@ -1156,12 +1245,13 @@ typedef struct VencSaoParam {
 
 typedef struct VencLambdaFactorParam {
 	unsigned char	ctrlMode; // range[0, 1], 0: adaptive mode, 1: user define
+	unsigned char   updateIptitLambdaFactorEn;
 	unsigned int	qSearchSqrtLambdaFactor;
 	unsigned int	dSearchSqrtLambdaFactor;
 	unsigned int	pSearchSqrtLambdaFactor;
-	unsigned int	fmeSqrtLambdaFactor;
-	unsigned int	iptitSqrtLambdaFactor;
-	unsigned int	iptitLambdaFactor;
+	unsigned int	fmeSqrtLambdaFactor[2]; // 0: use for before 3 Pslice in idr, 1: use for P slice
+	unsigned int	iptitSqrtLambdaFactor[2]; // 0: use for I slice, 1: use for P slice
+	unsigned int	iptitLambdaFactor[2]; // 0: use for I slice, 1: use for P slice
 	unsigned int	saoLumaLambdaFactor;
 	unsigned int	saoChromaLambdaFactor;
 } VencLambdaFactorParam;
@@ -1174,12 +1264,21 @@ typedef struct VencPQLineRateCtrlParam {
 	unsigned char		superFrameBitsTimes[8]; // range[0, 31]
 } VencPQLineRateCtrlParam;
 
+typedef struct VencEffectParam {
+	VENC_PQ_STYLE uMode;          // range[VENC_PQ_CLOSE, VENC_PQ_TEND_TEX], VENC_PQ_CLOSE: default value
+	unsigned char useDefaultEn;   // range[0, 1], 0: define, 1: default, use when uMode > VENC_PQ_CLOSE
+	int           envlvTh[2];     // range[-1100, 1100], default value [-200, 300]
+	unsigned char LimitmbQpTh;    // range[10, 45]
+	unsigned char useDeltaQpMode; // range[0, 1], 0: default, 1: define
+	unsigned char MbDeltaQp[17];  // range[0, 7]
+} VencEffectParam;
 
 typedef struct VencPQualityParam {
 	VencSplitParam splitParam;
 	VencSaoParam   saoParam;
 	VencLambdaFactorParam lambdaFactorParam;
 	VencPQLineRateCtrlParam lineRcParam;
+	VencEffectParam sPQStyle;
 } VencPQualityParam;
 
 
@@ -1234,10 +1333,15 @@ typedef struct {
 } VencParamFromFiles;
 
 typedef struct VencSetVbvBufInfo {
-	int   nSetVbvBufEnable;
-	int   nVbvBufSize;
+	int nSetVbvBufEnable;
+	int nVbvBufSize;
+	// kernel space
+	// Do not write to these addresses in user mode!
 	char *pVbvBuf;
 	char *pVbvPhyBuf;
+
+	// user space
+	int dma_buf_fd;
 } VencSetVbvBufInfo;
 
 #define VENC_TEXTURE_THRESHOLD_SIZE 16
@@ -1317,8 +1421,167 @@ typedef struct VencAdvDeblur {
 	VencAdvDeblurFarBg far_bg;
 } VencAdvDeblur;
 
+/* add define for v861-e214 */
+#define VE_ISP_REG_TBL_LENGTH_33         33
+#define VE_ISP_REG_TBL_LENGTH_32         32
+#define VE_ISP_REG_TBL_LENGTH_17         17
+#define VE_ISP_REG_TBL_LENGTH_16         16
+#define VE_ISP_REG_LS_MAP_LUT_SIZE_46    46
+#define VE_ISP_SHARP_RT_TBL_SIZE   128
+
+typedef struct sEncppIspbeTopConfig {
+	unsigned char ispbe_out_sel;
+	unsigned char texture_iir_en;
+	unsigned char texture_iir_stren;
+	unsigned char motion_iir_en;
+	unsigned char motion_iir_stren;
+	unsigned char sharp_en;
+	unsigned char ldci_en;
+	unsigned char mot_sens_ratio;
+	unsigned char cnr_ratio;
+
+	unsigned short gbl_satu_adj_lut[VE_ISP_REG_TBL_LENGTH_16];
+} sEncppIspbeTopConfig;
+
+typedef struct sEncppIspbeSharpConfig {
+	unsigned char mot_info_intp_en;
+	unsigned char txt_info_intp_en;
+	unsigned char dir_hs_val_cv_en;
+	unsigned char dir_ms_val_cv_en;
+	unsigned char dir_hs_lum_cv_en;
+	unsigned char dir_ms_lum_cv_en;
+	unsigned char ndir_hs_val_cv_en;
+	unsigned char ndir_ms_val_cv_en;
+	unsigned char ndir_hs_lum_cv_en;
+	unsigned char ndir_ms_lum_cv_en;
+	unsigned char val_shift;
+	unsigned char out_sel;
+	unsigned char stat_src;
+
+	unsigned char hs_aa_ratio;
+	unsigned char hs_at_ratio;
+	unsigned short hs_smth_ratio;
+	unsigned char hsv_satu_slope;
+
+	unsigned short wht_clip_ratio;
+	unsigned short blk_clip_ratio;
+
+	unsigned char ss_map_stren;
+	unsigned char ls_fus_ratio;
+
+	unsigned short dir_hs_dth_edge_th;
+	unsigned short dir_hs_dth_edge_nsr;
+
+	unsigned short dir_hs_dth_flat_th;
+	unsigned short dir_hs_dth_flat_nsr;
+
+	unsigned short dir_hs_dth_slope;
+	unsigned char dir_hs_vn_ratio;
+	unsigned char dir_hs_nms_ratio;
+
+	unsigned short dir_hs_wht_stren;
+	unsigned short dir_hs_blk_stren;
+
+	unsigned short dir_hs_wht_clip_ratio;
+	unsigned short dir_hs_blk_clip_ratio;
+	unsigned char dir_hs_nms_lw_clip;
+
+	unsigned short dir_ms_dth_edge_th;
+	unsigned short dir_ms_dth_edge_nsr;
+
+	unsigned short dir_ms_dth_flat_th;
+	unsigned short dir_ms_dth_flat_nsr;
+
+	unsigned short dir_ms_dth_slope;
+	unsigned char dir_ms_vn_ratio;
+	unsigned char dir_ms_nms_ratio;
+
+	unsigned short dir_ms_wht_stren;
+	unsigned short dir_ms_blk_stren;
+
+	unsigned short dir_ms_wht_clip_ratio;
+	unsigned short dir_ms_blk_clip_ratio;
+	unsigned char dir_ms_nms_lw_clip;
+
+	unsigned char ndir_hs_edge_th;
+	unsigned char ndir_hs_edge_slope;
+	unsigned char ndir_hs_flat_th;
+	unsigned char ndir_hs_flat_slope;
+
+	unsigned short ndir_hs_wht_stren;
+	unsigned short ndir_hs_blk_stren;
+
+	unsigned short ndir_hs_wht_clip;
+	unsigned short ndir_hs_blk_clip;
+
+	unsigned char ndir_hs_mix_lw_clip;
+	unsigned char ndir_hs_mix_hi_clip;
+	unsigned char ndir_hs_vn_ratio;
+
+	unsigned char ndir_ms_edge_th;
+	unsigned char ndir_ms_edge_slope;
+	unsigned char ndir_ms_flat_th;
+	unsigned char ndir_ms_flat_slope;
+
+	unsigned short ndir_ms_wht_stren;
+	unsigned short ndir_ms_blk_stren;
+
+	unsigned short ndir_ms_wht_clip;
+	unsigned short ndir_ms_blk_clip;
+
+	unsigned char ndir_ms_mix_lw_clip;
+	unsigned char ndir_ms_mix_hi_clip;
+	unsigned char ndir_ms_vn_ratio;
+
+	unsigned short sharp_hs_value[VE_ISP_REG_TBL_LENGTH_32];
+	unsigned short sharp_ms_value[VE_ISP_REG_TBL_LENGTH_32];
+	unsigned short sharp_hs_lum[VE_ISP_REG_TBL_LENGTH_32];
+	unsigned short sharp_ms_lum[VE_ISP_REG_TBL_LENGTH_32];
+	unsigned short sharp_hsv[VE_ISP_REG_LS_MAP_LUT_SIZE_46];
+	unsigned char sharp_ls_map_lut[VE_ISP_REG_TBL_LENGTH_32];
+	unsigned char sharp_texture_lut[VE_ISP_REG_TBL_LENGTH_32];
+	unsigned char sharp_ratio_by_mot[VE_ISP_SHARP_RT_TBL_SIZE];//* todo: save to dram buffer
+	unsigned char sharp_ratio_by_tex[VE_ISP_SHARP_RT_TBL_SIZE];//* todo: save to dram buffer
+} sEncppIspbeSharpConfig;
+
+typedef struct sEncppIspbeLdciConfig {
+	unsigned char ldci_mot0_en;
+	unsigned char ldci_mot1_en;
+	unsigned char ldci_txt_en;
+	unsigned char ldci_lum_diff_sup_en;
+	unsigned char ldci_mad_ratio;
+	unsigned char ldci_min_mad;
+	unsigned char ldci_up_slope_dark;
+	unsigned char ldci_up_slope_bright;
+	unsigned char ldci_dw_slope_dark;
+	unsigned char ldci_dw_slope_bright;
+	unsigned char ldci_eq_neg_enhance_stren;
+	unsigned char ldci_eq_pos_enhance_stren;
+	unsigned char ldci_eq_adj_ratio;
+	unsigned short ldci_strength;
+	unsigned short ldci_gain_lower;
+	unsigned short ldci_gain_upper;
+	unsigned char ldci_flt_ratio[6];
+	unsigned char ldci_stat_valid_block_w_num; //* can write to reg, the REAL_W_NUM - 1
+	unsigned char ldci_stat_valid_block_h_num; //* can write to reg, the REAL_H_NUM - 1
+
+	unsigned char ldci_txt_ratio_lut[VE_ISP_REG_TBL_LENGTH_32];
+	unsigned char ldci_mot_ratio_lut[VE_ISP_REG_TBL_LENGTH_32];
+	unsigned char ldci_lum_diff_lut[VE_ISP_REG_TBL_LENGTH_32];
+	unsigned char ldci_map_pos_lut[VE_ISP_REG_TBL_LENGTH_16];
+	unsigned char ldci_map_neg_lut[VE_ISP_REG_TBL_LENGTH_16];
+} sEncppIspbeLdciConfig;
+
+typedef struct sIspbeParam {
+	unsigned int mIspbeEnable;
+	sEncppIspbeTopConfig mTopParam;
+	sEncppIspbeSharpConfig mSharpParam;
+	sEncppIspbeLdciConfig mLdciParam;
+} sIspbeParam;
+/* end of add define for v861-e214 */
+
 #ifdef __cplusplus
 }
 #endif /* __cplusplus */
 
-#endif  /* _VENCODER_BASE_H_ */
+#endif  /* _VENCODER_BASE_SUN252IW1_H_ */

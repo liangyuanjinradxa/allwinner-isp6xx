@@ -109,6 +109,7 @@ int video_set_fmt(struct isp_video_device *video, struct video_fmt *vfmt)
 	struct v4l2_streamparm parms;
 	struct sensor_isp_cfg sensor_isp_cfg;
 	struct csi_ve_online_cfg ve_online_cfg;
+	struct pdaf_config pdaf_cfg;
 
 	if (vfmt->large_dma_merge_en) {
 		ISP_PRINT("It will set VIDIOC_SET_DMA_MERGE = %d\n", vfmt->large_dma_merge_en);
@@ -155,9 +156,25 @@ int video_set_fmt(struct isp_video_device *video, struct video_fmt *vfmt)
 		return -1;
 	}
 
+	/* must set after VIDIOC_SET_VE_ONLINE */
+	if (-1 == ioctl(video->entity->fd, VIDIOC_VIN_SET_BUF_SHARE, &vfmt->share_buf)) {
+		ISP_ERR("video fd[%d] VIDIOC_VIN_SET_BUF_SHARE error!\n", video->entity->fd);
+		return -1;
+	}
+	memcpy(&video->share_buf, &vfmt->share_buf, sizeof(struct bk_share_buf));
+
 	if (vfmt->ptn_en) {
 		if (-1 == ioctl(video->entity->fd, VIDIOC_VIN_FIRST_PTN_CFG, &vfmt->ptn_cfg)) {
 			ISP_ERR("VIDIOC_VIN_FIRST_PTN_CFG failed\n");
+		}
+	}
+
+	if (vfmt->pdaf_mode) {
+		pdaf_cfg.mode = vfmt->pdaf_mode;
+		pdaf_cfg.pd_width = vfmt->pd_width;
+		pdaf_cfg.pd_height = vfmt->pd_height;
+		if (-1 == ioctl(video->entity->fd, VIDIOC_SET_PDAF_MODE, &pdaf_cfg)) {
+			ISP_ERR("VIDIOC_SET_PDAF_MODE failed\n");
 		}
 	}
 
@@ -297,9 +314,9 @@ int video_get_aiisp_info(struct isp_video_device *video, struct tdm_aiisp_inform
 	return 0;
 }
 
-int video_set_aiisp_switch(struct isp_video_device *video, enum aiisp_switch_dir *paiisp_dir)
+int video_set_aiisp_switch(struct isp_video_device *video, enum aiisp_switch_dir aiisp_dir)
 {
-	if (-1 == ioctl(video->entity->fd, VIDIOC_VIN_AIISP_SWITCH, paiisp_dir)) {
+	if (-1 == ioctl(video->entity->fd, VIDIOC_VIN_AIISP_SWITCH, &aiisp_dir)) {
 		ISP_ERR("VIDIOC_VIN_AIISP_SWITCH error!\n");
 		return -1;
 	}
@@ -315,6 +332,16 @@ int video_set_vbv_share_yuv(struct isp_video_device *video, unsigned int enable)
 	}
 
 	return 0;
+}
+
+int video_invalid_cache(struct isp_video_device *video, struct bk_sync_cfg sync_config)
+{
+       if (-1 == ioctl(video->entity->fd, VIDIOC_VIN_INVALID_CACHE, &sync_config)) {
+               ISP_ERR("VIDIOC_VIN_INVALID_CACHE error!\n");
+               return -1;
+       }
+
+       return 0;
 }
 
 int video_get_fmt(struct isp_video_device *video, struct video_fmt *vfmt)
@@ -340,6 +367,7 @@ int video_get_fmt(struct isp_video_device *video, struct video_fmt *vfmt)
 	vfmt->drop_frame_num = video->drop_frame_num;
 	vfmt->ve_online_en = video->ve_online_en;
 	vfmt->dma_buf_num = video->dma_buf_num;
+	memcpy(&vfmt->share_buf, &video->share_buf, sizeof(struct bk_share_buf));
 
 	return 0;
 }
@@ -1119,6 +1147,16 @@ int video_fastboot_get_cfg_attr(struct isp_video_device *video, struct isp_cfg_a
 {
 	if (-1 == ioctl(video->entity->fd, VIDIOC_GET_ISP_CFG_ATTR, fastboot_isp_cfg_attr)) {
 		ISP_ERR("video%d VIDIOC_GET_ISP_CFG_ATTR failed, cfg_id:%d\n", (int)video->id, fastboot_isp_cfg_attr->cfg_id);
+		return -1;
+	}
+
+	return 0;
+}
+
+int video_fastboot_get_sei_info_attr(struct isp_video_device *video, struct ISPSeiInfo *fastboot_isp_sei_info)
+{
+	if (-1 == ioctl(video->entity->fd, VIDIOC_GET_ISP_SEI_INFO, fastboot_isp_sei_info)) {
+		ISP_ERR("video%d VIDIOC_GET_ISP_SEI_INFO failed\n", (int)video->id);
 		return -1;
 	}
 

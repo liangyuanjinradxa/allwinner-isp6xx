@@ -1358,64 +1358,6 @@ int isp_save_bin(struct isp_param_config *param, char *path)
 	return 0;
 }
 
-int isp_load_bin_gz_param(struct isp_param_config *param, char *isp_cfg_name, char *path)
-{
-	char fdstr[128], time[20], notes[50];
-	unsigned int size;
-
-	sprintf(fdstr, "%s/isp_param_config.gz", path);
-	gzFile compressedFile = isp_gzopen(fdstr, "rb");
-	if (!compressedFile) {
-		perror("Error opening compressed file");
-		return -1;
-	}
-
-	if (isp_gzread(compressedFile, &size, sizeof(unsigned int)) != sizeof(unsigned int)) {
-		ISP_ERR("read %s error\n", fdstr);
-		perror("Error reading padding data");
-		isp_gzclose(compressedFile);
-		return -1;
-	}
-
-	if (size != sizeof(struct isp_param_config)) {
-		ISP_ERR("%s size is %d, it is error\n", fdstr, size);
-		isp_gzclose(compressedFile);
-		return -1;
-	}
-
-	if (isp_gzread(compressedFile, time, sizeof(time)) != sizeof(time)) {
-		ISP_ERR("read %s 's time failed\n", fdstr);
-		perror("Error reading padding data");
-		isp_gzclose(compressedFile);
-		return -1;
-	}
-
-	if (isp_gzread(compressedFile, notes, sizeof(notes)) != sizeof(notes)) {
-		ISP_ERR("read %s 's notes failed\n", fdstr);
-		perror("Error reading padding data");
-		isp_gzclose(compressedFile);
-		return -1;
-	}
-	ISP_PRINT("Read %s seccess... Time:%s  Notes:%s\n", fdstr, time, notes);
-
-	if (param != NULL) {
-		if (isp_gzread(compressedFile, param, sizeof(struct isp_param_config)) != sizeof(struct isp_param_config)) {
-			ISP_ERR("gzread uncompressedData failed\n");
-			perror("Error reading struct data");
-			isp_gzclose(compressedFile);
-			return -1;
-		}
-	} else {
-		ISP_ERR("param is NULL!!\n");
-		isp_gzclose(compressedFile);
-		return -1;
-	}
-	isp_gzclose(compressedFile);
-	strcpy(isp_cfg_name, notes);
-
-	return 0;
-}
-
 static int parse_isp_cfg_bin(struct isp_param_config *param, char *isp_cfg_name, int isp_id, int sync_mode, char *isp_cfg_bin_path)
 {
 	int ret = 0;
@@ -1585,18 +1527,13 @@ int parse_isp_cfg(struct isp_param_config *param, char *isp_cfg_name, int isp_id
 		ret = parse_isp_cfg_ini(param, save_ini_path);
 #endif
 	} else {/* detect and parser isp_cfg.bin */
-		sprintf(detect_ini_path, "%s/isp_param_config.gz", save_ini_path);
+		sprintf(detect_ini_path, "%s/isp_param_config.bin", save_ini_path);
 		if (access(detect_ini_path, F_OK) == 0) {
-			isp_load_bin_gz_param(param, isp_cfg_name, save_ini_path);
+			/* detect and parser isp_param_config.bin from tiger ISP tuning tool */
+			isp_load_bin_param(param, isp_cfg_name, save_ini_path);
 		} else {
-			sprintf(detect_ini_path, "%s/isp_param_config.bin", save_ini_path);
-			if (access(detect_ini_path, F_OK) == 0) {
-				/* detect and parser isp_param_config.bin from tiger ISP tuning tool */
-				isp_load_bin_param(param, isp_cfg_name, save_ini_path);
-			} else {
-				/* detect and parser isp_cfg.bin from SDK's creat_bin.sh*/
-				ret = parse_isp_cfg_bin(param, isp_cfg_name, isp_id, sync_mode, save_ini_path);
-			}
+			/* detect and parser isp_cfg.bin from SDK's creat_bin.sh*/
+			ret = parse_isp_cfg_bin(param, isp_cfg_name, isp_id, sync_mode, save_ini_path);
 		}
 	}
 

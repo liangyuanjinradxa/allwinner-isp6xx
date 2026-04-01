@@ -44,6 +44,7 @@ enum exposure_mode {
 	EXP_MANUAL       = 1,
 	SHUTTER_PRIORITY,
 	APERTURE_PRIORITY,
+	EXP_FIX_EV_IDX,
 };
 
 enum ae_mode {
@@ -179,6 +180,7 @@ typedef struct isp_ae_settings {
 	enum detected_flicker_type flicker_type;
 	enum ae_table_mode scene_mode;
 	enum wdr_output_mode wdr_output_select;
+	enum pltm_mode pltm_mode;
 
 	bool exposure_lock;
 
@@ -205,8 +207,8 @@ typedef struct isp_ae_ini_cfg {
 	HW_S32 ae_win_weight[64];
 	HW_S32 ae_hist_mod_en;
 	HW_S32 ae_ev_step;
-	HW_S32 ae_blowout_pre_en;
-	HW_S32 ae_blowout_attr;
+	HW_S32 ae_flicker_comp_en;
+	HW_S32 ae_flicker_comp_max;
 	HW_S32 ae_ConvDataIndex;
 	HW_S32 ae_delay_frame;
 	HW_S32 exp_delay_frame;

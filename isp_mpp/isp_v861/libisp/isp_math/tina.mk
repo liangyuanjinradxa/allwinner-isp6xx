@@ -4,8 +4,7 @@ LIBISP_DIR = ./../
 
 #set source files here.
 SRCCS := \
-    $(wildcard ./*.c) \
-    $(wildcard ./zlib/*.c)
+    $(wildcard ./*.c)
 
 #include directories
 INCLUDE_DIRS := \
@@ -13,8 +12,7 @@ INCLUDE_DIRS := \
     $(CUR_PATH)/SENSOR_H \
     $(CUR_PATH)/../iniparser/src/ \
     $(CUR_PATH)/../include/ \
-    $(CUR_PATH)/../isp_dev/ \
-    $(CUR_PATH)/zlib/include
+    $(CUR_PATH)/../isp_dev/
 
 LOCAL_SHARED_LIBS :=
 

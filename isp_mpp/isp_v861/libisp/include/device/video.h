@@ -92,6 +92,9 @@ struct video_fmt {
 	unsigned char video_selection_en;
 	struct video_selection_rect rect;
 	unsigned int tdm_rxbuf_cnt;
+	unsigned char pdaf_mode;
+	unsigned int pd_width;
+	unsigned int pd_height;
 	unsigned int tdmtime_embed_en;
 	unsigned int ispfeinfo_embed_en;
 	FILE *ptn_file;
@@ -105,6 +108,7 @@ struct video_fmt {
 	unsigned int end_frame;
 	struct vin_pattern_config ptn_cfg;
 	struct dma_merge_scaler_cfg scaler_cfg;
+	struct bk_share_buf share_buf;
 };
 
 struct osd_fmt {
@@ -166,6 +170,7 @@ struct isp_video_device {
 	unsigned int start_frame;
 	unsigned int end_frame;
 	struct vin_pattern_config ptn_cfg;
+	struct bk_share_buf share_buf;
 
 	void *priv;
 };
@@ -174,6 +179,9 @@ int video_init(struct isp_video_device *video);
 void video_cleanup(struct isp_video_device *video);
 int video_to_isp_id(struct isp_video_device *video);
 int video_set_fmt(struct isp_video_device *video, struct video_fmt *vfmt);
+int video_set_aiisp_cfg(struct isp_video_device *video, struct tdm_aiisp_cfg *paiisp_cfg);
+int video_get_aiisp_info(struct isp_video_device *video, struct tdm_aiisp_inform *paiisp_inform);
+int video_set_aiisp_switch(struct isp_video_device *video, enum aiisp_switch_dir aiisp_dir);
 int video_get_fmt(struct isp_video_device *video, struct video_fmt *vfmt);
 void video_set_next_ptn(struct isp_video_device *video, struct video_fmt *vfmt);
 void video_set_ldci_mode(struct isp_video_device *video, unsigned int ldci_select);
@@ -220,7 +228,8 @@ int video_set_dma_overlay(struct isp_video_device *video, struct dma_overlay_par
 
 int video_set_aiisp_cfg(struct isp_video_device *video, struct tdm_aiisp_cfg *paiisp_cfg);
 int video_get_aiisp_info(struct isp_video_device *video, struct tdm_aiisp_inform *paiisp_inform);
-int video_set_aiisp_switch(struct isp_video_device *video, enum aiisp_switch_dir *paiisp_dir);
+int video_set_aiisp_switch(struct isp_video_device *video, enum aiisp_switch_dir aiisp_dir);
 int video_set_vbv_share_yuv(struct isp_video_device *video, unsigned int enable);
+int video_invalid_cache(struct isp_video_device *video, struct bk_sync_cfg sync_config);
 
 #endif /* __VIDEO_H_ */

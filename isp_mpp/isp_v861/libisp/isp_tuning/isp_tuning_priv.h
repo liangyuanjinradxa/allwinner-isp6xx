@@ -113,8 +113,8 @@ struct isp_3a_param {
 	HW_U8 ae_stat2_sel;
 	HW_U8 ae_ev_step;
 	HW_U8 ae_ConvDataIndex;
-	HW_U8 ae_blowout_pre_en;
-	HW_U8 ae_blowout_attr;
+	HW_U8 ae_flicker_comp_en;
+	HW_U8 ae_flicker_comp_max;
 	HW_U8 ae_w_num;
 	HW_U8 ae_h_num;
 	HW_U16 ae_gain_favor;
@@ -172,6 +172,7 @@ struct isp_3a_param {
 	HW_U8 af_auto_fine_en;
 	HW_U8 af_single_fine_en;
 	HW_U8 af_fine_step;
+	HW_U8 af_delay_frame;
 	HW_U8 af_reserve_0;
 	HW_U8 af_reserve_1;
 	HW_U8 af_reserve_2;
@@ -192,10 +193,40 @@ struct isp_3a_param {
 	HW_S16 af_move_minus;
 	HW_S16 af_still_minus;
 	HW_S16 af_scene_motion_th;
-
 	HW_U8 af_tolerance_tbl_len;
 	HW_S32 af_std_code_tbl[20];
 	HW_S32 af_tolerance_value_tbl[20];
+	HW_U8 af_pdaf_en;
+	HW_S16 af_pdaf_width;
+	HW_S16 af_pdaf_height;
+	HW_U8 af_pdaf_pd_w_num;
+	HW_U8 af_pdaf_pd_h_num;
+	HW_U8 af_pdaf_dcc_map_w_num;
+	HW_U8 af_pdaf_dcc_map_h_num;
+	HW_U8 af_pdaf_gain_map_w_num;
+	HW_U8 af_pdaf_gain_map_h_num;
+	HW_U8 af_pdaf_win_conf_th;
+	HW_U8 af_pdaf_weight_conf_th;
+	HW_S16 af_pdaf_defocus_begin_th;
+	HW_S16 af_pdaf_max_step;
+	HW_S16 af_pdaf_defocus_step0_th;
+	HW_S16 af_pdaf_defocus_step0_coef;
+	HW_S16 af_pdaf_defocus_step1_th;
+	HW_S16 af_pdaf_defocus_step1_coef;
+	HW_S16 af_pdaf_defocus_step2_th;
+	HW_S16 af_pdaf_defocus_step2_coef;
+	HW_S16 af_pdaf_defocus_continue_th;
+	HW_U8 af_pdaf_delay;
+	HW_U8 af_pdaf_pd_err_th1;
+	HW_U8 af_pdaf_pd_err_th2;
+	HW_S16 af_pdaf_weight_win[64];
+	HW_U8 af_pdaf_algo_type;
+	HW_U8 af_pdaf_algo_touch_en;
+	HW_U8 af_pdaf_algo_calc_tbl[48];
+	HW_U8 af_pdaf_algo_conf_th;
+	HW_U8 af_pdaf_algo_blk_calc_times;
+	HW_U8 af_pdaf_algo_conf_coef;
+	HW_U8 af_pdaf_algo_overexp_th;
 };
 
 struct isp_dynamic_config {
@@ -224,6 +255,7 @@ struct isp_dynamic_config {
 	HW_S16 shading_comp;
 	HW_S16 awb_cfg[ISP_AWB_MAX];
 	HW_S16 nrp_cfg[ISP_NRP_MAX];
+	HW_S16 af_cfg[ISP_AF_MAX];
 
 	/*Curve*/
 	HW_S16 d2d_lp0_nr_yth[ISP_REG_TBL_LENGTH_32];
@@ -241,30 +273,31 @@ enum isp_triger_type {
 };
 
 typedef struct isp_param_triger {
-	enum isp_triger_type sharp_triger;
+	HW_U8 sharp_triger;
 #ifdef USE_ENCPP
-	enum isp_triger_type encpp_sharp_triger;
-	enum isp_triger_type encpp_ldci_triger;
-	enum isp_triger_type encpp_top_triger;
-	enum isp_triger_type encoder_denoise_triger;
+	HW_U8 encpp_sharp_triger;
+	HW_U8 encpp_ldci_triger;
+	HW_U8 encpp_top_triger;
+	HW_U8 encoder_denoise_triger;
 #endif
-	enum isp_triger_type denoise_triger;
-	enum isp_triger_type black_level_triger;
-	enum isp_triger_type dpc_triger;
-	enum isp_triger_type defog_value_triger;
-	enum isp_triger_type pltm_dynamic_triger;
-	enum isp_triger_type brightness_triger;
-	enum isp_triger_type gcontrast_triger;
-	enum isp_triger_type cem_triger;
-	enum isp_triger_type tdf_triger;
-	enum isp_triger_type ae_cfg_triger;
-	enum isp_triger_type gtm_cfg_triger;
-	enum isp_triger_type lca_cfg_triger;
-	enum isp_triger_type wdr_cfg_triger;
-	enum isp_triger_type cfa_triger;
-	enum isp_triger_type shading_triger;
-	enum isp_triger_type awb_triger;
-	enum isp_triger_type nrp_triger;
+	HW_U8 denoise_triger;
+	HW_U8 black_level_triger;
+	HW_U8 dpc_triger;
+	HW_U8 defog_value_triger;
+	HW_U8 pltm_dynamic_triger;
+	HW_U8 brightness_triger;
+	HW_U8 gcontrast_triger;
+	HW_U8 cem_triger;
+	HW_U8 tdf_triger;
+	HW_U8 ae_cfg_triger;
+	HW_U8 gtm_cfg_triger;
+	HW_U8 lca_cfg_triger;
+	HW_U8 wdr_cfg_triger;
+	HW_U8 cfa_triger;
+	HW_U8 shading_triger;
+	HW_U8 awb_triger;
+	HW_U8 nrp_triger;
+	HW_U8 af_triger;
 } isp_dynamic_triger_t;
 
 struct isp_dynamic_param {
