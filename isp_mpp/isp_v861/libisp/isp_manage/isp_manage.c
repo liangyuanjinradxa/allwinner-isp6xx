@@ -269,7 +269,7 @@ void __isp_rolloff_run(struct isp_lib_context *isp_gen)
 void __isp_afs_set_params(struct isp_lib_context *isp_gen)
 {
 	isp_gen->afs_entity_ctx.afs_param->isp_platform_id = isp_gen->module_cfg.isp_platform_id;
-	isp_gen->afs_entity_ctx.afs_param->afs_frame_id = isp_gen->af_frame_cnt;
+	isp_gen->afs_entity_ctx.afs_param->afs_frame_id = isp_gen->afs_frame_cnt;
 	isp_gen->afs_entity_ctx.afs_param->afs_sensor_info = isp_gen->sensor_info;
 }
 
@@ -324,6 +324,7 @@ void __isp_af_set_params(struct isp_lib_context *isp_gen)
 	isp_gen->af_entity_ctx.af_param->af_range = isp_gen->af_settings.af_range;
 	isp_gen->af_entity_ctx.af_param->focus_lock = isp_gen->af_settings.focus_lock;
 	isp_gen->af_entity_ctx.af_param->sensor_info =	isp_gen->sensor_info;
+	isp_gen->af_entity_ctx.af_param->blc_offset =  isp_gen->module_cfg.gain_offset_cfg.offset;
 
 	isp_gen->af_entity_ctx.af_param->pdaf_cfg.pdaf_video_in_chn = PDAF_VIDEO_CHN;
 	isp_gen->af_entity_ctx.af_param->pdaf_cfg.pdaf_entity_id = isp_gen->isp_id;
@@ -2004,6 +2005,20 @@ static void __isp_ctx_cfg_mod(struct isp_lib_context *isp_gen)
 			isp_gen->sensor_otp.otp_enable = 0;
 		}
 	}
+	/*pdaf*/
+	if (isp_gen->sensor_otp.ppdaf_info) {
+		isp_gen->sensor_otp.otp_info->pdaf_info.mode = isp_gen->sensor_otp.ppdaf_info[0];
+		isp_gen->sensor_otp.otp_info->pdaf_info.pattern_mode = isp_gen->sensor_otp.ppdaf_info[1];
+		isp_gen->sensor_otp.otp_info->pdaf_info.dir = isp_gen->sensor_otp.ppdaf_info[2];
+		isp_gen->sensor_otp.otp_info->pdaf_info.ddc_map_width = isp_gen->sensor_otp.ppdaf_info[3];
+		isp_gen->sensor_otp.otp_info->pdaf_info.ddc_map_height = isp_gen->sensor_otp.ppdaf_info[4];
+		memcpy(isp_gen->sensor_otp.otp_info->pdaf_info.dcc_map_table_1, &isp_gen->sensor_otp.ppdaf_info[5], OTP_PDAF_MAP_SIZE * sizeof(unsigned short));
+		memcpy(isp_gen->sensor_otp.otp_info->pdaf_info.dcc_map_table_2, &isp_gen->sensor_otp.ppdaf_info[5 + OTP_PDAF_MAP_SIZE], OTP_PDAF_MAP_SIZE * sizeof(unsigned short));
+		isp_gen->sensor_otp.otp_info->pdaf_info.gain_map_width = isp_gen->sensor_otp.ppdaf_info[5 + OTP_PDAF_MAP_SIZE * 2];
+		isp_gen->sensor_otp.otp_info->pdaf_info.gain_map_height = isp_gen->sensor_otp.ppdaf_info[5 + OTP_PDAF_MAP_SIZE * 2 + 1];
+		memcpy(isp_gen->sensor_otp.otp_info->pdaf_info.gain_map_table_1, &isp_gen->sensor_otp.ppdaf_info[5 + OTP_PDAF_MAP_SIZE * 2 + 2], OTP_PDAF_MAP_SIZE * sizeof(unsigned short));
+		memcpy(isp_gen->sensor_otp.otp_info->pdaf_info.gain_map_table_2, &isp_gen->sensor_otp.ppdaf_info[5 + OTP_PDAF_MAP_SIZE * 2 + 2 + OTP_PDAF_MAP_SIZE], OTP_PDAF_MAP_SIZE * sizeof(unsigned short));
+	}
 
 	/*sharp*/
 	mod_cfg->sharp_cfg.txt_info_init_en = 1;
@@ -2593,6 +2608,9 @@ HW_S32 __isp_ctx_update_af_cfg(struct isp_lib_context *isp_gen)
 	if (isp_gen->sensor_otp.otp_enable && isp_gen->sensor_otp.otp_info) {
 		isp_gen->af_entity_ctx.af_param->af_ini.vcm_min_code = clamp(isp_gen->isp_ini_cfg.isp_3a_settings.vcm_min_code + isp_gen->sensor_otp.otp_info->af_min_code_offset, 0, 1023);
 		isp_gen->af_entity_ctx.af_param->af_ini.vcm_max_code = clamp(isp_gen->isp_ini_cfg.isp_3a_settings.vcm_max_code + isp_gen->sensor_otp.otp_info->af_max_code_offset, 0, 1023);
+		if(isp_gen->sensor_otp.ppdaf_info) {
+			isp_gen->af_entity_ctx.af_param->pdaf_cfg.otp_pdaf_info = (struct otp_pdaf_info *)&isp_gen->sensor_otp.otp_info->pdaf_info;
+		}
 	} else {
 		isp_gen->af_entity_ctx.af_param->af_ini.vcm_min_code = isp_gen->isp_ini_cfg.isp_3a_settings.vcm_min_code;
 		isp_gen->af_entity_ctx.af_param->af_ini.vcm_max_code = isp_gen->isp_ini_cfg.isp_3a_settings.vcm_max_code;
@@ -2649,6 +2667,7 @@ HW_S32 __isp_ctx_update_af_cfg(struct isp_lib_context *isp_gen)
 	isp_gen->af_entity_ctx.af_param->af_ini.af_pdaf_algo_blk_calc_times = isp_gen->isp_ini_cfg.isp_3a_settings.af_pdaf_algo_blk_calc_times;
 	isp_gen->af_entity_ctx.af_param->af_ini.af_pdaf_algo_conf_coef = isp_gen->isp_ini_cfg.isp_3a_settings.af_pdaf_algo_conf_coef;
 	isp_gen->af_entity_ctx.af_param->af_ini.af_pdaf_algo_overexp_th = isp_gen->isp_ini_cfg.isp_3a_settings.af_pdaf_algo_overexp_th;
+	isp_gen->af_entity_ctx.af_param->af_ini.af_touch_dist_ind = isp_gen->isp_ini_cfg.isp_3a_settings.af_reserve_1;
 
 	memcpy(&isp_gen->af_entity_ctx.af_param->af_ini.af_std_code_tbl[0],
 		&isp_gen->isp_ini_cfg.isp_3a_settings.af_std_code_tbl[0], 20*sizeof(int));
@@ -2870,6 +2889,13 @@ HW_S32 __isp_ctx_update_afs_cfg(struct isp_lib_context *isp_gen)
 	isp_gen->afs_entity_ctx.afs_param->flicker_type_ini = isp_gen->isp_ini_cfg.isp_tunning_settings.flicker_type;
 	isp_gen->afs_entity_ctx.afs_param->test_cfg.isp_test_mode = isp_gen->isp_ini_cfg.isp_test_settings.isp_test_mode;
 	isp_gen->afs_entity_ctx.afs_param->test_cfg.afs_en = isp_gen->isp_ini_cfg.isp_test_settings.afs_en;
+	if (isp_gen->isp_ini_cfg.isp_test_settings.afs_en) {
+		isp_gen->afs_entity_ctx.afs_param->flicker_mode = isp_gen->isp_ini_cfg.isp_tunning_settings.flicker_type;
+	} else {
+		isp_gen->afs_entity_ctx.afs_param->flicker_mode = FREQUENCY_DISABLED;
+	}
+	isp_gen->ae_settings.flicker_mode = isp_gen->afs_entity_ctx.afs_param->flicker_mode;
+	ISP_LIB_LOG(ISP_LOG_AFS, "flicker_mode %d, flicker_type_output %d\n", isp_gen->afs_entity_ctx.afs_param->flicker_mode, isp_gen->ae_settings.flicker_type);
 
 	return 0;
 }

@@ -27,12 +27,16 @@
 
 #define ISP_AF_START_FRAME_NUM 3
 
+#if defined LIBISP_DISABLED_AF
+#define ISP_LIB_USE_AF		0
+#else
 #define ISP_LIB_USE_AF		1
+#endif
 
 /* pdaf */
-#define SPLIT_W 8
-#define SPLIT_H 6
-
+#define PD_MAX_WINS 256
+#define ALG_WIN_W 8
+#define ALG_WIN_H 6
 #define MIN_SPLIT_W 8
 #define MIN_SPLIT_H 6
 #define MAX_SPLIT_W 24
@@ -74,7 +78,6 @@ typedef struct isp_af_ini_cfg {
 	HW_S32 af_std_code_tbl[20];
 	HW_S32 af_tolerance_value_tbl[20];
 	HW_U8 af_delay_frame;
-
 	HW_U8 af_pdaf_pd_w_num;
 	HW_U8 af_pdaf_pd_h_num;
 	HW_U8 af_pdaf_dcc_map_w_num;
@@ -103,6 +106,7 @@ typedef struct isp_af_ini_cfg {
 	HW_U8 af_pdaf_algo_blk_calc_times;
 	HW_U8 af_pdaf_algo_conf_coef;
 	HW_U8 af_pdaf_algo_overexp_th;
+	HW_U8 af_touch_dist_ind;
 } af_ini_cfg_t;
 
 enum auto_focus_run_mode {
@@ -146,7 +150,6 @@ enum isp_pdaf_mode {
 typedef struct isp_af_test_config {
 	HW_S32 isp_test_mode;
 	HW_S32 isp_test_focus;
-
 	HW_S32 focus_start;
 	HW_S32 focus_step;
 	HW_S32 focus_end;
@@ -168,6 +171,20 @@ struct vcm_para {
 	HW_S32 vcm_min_code;
 };
 
+struct otp_pdaf_info {
+	unsigned short mode;
+	unsigned short pattern_mode;
+	unsigned short dir;
+	unsigned short ddc_map_width;
+	unsigned short ddc_map_height;
+	unsigned short dcc_map_table_1[PD_MAX_WINS];
+	unsigned short dcc_map_table_2[PD_MAX_WINS];
+	unsigned short gain_map_width;
+	unsigned short gain_map_height;
+	unsigned short gain_map_table_1[PD_MAX_WINS];
+	unsigned short gain_map_table_2[PD_MAX_WINS];
+};
+
 struct isp_pdaf_config {
 	HW_U8 pdaf_entity_id;
 	HW_U16 pdaf_video_in_chn;
@@ -175,6 +192,7 @@ struct isp_pdaf_config {
 	HW_U8 pdaf_en;
 	HW_U32 pdaf_width;
 	HW_U32 pdaf_height;
+	struct otp_pdaf_info *otp_pdaf_info;
 };
 
 /* struct auto_focus_settings - Stores the auto focuse related settings. */
@@ -186,7 +204,6 @@ typedef struct isp_af_settings {
 	enum auto_focus_range_new af_range;
 	bool focus_lock;
 	struct isp_h3a_coor_win af_coor;
-
 	HW_S16 af_pdaf_noise_ref;
 } isp_af_settings_t;
 
@@ -208,6 +225,7 @@ typedef struct isp_af_param {
 	HW_S32 mov;
 	isp_af_settings_t af_settings;
 	struct isp_pdaf_config pdaf_cfg;
+	struct isp_offset blc_offset;
 } af_param_t;
 
 typedef struct isp_af_stats {
@@ -232,9 +250,10 @@ typedef struct isp_af_core_ops {
 } isp_af_core_ops_t;
 
 enum isp_pd_pattern_mode {
-	PDAF_2_2OCL_FULL_RESOLUTION = 0,
-	PDAF_2_2OCL_Vbin            = 1,
-	PDAF_2_2OCL_HVbin           = 2,
+	PDAF_2_2OCL_FULL_RESOLUTION  = 0,
+	PDAF_2_2OCL_Vbin             = 1,
+	PDAF_2_2OCL_HVbin            = 2,
+	PDAF_SHIELD_PD_GC13A2        = 3,
 };
 
 typedef struct complex{
@@ -258,8 +277,8 @@ typedef struct {
 } pdaf_stat_entity_t;
 
 typedef struct {
-	HW_S32 defocus[MAX_SPLIT_H][MAX_SPLIT_W];
-	HW_U8 confidence_val[MAX_SPLIT_H][MAX_SPLIT_W];
+	HW_S32 defocus[PD_MAX_WINS];
+	HW_U8 confidence_val[PD_MAX_WINS];
 } pdaf_stat_t;
 
 void* af_init(isp_af_core_ops_t **af_core_ops);

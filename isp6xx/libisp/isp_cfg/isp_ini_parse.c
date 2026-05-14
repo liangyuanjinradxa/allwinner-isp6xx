@@ -34,12 +34,13 @@
 #include "SENSOR_H/s5k5e8_default_ini_a523.h"
 #include "SENSOR_H/imx386_mipi_default_ini_capture_a523.h"
 #include "SENSOR_H/imx386_mipi_default_ini_video_a523.h"
-#include "SENSOR_H/imx214_mipi_default_ini_capture_t527.h"
+#include "SENSOR_H/imx214_mipi_4208_3120_t527.h"
 #include "SENSOR_H/imx214_mipi_3840_2160_t527.h"
 #include "SENSOR_H/imx214_mipi_1080p_t527.h"
-#include "SENSOR_H/imx219_mipi_default_ini_capture_t527.h"
+#include "SENSOR_H/imx219_mipi_3280_2464_t527.h"
 #include "SENSOR_H/imx219_mipi_1080p_t527.h"
-#include "SENSOR_H/imx415_mipi_default_ini_capture_t527.h"
+#include "SENSOR_H/imx415_mipi_3840_2160_t527.h"
+#include "SENSOR_H/imx415_mipi_1080p_t527.h"
 #elif (ISP_VERSION == 602)
 #include "SENSOR_H/ov13850_mipi_default_ini_a733.h"
 #include "SENSOR_H/ov13850_mipi_default_ini_video_a733.h"
@@ -52,16 +53,19 @@
 #include "SENSOR_H/imx386_mipi_default_ini_video_a733.h"
 #include "SENSOR_H/gc030a_mipi_a733.h"
 #include "SENSOR_H/gc05a2_mipi_2_a733.h"
-#include "SENSOR_H/imx214_mipi_default_ini_capture_a733.h"
-#include "SENSOR_H/imx214_mipi_3840_2160.h"
-#include "SENSOR_H/imx214_mipi_1080p.h"
-#include "SENSOR_H/imx219_mipi_default_ini_capture_a733.h"
-#include "SENSOR_H/imx219_mipi_1080p.h"
-#include "SENSOR_H/imx415_mipi_default_ini_capture_a733.h"
+#include "SENSOR_H/imx214_mipi_4208_3120_a733.h"
+#include "SENSOR_H/imx214_mipi_3840_2160_a733.h"
+#include "SENSOR_H/imx214_mipi_1080p_a733.h"
+#include "SENSOR_H/imx219_mipi_3280_2464_a733.h"
+#include "SENSOR_H/imx219_mipi_1080p_a733.h"
+#include "SENSOR_H/imx415_mipi_3840_2160_a733.h"
+#include "SENSOR_H/imx415_mipi_1080p_a733.h"
 #elif (ISP_VERSION == 603)
 #include "SENSOR_H/gc1084_mipi_default_ini_v821.h"
 #include "SENSOR_H/gc2053_mipi_default_ini_v821.h"
 #elif (ISP_VERSION == 606)
+#include "SENSOR_H/imx386_mipi_default_ini_capture_a537.h"
+#include "SENSOR_H/imx386_mipi_default_ini_video_a537.h"
 #include "SENSOR_H/max9296a_mipi_default_ini_t536.h"
 #include "SENSOR_H/sc035hgs_mr536.h"
 #include "SENSOR_H/ov8856_mipi_mr536.h"
@@ -956,12 +960,13 @@ struct isp_cfg_array cfg_arr[] = {
 	{"imx319_mipi", "imx319_mipi_default_ini_a523", 3264, 2448, 30, 0, 0, &imx319_mipi_isp_cfg},
 	{"imx386_mipi", "imx386_mipi_default_ini_a523", 3840, 2160, 30, 0, 0, &imx386_mipi_capture_isp_cfg},
 	{"imx386_mipi", "imx386_mipi_default_ini_a523", 1920, 1080, 30, 0, 0, &imx386_mipi_video_isp_cfg},
-	{"imx214", "imx214_default_ini_a523", 4208, 3120, 30, 0, 0, &imx214_isp_cfg},
-	{"imx214", "imx214_isp_cfg", 3840, 2160, 30, 0, 0, &imx214_mipi_isp_cfg},
-	{"imx214", "imx214_isp_1080p_cfg", 1920, 1080, 30, 0, 0, &imx214_1080p_isp_cfg},
-	{"imx219", "imx219_default_ini_a523", 3280, 2464, 30, 0, 0, &imx219_isp_cfg},
+	{"imx214", "imx214_13m_isp_cfg", 4208, 3120, 15, 0, 0, &imx214_mipi_13m_isp_cfg},
+	{"imx214", "imx214_2160p_isp_cfg", 3840, 2160, 20, 0, 0, &imx214_mipi_2160p_isp_cfg},
+	{"imx214", "imx214_1080p_isp_cfg", 1920, 1080, 30, 0, 0, &imx214_1080p_isp_cfg},
+	{"imx219", "imx219_3280_2464_isp_cfg", 3280, 2464, 30, 0, 0, &imx219_3280_2464_isp_cfg},
 	{"imx219", "imx219_isp_cfg", 1920, 1080, 30, 0, 0, &imx219_mipi_1080p_isp_cfg},
-	{"imx415_mipi", "imx415_default_ini_a523", 3840, 2160, 30, 0, 0, &imx415_mipi_isp_cfg},
+	{"imx415_mipi", "imx415_mipi_1080p_isp_cfg", 1920, 1080, 30, 0, 0, &imx415_mipi_1080p_isp_cfg},
+	{"imx415_mipi", "imx415_mipi_3840_2160_isp_cfg", 3840, 2160, 20, 0, 0, &imx415_mipi_3840_2160_isp_cfg},
 #elif (ISP_VERSION == 602)
 	{"ov13850_mipi", "ov13850_mipi_default_ini_a733", 4224, 3136, 30, 0, 0, &ov13850_mipi_isp_cfg},
 	{"ov13850_mipi", "ov13850_mipi_default_ini_a733", 4224, 3136, 18, 0, 0, &ov13850_mipi_capture_isp_cfg},
@@ -974,16 +979,19 @@ struct isp_cfg_array cfg_arr[] = {
 	{"imx386_mipi", "imx386_mipi_default_ini_a733", 1920, 1080, 30, 0, 0, &imx386_mipi_video_isp_cfg},
 	{"gc05a2_mipi_2", "gc05a2_mipi_2_a733", 2592, 1944, 30, 0, 0, &gc05a2_mipi_2_a733_isp_cfg},
 	{"gc030a_mipi", "gc030a_mipi_isp_cfg", 640, 480, 30, 0, 0, &gc030a_mipi_isp_cfg},
-	{"imx214_mipi", "imx214_mipi_default_ini_a733", 4208, 3120, 30, 0, 0, &imx214_isp_cfg},
-	{"imx214_mipi", "imx214_mipi_isp_cfg", 3840, 2160, 30, 0, 0, &imx214_mipi_isp_cfg},
-	{"imx214_mipi", "imx214_mipi_isp_1080p_cfg", 1920, 1080, 30, 0, 0, &imx214_mipi_1080p_isp_cfg},
-	{"imx219_mipi", "imx219_mipi_default_ini_a733", 3280, 2464, 30, 0, 0, &imx219_isp_cfg},
-	{"imx219_mipi", "imx219_mipi_isp_cfg", 1920, 1080, 30, 0, 0, &imx219_mipi_1080p_isp_cfg},
-	{"imx415_mipi", "imx415_mipi_default_ini_a733", 3840, 2160, 30, 0, 0, &imx415_mipi_isp_cfg},
+	{"imx214", "imx214_13m_isp_cfg", 4208, 3120, 30, 0, 0, &imx214_13m_isp_cfg},
+	{"imx214", "imx214_2160p_isp_cfg", 3840, 2160, 30, 0, 0, &imx214_2160p_isp_cfg},
+	{"imx214", "imx214_isp_1080p_cfg", 1920, 1080, 30, 0, 0, &imx214_1080p_isp_cfg},
+	{"imx219", "imx219_3280_2464_isp_cfg", 3280, 2464, 30, 0, 0, &imx219_3280_2464_isp_cfg},
+	{"imx219", "imx219_1080p_isp_cfg", 1920, 1080, 30, 0, 0, &imx219_1080p_isp_cfg},
+	{"imx415_mipi", "imx415_mipi_1080p_isp_cfg", 1920, 1080, 30, 0, 0, &imx415_mipi_1080p_isp_cfg},
+	{"imx415_mipi", "imx415_mipi_3840_2160_isp_cfg", 3840, 2160, 30, 0, 0, &imx415_mipi_3840_2160_isp_cfg},
 #elif (ISP_VERSION == 603)
 	{"gc1084_mipi", "gc1084_mipi_default_ini_v821", 1280, 720, 20, 0, 0, &gc1084_mipi_gj_color_isp_cfg},
 	{"gc2053_mipi", "gc2053_mipi_default_ini_v821", 1920, 1080, 20, 0, 0, &gc2053_mipi_v821_isp_cfg},
 #elif (ISP_VERSION == 606)
+	{"imx386_mipi", "imx386_mipi_default_ini_a537", 3840, 2160, 30, 0, 0, &imx386_mipi_capture_isp_cfg},
+	{"imx386_mipi", "imx386_mipi_default_ini_a537", 1920, 1080, 60, 0, 0, &imx386_mipi_video_isp_cfg},
 	{"max9296a_mipi", "max9296a_mipi_default_ini_t536", 1920, 1536, 30, 0, 0, &max9296a_mipi_isp_cfg},
 	{"ov8856_mipi", "ov8856_mipi_mr536_isp_cfg", 2592, 1944, 30, 0, 0, &ov8856_mipi_isp_cfg},
 	{"sc035hgs", "sc035hgs_mr536_isp_cfg", 640, 480, 30, 0, 0, &sc035hgs_mr536_isp_cfg},

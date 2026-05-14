@@ -27,7 +27,11 @@
 #define INI_PATH "/tmp/"
 #endif
 
+#if defined LIBISP_USE_INI_CFG
+#define TUNING_USE_INI_CFG 1
+#else
 #define TUNING_USE_INI_CFG 0
+#endif
 
 #define AW_ERR_VI_INVALID_PARA            -1
 #define AW_ERR_VI_INVALID_DEVID           -2

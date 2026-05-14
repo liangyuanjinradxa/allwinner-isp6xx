@@ -205,6 +205,11 @@ int video_set_fmt(struct isp_video_device *video, struct video_fmt *vfmt)
 		return -1;
 	}
 
+	if (-1 == ioctl(video->entity->fd, VIDIOC_VIN_SET_COLOR_SPACE, &vfmt->format.colorspace)) {
+		ISP_ERR("VIDIOC_VIN_SET_COLOR_SPACE error!\n");
+		return -1;
+	}
+
 	if (vfmt->scaler_cfg.scaler_en) {
 		if (vfmt->scaler_cfg.sensorA_scaler_cfg.width && vfmt->scaler_cfg.sensorA_scaler_cfg.height &&
 				vfmt->scaler_cfg.sensorB_scaler_cfg.width && vfmt->scaler_cfg.sensorB_scaler_cfg.height) {
@@ -1153,7 +1158,7 @@ int video_fastboot_get_cfg_attr(struct isp_video_device *video, struct isp_cfg_a
 	return 0;
 }
 
-int video_fastboot_get_sei_info_attr(struct isp_video_device *video, struct ISPSeiInfo *fastboot_isp_sei_info)
+int video_fastboot_get_sei_info_attr(struct isp_video_device *video, struct isp_sei_info *fastboot_isp_sei_info)
 {
 	if (-1 == ioctl(video->entity->fd, VIDIOC_GET_ISP_SEI_INFO, fastboot_isp_sei_info)) {
 		ISP_ERR("video%d VIDIOC_GET_ISP_SEI_INFO failed\n", (int)video->id);

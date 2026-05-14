@@ -923,7 +923,7 @@ void convert_tuning_cfg_func(HW_U8 group_id, HW_U32 cfg_ids, unsigned char *cfg_
 			}
 			// 2. cbth, crth
 			ushort_ptr = (HW_U16 *)short_ptr;
-			attr_len = ISP_REG_TBL_LENGTH_32 * sizeof(HW_U16) * 2;
+			attr_len = ISP_REG_TBL_LENGTH_32 * 2;
 			for (i = 0; i < attr_len; i++, ushort_ptr++) {
 				*ushort_ptr = cvt_short(*ushort_ptr);
 			}

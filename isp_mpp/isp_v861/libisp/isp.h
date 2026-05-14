@@ -41,6 +41,7 @@ int isp_events_stop(int dev_id);
 int isp_events_restar(int dev_id);
 int isp_events_init(int dev_id);
 int isp_set_sync(int mode);
+int isp_clean_sync(int mode);
 int isp_set_stitch_mode(int isp_id, enum stitch_mode_t stitch_mode);
 HW_S32 isp_pthread_join(int dev_id);
 HW_S32 isp_get_cfg(int dev_id, HW_U8 group_id, HW_U32 cfg_ids, void *cfg_data);

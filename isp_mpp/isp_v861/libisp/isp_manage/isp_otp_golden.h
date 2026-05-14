@@ -170,7 +170,7 @@ static float msc_golden[OTP_MSC_SIZE_2IN1] =
 
 static unsigned short af_golden[2] =
 {/* max_code, min_code */
-	371, 251
+	500, 200
 };
 
 #if 0

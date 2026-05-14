@@ -1132,121 +1132,6 @@ int find_nearest_index(int mod, int temp)
 	return index;
 }
 
-#if 0
-int parser_sync_info(struct isp_param_config *param, char *isp_cfg_name, int isp_id)
-{
-	FILE *file_fd = NULL;
-	char fdstr[50];
-	int sync_info[775];
-	int lsc_ind = 0, lsc_cnt = 0, lsc_tab_cnt = 0;
-	int version_num = 0;
-	int lsc_temp = 0;
-	int enable = 0;
-
-	sprintf(fdstr, "/mnt/extsd/%s_%d.bin", isp_cfg_name, isp_id);
-	file_fd = fopen(fdstr, "rb");
-	if (!file_fd) {
-		ISP_ERR("open bin failed.\n");
-		return -1;
-	} else {
-		fread(&sync_info[0], sizeof(int)*775, 1, file_fd);
-	}
-	fclose(file_fd);
-
-	version_num = sync_info[0];
-	enable = sync_info[1];
-
-	ISP_CFG_LOG(ISP_LOG_CFG, "%s enable mode = %d.\n", __func__, enable);
-
-	if (0 == enable) {
-		return 0;
-	} else if (1 == enable) {
-		memcpy(param->isp_tunning_settings.bayer_gain, &sync_info[2], sizeof(int)*ISP_RAW_CH_MAX);
-		return 0;
-	} else if (2 == enable) {
-		goto lsc_tbl;
-	}
-	memcpy(param->isp_tunning_settings.bayer_gain, &sync_info[2], sizeof(int)*ISP_RAW_CH_MAX);
-
-	ISP_CFG_LOG(ISP_LOG_CFG, "%s bayer_gain: %d, %d, %d, %d.\n", __func__,
-		param->isp_tunning_settings.bayer_gain[0], param->isp_tunning_settings.bayer_gain[1],
-		param->isp_tunning_settings.bayer_gain[2], param->isp_tunning_settings.bayer_gain[3]);
-lsc_tbl:
-	lsc_temp = sync_info[6];
-	lsc_ind = find_nearest_index(param->isp_tunning_settings.ff_mod, lsc_temp);
-	ISP_CFG_LOG(ISP_LOG_CFG, "%s lsc_ind: %d.\n", __func__, lsc_ind);
-
-	if(param->isp_tunning_settings.ff_mod == 1) {
-		for(lsc_tab_cnt = 0; lsc_tab_cnt < 4; lsc_tab_cnt++) {
-			if(lsc_tab_cnt == lsc_ind)
-				continue;
-			for(lsc_cnt = 0; lsc_cnt < 768; lsc_cnt++) {
-				param->isp_tunning_settings.lsc_tbl[lsc_tab_cnt][lsc_cnt]
-					= sync_info[7+lsc_cnt]*param->isp_tunning_settings.lsc_tbl[lsc_tab_cnt][lsc_cnt]/param->isp_tunning_settings.lsc_tbl[lsc_ind][lsc_cnt];
-			}
-		}
-
-		for(lsc_tab_cnt = 4; lsc_tab_cnt < 8; lsc_tab_cnt++) {
-			if(lsc_tab_cnt == (lsc_ind+4))
-				continue;
-			for(lsc_cnt = 0; lsc_cnt < 768; lsc_cnt++) {
-				param->isp_tunning_settings.lsc_tbl[lsc_tab_cnt][lsc_cnt]
-					= sync_info[7+lsc_cnt]*param->isp_tunning_settings.lsc_tbl[lsc_tab_cnt][lsc_cnt]/param->isp_tunning_settings.lsc_tbl[lsc_ind+4][lsc_cnt];
-			}
-		}
-		for(lsc_cnt = 0; lsc_cnt < 768; lsc_cnt++)
-			param->isp_tunning_settings.lsc_tbl[lsc_ind][lsc_cnt] = param->isp_tunning_settings.lsc_tbl[lsc_ind+4][lsc_cnt]
-				= sync_info[7+lsc_cnt];
-
-		ISP_CFG_LOG(ISP_LOG_CFG, "%s lsc_tbl_1 0: %d, 1: %d, 766: %d, 767: %d.\n", __func__,
-			param->isp_tunning_settings.lsc_tbl[1][0], param->isp_tunning_settings.lsc_tbl[1][1],
-			param->isp_tunning_settings.lsc_tbl[1][766], param->isp_tunning_settings.lsc_tbl[1][767]);
-	} else if(param->isp_tunning_settings.ff_mod == 2) {
-		for(lsc_tab_cnt = 0; lsc_tab_cnt < 6; lsc_tab_cnt++) {
-			if(lsc_tab_cnt == lsc_ind)
-				continue;
-			for(lsc_cnt = 0; lsc_cnt < 768; lsc_cnt++) {
-				if(param->isp_tunning_settings.lsc_tbl[lsc_ind][lsc_cnt] == 0) {
-					ISP_ERR("lsc_ind: %d, lsc_cnt: %d is zero.\n", lsc_ind, lsc_cnt);
-					continue;
-				} else
-					param->isp_tunning_settings.lsc_tbl[lsc_tab_cnt][lsc_cnt]
-						= sync_info[7+lsc_cnt]*param->isp_tunning_settings.lsc_tbl[lsc_tab_cnt][lsc_cnt]/param->isp_tunning_settings.lsc_tbl[lsc_ind][lsc_cnt];
-				if(param->isp_tunning_settings.lsc_tbl[lsc_tab_cnt][lsc_cnt] == 0) {
-					ISP_ERR("result------>lsc_ind: %d, lsc_cnt: %d is zero.\n", lsc_tab_cnt, lsc_cnt);
-				}
-			}
-		}
-
-		for(lsc_tab_cnt = 6; lsc_tab_cnt < 12; lsc_tab_cnt++) {
-			if(lsc_tab_cnt == (lsc_ind+6))
-				continue;
-			for(lsc_cnt = 0; lsc_cnt < 768; lsc_cnt++) {
-				if(param->isp_tunning_settings.lsc_tbl[lsc_ind + 7][lsc_cnt] == 0) {
-					ISP_ERR("lsc_ind: %d, lsc_cnt: %d is zero.\n", lsc_ind+6, lsc_cnt);
-					continue;
-				} else
-					param->isp_tunning_settings.lsc_tbl[lsc_tab_cnt][lsc_cnt]
-						= sync_info[7+lsc_cnt]*param->isp_tunning_settings.lsc_tbl[lsc_tab_cnt][lsc_cnt]/param->isp_tunning_settings.lsc_tbl[lsc_ind+6][lsc_cnt];
-				if(param->isp_tunning_settings.lsc_tbl[lsc_tab_cnt][lsc_cnt] == 0) {
-					ISP_ERR("result------>lsc_ind: %d, lsc_cnt: %d is zero.\n", lsc_tab_cnt, lsc_cnt);
-				}
-			}
-		}
-		for(lsc_cnt = 0; lsc_cnt < 768; lsc_cnt++)
-			param->isp_tunning_settings.lsc_tbl[lsc_ind][lsc_cnt] = param->isp_tunning_settings.lsc_tbl[lsc_ind+6][lsc_cnt]
-				= sync_info[7+lsc_cnt];
-
-		ISP_CFG_LOG(ISP_LOG_CFG, "%s lsc_tbl_1 0: %d, 1: %d, 766: %d, 767: %d.\n", __func__,
-			param->isp_tunning_settings.lsc_tbl[1][0], param->isp_tunning_settings.lsc_tbl[1][1],
-			param->isp_tunning_settings.lsc_tbl[1][766], param->isp_tunning_settings.lsc_tbl[1][767]);
-	} else {
-		ISP_ERR("isp ff_mod error.\n");
-	}
-	return 0;
-}
-#endif
-
 int isp_save_tbl(struct isp_param_config *param, char *tbl_patch)
 {
 	FILE *file_fd = NULL;
@@ -1610,8 +1495,6 @@ int parser_ini_info(struct isp_param_config *param, char *isp_cfg_name, char *se
 
 		//isp_save_tbl(param, "/mnt/extsd");
 
-//		if(sync_mode)
-//			parser_sync_info(param, cfg_arr[i].isp_cfg_name, isp_id);
 	}
 
 	return 0;

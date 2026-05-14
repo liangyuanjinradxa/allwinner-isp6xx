@@ -558,6 +558,7 @@ int isp_sensor_otp_init(struct hw_isp_device *isp)
 		ctx->sensor_otp.pmsc_table = NULL;
 		ctx->sensor_otp.pwb_table = NULL;
 		ctx->sensor_otp.paf_table = NULL;
+		ctx->sensor_otp.ppdaf_info = NULL;
 	} else {
 		ctx->sensor_otp.otp_enable = 1;
 		ISP_PRINT("ISP%d OTP Enable\n", ctx->isp_id);
@@ -565,10 +566,12 @@ int isp_sensor_otp_init(struct hw_isp_device *isp)
 			ctx->sensor_otp.pmsc_table = &ctx->sensor_otp.otp_info->otp_buf[0];
 			ctx->sensor_otp.pwb_table = &ctx->sensor_otp.otp_info->otp_buf[OTP_MSC_SIZE * 2];
 			ctx->sensor_otp.paf_table = &ctx->sensor_otp.otp_info->otp_buf[OTP_MSC_SIZE * 2 + OTP_WB_SIZE];
+			ctx->sensor_otp.ppdaf_info = &ctx->sensor_otp.otp_info->otp_buf[OTP_MSC_SIZE * 2 + OTP_WB_SIZE + OTP_AF_SIZE];
 		} else {
 			ctx->sensor_otp.pmsc_table = &ctx->sensor_otp.otp_info->otp_buf[0];
 			ctx->sensor_otp.pwb_table = &ctx->sensor_otp.otp_info->otp_buf[OTP_MSC_SIZE];
 			ctx->sensor_otp.paf_table = &ctx->sensor_otp.otp_info->otp_buf[OTP_MSC_SIZE + OTP_WB_SIZE];
+			ctx->sensor_otp.ppdaf_info = &ctx->sensor_otp.otp_info->otp_buf[OTP_MSC_SIZE + OTP_WB_SIZE + OTP_AF_SIZE];
 		}
 	}
 	return 0;
@@ -587,6 +590,7 @@ int isp_sensor_otp_exit(struct hw_isp_device *isp)
 	ctx->sensor_otp.pmsc_table = NULL;
 	ctx->sensor_otp.pwb_table = NULL;
 	ctx->sensor_otp.paf_table = NULL;
+	ctx->sensor_otp.ppdaf_info = NULL;
 	ctx->sensor_otp.otp_enable = 0;
 
 	return 0;

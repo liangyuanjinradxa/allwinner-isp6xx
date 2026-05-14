@@ -52,7 +52,6 @@ struct load_isp_param_t {
 	int size;
 };
 
-int parser_sync_info(struct isp_param_config *param, char *isp_cfg_name, int isp_id);
 int parser_ini_info(struct isp_param_config *param, char *isp_cfg_name, char *sensor_name,
 			int w, int h, int fps, int wdr, int ir, int sync_mode, int isp_id);
 int parse_isp_cfg(struct isp_param_config *param, char *isp_cfg_name, int isp_id, int sync_mode, int ir_flag, char *isp_cfg_bin_path);

@@ -232,4 +232,9 @@ int video_set_aiisp_switch(struct isp_video_device *video, enum aiisp_switch_dir
 int video_set_vbv_share_yuv(struct isp_video_device *video, unsigned int enable);
 int video_invalid_cache(struct isp_video_device *video, struct bk_sync_cfg sync_config);
 
+int video_fastboot_get_sei_info_attr(struct isp_video_device *video, struct isp_sei_info *fastboot_isp_sei_info);
+int video_fastboot_get_encpp_cfg_attr(struct isp_video_device *video, struct isp_encpp_cfg_attr_data *fastboot_encpp_cfg_attr);
+int video_fastboot_set_cfg_attr(struct isp_video_device *video, struct isp_cfg_attr_data *fastboot_isp_cfg_attr);
+int video_fastboot_get_cfg_attr(struct isp_video_device *video, struct isp_cfg_attr_data *fastboot_isp_cfg_attr);
+
 #endif /* __VIDEO_H_ */

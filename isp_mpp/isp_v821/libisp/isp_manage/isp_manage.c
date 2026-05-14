@@ -29,6 +29,8 @@ unsigned int isp_lib_log_param = 0;//0xffffffff;
 /* ldci_video option */
 #define LDCI_VIDEO_CHN 4
 
+#define PDAF_VIDEO_CHN 16
+
 void isp_get_saved_regs(struct isp_lib_context *isp_gen)
 {
 	FUNCTION_LOG;
@@ -269,7 +271,7 @@ void __isp_rolloff_run(struct isp_lib_context *isp_gen)
 void __isp_afs_set_params(struct isp_lib_context *isp_gen)
 {
 	isp_gen->afs_entity_ctx.afs_param->isp_platform_id = isp_gen->module_cfg.isp_platform_id;
-	isp_gen->afs_entity_ctx.afs_param->afs_frame_id = isp_gen->af_frame_cnt;
+	isp_gen->afs_entity_ctx.afs_param->afs_frame_id = isp_gen->afs_frame_cnt;
 	isp_gen->afs_entity_ctx.afs_param->afs_sensor_info = isp_gen->sensor_info;
 }
 
@@ -324,6 +326,9 @@ void __isp_af_set_params(struct isp_lib_context *isp_gen)
 	isp_gen->af_entity_ctx.af_param->af_range = isp_gen->af_settings.af_range;
 	isp_gen->af_entity_ctx.af_param->focus_lock = isp_gen->af_settings.focus_lock;
 	isp_gen->af_entity_ctx.af_param->sensor_info =	isp_gen->sensor_info;
+
+	isp_gen->af_entity_ctx.af_param->pdaf_cfg.pdaf_video_in_chn = PDAF_VIDEO_CHN;
+	isp_gen->af_entity_ctx.af_param->pdaf_cfg.pdaf_entity_id = isp_gen->isp_id;
 
 	for (i = 0; i < ISP_D3D_K_ROW; i++) {
 		for (j = 0; j < ISP_D3D_K_COL; j++) {
@@ -1011,6 +1016,9 @@ void __isp_ctx_cfg_lib(struct isp_lib_context *isp_gen)
 	isp_gen->tune.effect = ISP_COLORFX_NONE;
 	isp_gen->VencVe2IspParam.d2d_level = 256;
 	isp_gen->VencVe2IspParam.d3d_level = 256;
+#if (ISP_VERSION == 603)
+	isp_gen->VencVe2IspParam.sharp_level = 256;
+#endif
 	isp_gen->VencVe2IspParam.mMovingLevelInfo.is_overflow = 0;
 	isp_gen->npu_nr_cfg.roi_num = 0;
 
@@ -1100,9 +1108,17 @@ void __isp_ctx_cfg_lib(struct isp_lib_context *isp_gen)
 	//algo save variable
 	isp_gen->algo_save.wb_rgain_last[0] = 256;
 	isp_gen->algo_save.wb_rgain_last[1] = 256;
+	isp_gen->algo_save.wb_rgain_last[2] = 256;
 	isp_gen->algo_save.wb_bgain_last[0] = 256;
 	isp_gen->algo_save.wb_bgain_last[1] = 256;
+	isp_gen->algo_save.wb_bgain_last[2] = 256;
 	isp_gen->algo_save.wb_l_shift = 0;
+	isp_gen->algo_save.wb_stat_shif_limit = 4;//0~4
+#if (ISP_VERSION == 606)
+	isp_gen->algo_save.wb_stat_delay = 1;//0~3
+#else
+	isp_gen->algo_save.wb_stat_delay = 2;//0~3
+#endif
 	isp_gen->algo_save.lsc_color_temp_save = 5500;
 	isp_gen->algo_save.lsc_comp_save = 256;
 	isp_gen->algo_save.lsc_vcm_std_pos_save = 300;
@@ -2528,6 +2544,15 @@ HW_S32 __isp_ctx_update_af_cfg(struct isp_lib_context *isp_gen)
 	memcpy(&isp_gen->af_entity_ctx.af_param->af_ini.af_tolerance_value_tbl[0],
 		&isp_gen->isp_ini_cfg.isp_3a_settings.af_tolerance_value_tbl[0], 20*sizeof(int));
 	isp_gen->af_entity_ctx.af_param->af_ini.af_delay_frame = isp_gen->isp_ini_cfg.isp_3a_settings.af_reserve_0;
+	isp_gen->af_entity_ctx.af_param->pdaf_cfg.pdaf_en = isp_gen->af_entity_ctx.af_param->af_ini.af_std_code_tbl[10];
+	if (isp_gen->af_entity_ctx.af_param->af_ini.af_std_code_tbl[11] && isp_gen->af_entity_ctx.af_param->af_ini.af_std_code_tbl[12]) {
+		isp_gen->af_entity_ctx.af_param->pdaf_cfg.pdaf_width = isp_gen->af_entity_ctx.af_param->af_ini.af_std_code_tbl[11];
+		isp_gen->af_entity_ctx.af_param->pdaf_cfg.pdaf_height = isp_gen->af_entity_ctx.af_param->af_ini.af_std_code_tbl[12];
+	} else {
+		if (isp_gen->af_entity_ctx.af_param->pdaf_cfg.pdaf_en == PDAF_VC_DATA)
+			isp_gen->af_entity_ctx.af_param->pdaf_cfg.pdaf_en = PDAF_CLOSE;
+	}
+
 	isp_af_set_params_helper(&isp_gen->af_entity_ctx, ISP_AF_INI_DATA);
 
 	isp_gen->af_entity_ctx.af_param->test_cfg.isp_test_mode = isp_gen->isp_ini_cfg.isp_test_settings.isp_test_mode;
@@ -2558,7 +2583,8 @@ HW_S32 __isp_ctx_update_awb_cfg(struct isp_lib_context *isp_gen)
 	//isp_gen->awb_entity_ctx.awb_param->awb_ini.awb_ext_light_num = isp_gen->isp_ini_cfg.isp_3a_settings.awb_ext_light_num;
 	isp_gen->awb_entity_ctx.awb_param->awb_ini.awb_ext_light_num = 0;
 	isp_gen->awb_entity_ctx.awb_param->awb_ini.awb_skin_color_num = isp_gen->isp_ini_cfg.isp_3a_settings.awb_skin_color_num;
-	isp_gen->awb_entity_ctx.awb_param->awb_ini.awb_special_color_num = isp_gen->isp_ini_cfg.isp_3a_settings.awb_special_color_num;
+	//isp_gen->awb_entity_ctx.awb_param->awb_ini.awb_special_color_num = isp_gen->isp_ini_cfg.isp_3a_settings.awb_special_color_num;
+	isp_gen->awb_entity_ctx.awb_param->awb_ini.awb_special_color_num = 0;
 #if (ISP_VERSION < 602)
 	isp_gen->awb_entity_ctx.awb_param->awb_ini.awb_rgain_favor = isp_gen->isp_ini_cfg.isp_3a_settings.awb_rgain_favor;
 	isp_gen->awb_entity_ctx.awb_param->awb_ini.awb_bgain_favor = isp_gen->isp_ini_cfg.isp_3a_settings.awb_bgain_favor;
@@ -2579,12 +2605,36 @@ HW_S32 __isp_ctx_update_awb_cfg(struct isp_lib_context *isp_gen)
 	//test cfg.
 	isp_gen->awb_entity_ctx.awb_param->test_cfg.awb_en = isp_gen->isp_ini_cfg.isp_test_settings.awb_en;
 	isp_gen->awb_entity_ctx.awb_param->test_cfg.isp_color_temp = isp_gen->isp_ini_cfg.isp_test_settings.isp_color_temp;
+
+	//calc cfg.
+	isp_gen->awb_entity_ctx.awb_param->calc_cfg.use_gain_sel = isp_gen->isp_ini_cfg.isp_3a_settings.awb_special_color_info[0];//0:default 1:new
+	isp_gen->awb_entity_ctx.awb_param->calc_cfg.color_exclude_en = isp_gen->isp_ini_cfg.isp_3a_settings.awb_special_color_info[10];//sky and color exclude. 0:disable 1:enable
+	isp_gen->awb_entity_ctx.awb_param->calc_cfg.sky_exclude_distance = isp_gen->isp_ini_cfg.isp_3a_settings.awb_special_color_info[11];//5 range:3~20
+	isp_gen->awb_entity_ctx.awb_param->calc_cfg.sky_exclude_rt = isp_gen->isp_ini_cfg.isp_3a_settings.awb_special_color_info[12];//100 0~100
+	isp_gen->awb_entity_ctx.awb_param->calc_cfg.sky_temp_thres = isp_gen->isp_ini_cfg.isp_3a_settings.awb_special_color_info[13];//6200 range:>5000
+	isp_gen->awb_entity_ctx.awb_param->calc_cfg.sky_br_thres = isp_gen->isp_ini_cfg.isp_3a_settings.awb_special_color_info[14];//100 range:75~255
+	isp_gen->awb_entity_ctx.awb_param->calc_cfg.outside_ae_lv = isp_gen->isp_ini_cfg.isp_3a_settings.awb_special_color_info[15];//1000 range:800~2000
+	isp_gen->awb_entity_ctx.awb_param->calc_cfg.other_exclude_rt = isp_gen->isp_ini_cfg.isp_3a_settings.awb_special_color_info[16];//80 range:0~100
+	isp_gen->awb_entity_ctx.awb_param->calc_cfg.sat_corr_en = isp_gen->isp_ini_cfg.isp_3a_settings.awb_special_color_info[20];//saturation correct. 0:disable 1:enable
+	isp_gen->awb_entity_ctx.awb_param->calc_cfg.sat_corr_thres = isp_gen->isp_ini_cfg.isp_3a_settings.awb_special_color_info[21];//15 range:5~30
+	isp_gen->awb_entity_ctx.awb_param->calc_cfg.temp_exclude_en = isp_gen->isp_ini_cfg.isp_3a_settings.awb_special_color_info[30];//0:disable 1:enable
+	isp_gen->awb_entity_ctx.awb_param->calc_cfg.temp_exclude_range = isp_gen->isp_ini_cfg.isp_3a_settings.awb_special_color_info[31];//1000 range:500~5000
+	isp_gen->awb_entity_ctx.awb_param->calc_cfg.br_weight_en = isp_gen->isp_ini_cfg.isp_3a_settings.awb_special_color_info[40];//0:disable 1:enable
+	isp_gen->awb_entity_ctx.awb_param->calc_cfg.br_low_th = isp_gen->isp_ini_cfg.isp_3a_settings.awb_special_color_info[41];//10 range:0~60
+	isp_gen->awb_entity_ctx.awb_param->calc_cfg.br_high_th = isp_gen->isp_ini_cfg.isp_3a_settings.awb_special_color_info[42];//10 range:80~255
+	isp_gen->awb_entity_ctx.awb_param->calc_cfg.color_exclude_calc_en = isp_gen->isp_ini_cfg.isp_3a_settings.awb_special_color_info[50];//color exclude. 0:disable 1:enable
+	isp_gen->awb_entity_ctx.awb_param->calc_cfg.class_temp_delt = isp_gen->isp_ini_cfg.isp_3a_settings.awb_special_color_info[51];//800 range:300~2000
+	isp_gen->awb_entity_ctx.awb_param->calc_cfg.class_count = isp_gen->isp_ini_cfg.isp_3a_settings.awb_special_color_info[52];//40 range:10~150
+	isp_gen->awb_entity_ctx.awb_param->calc_cfg.exclude_temp_delt = isp_gen->isp_ini_cfg.isp_3a_settings.awb_special_color_info[53];//850 range:500~2000
+	isp_gen->awb_entity_ctx.awb_param->calc_cfg.exclude_var = isp_gen->isp_ini_cfg.isp_3a_settings.awb_special_color_info[54];//200 range:50~500
+	isp_gen->awb_entity_ctx.awb_param->calc_cfg.exclude_percent_1 = isp_gen->isp_ini_cfg.isp_3a_settings.awb_special_color_info[55];//80 range:0~100
+	isp_gen->awb_entity_ctx.awb_param->calc_cfg.exclude_percent_2 = isp_gen->isp_ini_cfg.isp_3a_settings.awb_special_color_info[56];//50 range:0~100
+
 #if (ISP_VERSION >= 602)
 	isp_gen->awb_entity_ctx.awb_param->test_cfg.isp_test_mode = clamp(isp_gen->isp_ini_cfg.isp_3a_settings.local_wb_coef, -1, 20);
 #else
 	isp_gen->awb_entity_ctx.awb_param->test_cfg.isp_test_mode = 10;//isp_gen->isp_ini_cfg.isp_test_settings.isp_test_mode;
 #endif
-
 	return 0;
 }
 
@@ -2711,6 +2761,13 @@ HW_S32 __isp_ctx_update_afs_cfg(struct isp_lib_context *isp_gen)
 	isp_gen->afs_entity_ctx.afs_param->flicker_type_ini = isp_gen->isp_ini_cfg.isp_tunning_settings.flicker_type;
 	isp_gen->afs_entity_ctx.afs_param->test_cfg.isp_test_mode = isp_gen->isp_ini_cfg.isp_test_settings.isp_test_mode;
 	isp_gen->afs_entity_ctx.afs_param->test_cfg.afs_en = isp_gen->isp_ini_cfg.isp_test_settings.afs_en;
+	if (isp_gen->isp_ini_cfg.isp_test_settings.afs_en) {
+		isp_gen->afs_entity_ctx.afs_param->flicker_mode = isp_gen->isp_ini_cfg.isp_tunning_settings.flicker_type;
+	} else {
+		isp_gen->afs_entity_ctx.afs_param->flicker_mode = FREQUENCY_DISABLED;
+	}
+	isp_gen->ae_settings.flicker_mode = isp_gen->afs_entity_ctx.afs_param->flicker_mode;
+	ISP_LIB_LOG(ISP_LOG_AFS, "flicker_mode %d, flicker_type_output %d\n", isp_gen->afs_entity_ctx.afs_param->flicker_mode, isp_gen->ae_settings.flicker_type);
 
 	return 0;
 }
@@ -3142,7 +3199,7 @@ HW_S32 isp_ctx_front_algo_run(struct isp_lib_context *isp_gen)
 	isp_apply_settings(isp_gen);
 
 	__isp_ae_set_params(isp_gen);
-	if ( (isp_gen->isp_algo_cnt > isp_gen->isp_algo_freq_div) || (isp_gen->isp_algo_flag_div & ISP_LOG_AE) ) {
+	if ( (++isp_gen->isp_algo_cnt > isp_gen->isp_algo_freq_div) || (isp_gen->isp_algo_flag_div & ISP_LOG_AE) ) {
 		__isp_ae_run(isp_gen);
 		isp_gen->ae_frame_cnt++;
 	}
@@ -3234,8 +3291,6 @@ HW_S32 isp_ctx_rear_algo_run(struct isp_lib_context *isp_gen)
 
 	if (isp_gen->isp_algo_cnt > isp_gen->isp_algo_freq_div) {
 		isp_gen->isp_algo_cnt = DIV_RATIO_MIN;
-	} else {
-		isp_gen->isp_algo_cnt++;
 	}
 
 	isp_apply_colormatrix(isp_gen);

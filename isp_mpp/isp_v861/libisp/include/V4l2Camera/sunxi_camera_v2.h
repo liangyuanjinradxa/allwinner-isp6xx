@@ -654,7 +654,7 @@ struct vin_vsync_event_data {
 #define SEI_LEVEL3_LEN (7008)
 #define SEI_LEVEL4_LEN (176)
 
-typedef struct
+typedef struct isp_sei_info
 {
 	int nInfoBitFlags; // ISPInfoType_exp | ISPInfoType_colortemp | ISPInfoType_awb | ISPInfoType_version
 	char mInfoLevel1[SEI_LEVEL1_LEN];
@@ -817,7 +817,7 @@ struct flash_para {
 };
 
 struct msc_para {
-	unsigned char data[4096];
+	unsigned char data[8192];
 };
 
 struct ir_switch {
@@ -1050,5 +1050,9 @@ struct bk_sync_cfg {
 	_IOWR('V', BASE_VIDIOC_PRIVATE + 129, struct bk_share_buf)
 #define VIDIOC_VIN_INVALID_CACHE \
 	_IOWR('V', BASE_VIDIOC_PRIVATE + 131, struct bk_sync_cfg)
+#define VIDIOC_VIN_GET_MERGE_LBC_OFFSET \
+	_IOWR('V', BASE_VIDIOC_PRIVATE + 132, unsigned int)
+#define VIDIOC_VIN_SET_COLOR_SPACE \
+	_IOWR('V', BASE_VIDIOC_PRIVATE + 133, enum v4l2_colorspace)
 
 #endif /* _SUNXI_CAMERA_H_ */

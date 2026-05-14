@@ -51,6 +51,8 @@
 
 struct hw_isp_media_dev *g_media_dev = NULL;
 int                      g_sensor_set_flag;  // bit0-CAPTURE_CHANNEL_MAX-1 set flag vich 0~CAPTURE_CHANNEL_MAX-1
+static int               g_current_isp_sel;
+static int               g_current_stitch_mode;
 
 typedef struct _frame_buffer_info_s
 {
@@ -407,6 +409,7 @@ static void *frame_loop_thread(void *params)
 					exit_video(g_media_dev, cap_pa->priv_cap.vich);
 					cap_pa->status &= ~CAP_STATUS_ON;
 					cap_pa->status &= ~CAP_THREAD_RUNNING;
+					cap_pa->status &= ~CAP_THREAD_STOP;
 					pthread_mutex_unlock(&cap_pa->locker);
 					LOG("%s: recv stop flag(channel %d)\n", __FUNCTION__, cap_pa->priv_cap.vich);
 					break;
@@ -659,7 +662,7 @@ static int set_video_ptn(struct hw_isp_media_dev *media_dev, int vich, struct vi
 int start_video(capture_params *cap_pa, capture_format *cap_fmt)
 {
 	int ret = CAP_ERR_NONE;
-	int fmt_changed = 0;
+	int fmt_changed = 0, isp_sel_band = 0;
 
 	if (!cap_pa || !cap_fmt || !VALID_VIDEO_SEL(cap_fmt->channel)) {
 		LOG("%s: invalid params\n", __FUNCTION__);
@@ -686,14 +689,76 @@ int start_video(capture_params *cap_pa, capture_format *cap_fmt)
 
 			disable_video(g_media_dev, cap_fmt->channel);
 			exit_video(g_media_dev, cap_fmt->channel);
+
+			cap_pa->status &= ~CAP_STATUS_ON;
 		} else {
 			fmt_changed = 0;
 			goto start_video_get_fmt;
 		}
 	}
+	if (g_current_stitch_mode) {
+		if (cap_fmt->channel % 2) {
+			if (CAP_STATUS_ON & g_cap_handle[cap_fmt->channel - 1].status) {
+				if (g_cap_handle[cap_fmt->channel - 1].priv_cap.vi_fmt.format.pixelformat != cap_fmt->format ||
+					g_cap_handle[cap_fmt->channel - 1].priv_cap.vi_fmt.format.width != cap_fmt->width ||
+					g_cap_handle[cap_fmt->channel - 1].priv_cap.vi_fmt.format.height != cap_fmt->height) {
+					pthread_mutex_lock(&g_cap_handle[cap_fmt->channel - 1].locker);
+					LOG("%s: vich%d format changes: fmt-%d, %dx%d -> fmt-%d, %dx%d\n", __FUNCTION__,
+						g_cap_handle[cap_fmt->channel - 1].priv_cap.vich,
+						g_cap_handle[cap_fmt->channel - 1].priv_cap.vi_fmt.format.pixelformat,
+						g_cap_handle[cap_fmt->channel - 1].priv_cap.vi_fmt.format.width,
+						g_cap_handle[cap_fmt->channel - 1].priv_cap.vi_fmt.format.height,
+						cap_fmt->format, cap_fmt->width, cap_fmt->height);
+
+					disable_video(g_media_dev, g_cap_handle[cap_fmt->channel - 1].priv_cap.vich);
+					exit_video(g_media_dev, g_cap_handle[cap_fmt->channel - 1].priv_cap.vich);
+
+					g_cap_handle[cap_fmt->channel - 1].status &= ~CAP_STATUS_ON;
+					pthread_mutex_unlock(&g_cap_handle[cap_fmt->channel - 1].locker);
+					msleep(100);
+				} else {
+					fmt_changed = 0;
+					goto start_video_get_fmt;
+				}
+			}
+		} else {
+			if (CAP_STATUS_ON & g_cap_handle[cap_fmt->channel + 1].status) {
+				if (g_cap_handle[cap_fmt->channel + 1].priv_cap.vi_fmt.format.pixelformat != cap_fmt->format ||
+					g_cap_handle[cap_fmt->channel + 1].priv_cap.vi_fmt.format.width != cap_fmt->width ||
+					g_cap_handle[cap_fmt->channel + 1].priv_cap.vi_fmt.format.height != cap_fmt->height) {
+					pthread_mutex_lock(&g_cap_handle[cap_fmt->channel + 1].locker);
+					LOG("%s: vich%d format changes: fmt-%d, %dx%d -> fmt-%d, %dx%d\n", __FUNCTION__,
+						g_cap_handle[cap_fmt->channel + 1].priv_cap.vich,
+						g_cap_handle[cap_fmt->channel + 1].priv_cap.vi_fmt.format.pixelformat,
+						g_cap_handle[cap_fmt->channel + 1].priv_cap.vi_fmt.format.width,
+						g_cap_handle[cap_fmt->channel + 1].priv_cap.vi_fmt.format.height,
+						cap_fmt->format, cap_fmt->width, cap_fmt->height);
+
+					disable_video(g_media_dev, g_cap_handle[cap_fmt->channel + 1].priv_cap.vich);
+					exit_video(g_media_dev, g_cap_handle[cap_fmt->channel + 1].priv_cap.vich);
+
+					g_cap_handle[cap_fmt->channel + 1].status &= ~CAP_STATUS_ON;
+					pthread_mutex_unlock(&g_cap_handle[cap_fmt->channel + 1].locker);
+					msleep(100);
+				} else {
+					fmt_changed = 0;
+					goto start_video_get_fmt;
+				}
+			}
+		}
+	}
+
+	isp_stop(g_current_isp_sel);
+	if (g_current_stitch_mode) {
+		if (g_current_isp_sel % 2) {
+			isp_sel_band = g_current_isp_sel - 1;
+		} else {
+			isp_sel_band = g_current_isp_sel + 1;
+		}
+		isp_stop(isp_sel_band);
+	}
 
 	fmt_changed = 1;
-	cap_pa->status &= ~CAP_STATUS_ON;
 
 	ret = init_video(g_media_dev, cap_fmt->channel);
 	if (ret) {
@@ -719,7 +784,16 @@ int start_video(capture_params *cap_pa, capture_format *cap_fmt)
 	cap_pa->priv_cap.vi_fmt.index = cap_fmt->index;
 	cap_pa->priv_cap.vi_fmt.pixel_num = MIPI_ONE_PIXEL;
 	cap_pa->priv_cap.vi_fmt.tdm_speed_down_en = 0;
-	cap_pa->priv_cap.vi_fmt.large_dma_merge_en = cap_fmt->framecount >> 16;
+	if (cap_fmt->format == V4L2_PIX_FMT_SBGGR8 || cap_fmt->format == V4L2_PIX_FMT_SGBRG8 ||
+		cap_fmt->format == V4L2_PIX_FMT_SGRBG8 || cap_fmt->format == V4L2_PIX_FMT_SRGGB8 ||
+		cap_fmt->format == V4L2_PIX_FMT_SBGGR10 || cap_fmt->format == V4L2_PIX_FMT_SGBRG10 ||
+		cap_fmt->format == V4L2_PIX_FMT_SGRBG10 || cap_fmt->format == V4L2_PIX_FMT_SRGGB10 ||
+		cap_fmt->format == V4L2_PIX_FMT_SBGGR12 || cap_fmt->format == V4L2_PIX_FMT_SGBRG12 ||
+		cap_fmt->format == V4L2_PIX_FMT_SGRBG12 || cap_fmt->format == V4L2_PIX_FMT_SRGGB12) {
+		cap_pa->priv_cap.vi_fmt.large_dma_merge_en = 0;
+	} else {
+		cap_pa->priv_cap.vi_fmt.large_dma_merge_en = g_current_stitch_mode;
+	}
 	cap_pa->priv_cap.vi_fmt.ptn_en = cap_fmt->framecount & 0xf;
 
 	ret = set_video_ptn(g_media_dev, cap_fmt->channel, &cap_pa->priv_cap.vi_fmt);
@@ -782,11 +856,26 @@ start_video_get_fmt:
 	ret = CAP_ERR_NONE;
 
 	if (fmt_changed) {
-		msleep(1000);
-		int isp_id = 0;
-		ret = select_isp(isp_id, 1);//PC Tools input isp_id
-		if (ret) {
-			LOG("%s: failed to select isp %d\n", __FUNCTION__, cap_fmt->channel);
+		if (cap_fmt->format != V4L2_PIX_FMT_SBGGR8 && cap_fmt->format != V4L2_PIX_FMT_SGBRG8 &&
+			cap_fmt->format != V4L2_PIX_FMT_SGRBG8 && cap_fmt->format != V4L2_PIX_FMT_SRGGB8 &&
+			cap_fmt->format != V4L2_PIX_FMT_SBGGR10 && cap_fmt->format != V4L2_PIX_FMT_SGBRG10 &&
+			cap_fmt->format != V4L2_PIX_FMT_SGRBG10 && cap_fmt->format != V4L2_PIX_FMT_SRGGB10 &&
+			cap_fmt->format != V4L2_PIX_FMT_SBGGR12 && cap_fmt->format != V4L2_PIX_FMT_SGBRG12 &&
+			cap_fmt->format != V4L2_PIX_FMT_SGRBG12 && cap_fmt->format != V4L2_PIX_FMT_SRGGB12) {
+			exit_isp_module();
+			msleep(1000);
+			ret = select_isp(g_current_isp_sel);//PC Tools input isp_id
+			if (ret) {
+				LOG("%s: failed to select isp channel %d. isp %d\n", __FUNCTION__, cap_fmt->channel, g_current_isp_sel);
+			}
+			if (g_current_stitch_mode) {
+				ret = select_isp(isp_sel_band);
+				if (ret) {
+					LOG("%s: failed to select isp channel %d. isp %d\n", __FUNCTION__, cap_fmt->channel, isp_sel_band);
+				}
+
+				select_isp_stitch_mode(g_current_isp_sel, STITCH_2IN1_LINNER);
+			}
 		}
 	}
 
@@ -910,12 +999,8 @@ int set_sensor_input(const sensor_input *sensor_in)
 	int ret = CAP_ERR_NONE;
 
 	if (sensor_in && VALID_VIDEO_SEL(sensor_in->channel)) {
-		// check whether same format or not
-		//sensor_set_flag = g_sensor_set_flag & (1<<sensor_in->channel);
-		//LOG("%s: channel %d, set flag %d\n", __FUNCTION__, sensor_in->channel, sensor_set_flag);
-		//if (sensor_set_flag) {
-		//	return CAP_ERR_NONE;
-		//}
+		g_current_isp_sel = sensor_in->isp;
+		g_current_stitch_mode = sensor_in->stitch_mode;
 
 		pthread_mutex_lock(&g_cap_locker);
 		cap_handle = g_cap_handle + sensor_in->channel;
@@ -951,13 +1036,18 @@ int set_sensor_input(const sensor_input *sensor_in)
 		cap_handle->priv_cap.vi_fmt.index = sensor_in->index;
 		cap_handle->priv_cap.vi_fmt.pixel_num = MIPI_ONE_PIXEL;
 		cap_handle->priv_cap.vi_fmt.tdm_speed_down_en = 0;
-		cap_handle->priv_cap.vi_fmt.large_dma_merge_en = sensor_in->stitch_mode;
+		if (sensor_in->format == V4L2_PIX_FMT_SBGGR8 || sensor_in->format == V4L2_PIX_FMT_SGBRG8 ||
+			sensor_in->format == V4L2_PIX_FMT_SGRBG8 || sensor_in->format == V4L2_PIX_FMT_SRGGB8 ||
+			sensor_in->format == V4L2_PIX_FMT_SBGGR10 || sensor_in->format == V4L2_PIX_FMT_SGBRG10 ||
+			sensor_in->format == V4L2_PIX_FMT_SGRBG10 || sensor_in->format == V4L2_PIX_FMT_SRGGB10 ||
+			sensor_in->format == V4L2_PIX_FMT_SBGGR12 || sensor_in->format == V4L2_PIX_FMT_SGBRG12 ||
+			sensor_in->format == V4L2_PIX_FMT_SGRBG12 || sensor_in->format == V4L2_PIX_FMT_SRGGB12) {
+			cap_handle->priv_cap.vi_fmt.large_dma_merge_en = 0;
+		} else {
+			cap_handle->priv_cap.vi_fmt.large_dma_merge_en = sensor_in->stitch_mode;
+		}
 		cap_handle->priv_cap.vi_fmt.ptn_en = sensor_in->ptn_en;
 
-//		if (cap_handle->priv_cap.vich) {
-//			LOG("ldci video from awtuningapp, please set 160*90\n");
-//			ldci_video_sel = TUNINGAPP_VIDEO_IN;
-//		}
 		ret = set_video_ptn(g_media_dev, sensor_in->channel, &cap_handle->priv_cap.vi_fmt);
 		if (ret) {
 			LOG("%s: failed to set ptn(channel %d)\n", __FUNCTION__, sensor_in->channel);
@@ -1045,15 +1135,11 @@ int get_capture_buffer(capture_format *cap_fmt, sock_packet *comm_packet, int so
 	if (cap_fmt && VALID_VIDEO_SEL(cap_fmt->channel)) {
 		pthread_mutex_lock(&g_cap_locker);
 		cap_handle = g_cap_handle + cap_fmt->channel;
-		//LOG("%s: %d\n", __FUNCTION__, __LINE__);
 		ret = start_video(cap_handle, cap_fmt);
-		//LOG("%s: %d\n", __FUNCTION__, __LINE__);
 		if (CAP_ERR_NONE == ret) {
 			// get frame
 			//LOG("%s: ready to get frame(channel %d)\n", __FUNCTION__, cap_fmt->channel);
-			//LOG("%s: %d\n", __FUNCTION__, __LINE__);
 			pthread_mutex_lock(&cap_handle->locker);
-			//LOG("%s: %d\n", __FUNCTION__, __LINE__);
 			ret = get_video_frame(g_media_dev, cap_handle->priv_cap.vich, &cap_handle->priv_cap.vi_frame_info, cap_handle->priv_cap.timeout);
 			//LOG("%s: get frame %d done(channel %d)\n", __FUNCTION__, frames_count, cap_fmt->channel);
 			cap_handle->frame_count++;
@@ -1529,9 +1615,7 @@ int get_capture_buffer_transfer(capture_format *cap_fmt)
 	if (cap_fmt && VALID_VIDEO_SEL(cap_fmt->channel)) {
 		pthread_mutex_lock(&g_cap_locker);
 		cap_handle = g_cap_handle + cap_fmt->channel;
-		//LOG("%s: %d\n", __FUNCTION__, __LINE__);
 		ret = start_video(cap_handle, cap_fmt);
-		//LOG("%s: %d\n", __FUNCTION__, __LINE__);
 		if (CAP_ERR_NONE == ret) {
 			// get frame
 			LOG("%s: ready to get frame(channel %d)\n", __FUNCTION__, cap_fmt->channel);

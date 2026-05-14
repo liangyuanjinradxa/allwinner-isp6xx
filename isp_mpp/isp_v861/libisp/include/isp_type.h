@@ -35,6 +35,7 @@ typedef unsigned short          HW_U6Q10;
 typedef unsigned short          HW_U8Q8;
 typedef unsigned short          HW_U12Q4;
 typedef unsigned short          HW_U14Q2;
+typedef unsigned short          HW_U10Q6;
 
 typedef short                   HW_S8Q8;
 typedef short                   HW_S9Q7;

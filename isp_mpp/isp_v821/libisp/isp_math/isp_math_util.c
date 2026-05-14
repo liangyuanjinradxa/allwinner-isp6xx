@@ -446,13 +446,32 @@ static void gaussianSmooth_Neon(float *srcTbl, int RowNum, int ColNum)
 {
 	int i = 1, j = 1;
 	float *tmpSrcTbl = NULL;
-	int x0, x1, x2;
-	int y0, y1, y2;
-	float gKernel[3 * 3] = {
-		0.010340243, 0.081131135, 0.010340243, //sigma=0.05
-		0.081131135, 0.634114491, 0.081131135,
-		0.010340243, 0.081131135, 0.010340243
+	const float gKernel[9] = {
+		0.010340243f, 0.081131135f, 0.010340243f,
+		0.081131135f, 0.634114491f, 0.081131135f,
+		0.010340243f, 0.081131135f, 0.010340243f
 	};
+
+	if (!srcTbl || RowNum <= 0 || ColNum <= 0) {
+		ISP_ERR("Invalid input parameters!\n");
+		return;
+	}
+
+	if (RowNum < 3 || ColNum < 3) {
+		ISP_ERR("Image too small for 3x3 convolution!\n");
+		return;
+	}
+
+	// Pre-load kernel coefficients into Neon registers
+	const float32x4_t k0 = vdupq_n_f32(gKernel[0]);
+	const float32x4_t k1 = vdupq_n_f32(gKernel[1]);
+	const float32x4_t k2 = vdupq_n_f32(gKernel[2]);
+	const float32x4_t k3 = vdupq_n_f32(gKernel[3]);
+	const float32x4_t k4 = vdupq_n_f32(gKernel[4]);
+	const float32x4_t k5 = vdupq_n_f32(gKernel[5]);
+	const float32x4_t k6 = vdupq_n_f32(gKernel[6]);
+	const float32x4_t k7 = vdupq_n_f32(gKernel[7]);
+	const float32x4_t k8 = vdupq_n_f32(gKernel[8]);
 
 	tmpSrcTbl = (float *)malloc(sizeof(float) * RowNum * ColNum);
 	if (!tmpSrcTbl) {
@@ -461,124 +480,121 @@ static void gaussianSmooth_Neon(float *srcTbl, int RowNum, int ColNum)
 	}
 	memcpy(tmpSrcTbl, srcTbl, sizeof(float) * RowNum * ColNum);
 
-	for (i = 1; i < RowNum-1; i++) {
-		for (j = 1; j < ColNum-4; j += 4) { // Process 4 elements at a time using Neon
-			float32x4_t sum = vdupq_n_f32(0.0f);
+	// Process inner region (excluding borders)
+	for (i = 1; i < RowNum - 1; i++) {
+		j = 1;
 
-			// Calculate indices for accessing kernel elements
-			x0 = j - 1;
-			x1 = j;
-			x2 = j + 1;
-			y0 = i - 1;
-			y1 = i;
-			y2 = i + 1;
+		// Process 4 elements at a time using Neon
+		for (; j <= ColNum - 5; j += 4) {
+			// Calculate row pointers for better readability
+			const float *row0 = &tmpSrcTbl[(i - 1) * ColNum + j - 1];
+			const float *row1 = &tmpSrcTbl[i * ColNum + j - 1];
+			const float *row2 = &tmpSrcTbl[(i + 1) * ColNum + j - 1];
 
-			// Load input data into Neon registers
-			float32x4_t input0 = vld1q_f32(&tmpSrcTbl[y0 * ColNum + x0]);
-			float32x4_t input1 = vld1q_f32(&tmpSrcTbl[y0 * ColNum + x1]);
-			float32x4_t input2 = vld1q_f32(&tmpSrcTbl[y0 * ColNum + x2]);
-			float32x4_t input3 = vld1q_f32(&tmpSrcTbl[y1 * ColNum + x0]);
-			float32x4_t input4 = vld1q_f32(&tmpSrcTbl[y1 * ColNum + x1]);
-			float32x4_t input5 = vld1q_f32(&tmpSrcTbl[y1 * ColNum + x2]);
-			float32x4_t input6 = vld1q_f32(&tmpSrcTbl[y2 * ColNum + x0]);
-			float32x4_t input7 = vld1q_f32(&tmpSrcTbl[y2 * ColNum + x1]);
-			float32x4_t input8 = vld1q_f32(&tmpSrcTbl[y2 * ColNum + x2]);
+			// Load 3x3 neighborhood for 4 consecutive pixels
+			// Row 0
+			float32x4_t input00 = vld1q_f32(row0);
+			float32x4_t input01 = vld1q_f32(row0 + 1);
+			float32x4_t input02 = vld1q_f32(row0 + 2);
 
-			// Multiply input with kernel elements and accumulate the sum
-			sum = vmlaq_n_f32(sum, input0, gKernel[0 * 3 + 0]);
-			sum = vmlaq_n_f32(sum, input1, gKernel[0 * 3 + 1]);
-			sum = vmlaq_n_f32(sum, input2, gKernel[0 * 3 + 2]);
-			sum = vmlaq_n_f32(sum, input3, gKernel[1 * 3 + 0]);
-			sum = vmlaq_n_f32(sum, input4, gKernel[1 * 3 + 1]);
-			sum = vmlaq_n_f32(sum, input5, gKernel[1 * 3 + 2]);
-			sum = vmlaq_n_f32(sum, input6, gKernel[2 * 3 + 0]);
-			sum = vmlaq_n_f32(sum, input7, gKernel[2 * 3 + 1]);
-			sum = vmlaq_n_f32(sum, input8, gKernel[2 * 3 + 2]);
+			// Row 1
+			float32x4_t input10 = vld1q_f32(row1);
+			float32x4_t input11 = vld1q_f32(row1 + 1);
+			float32x4_t input12 = vld1q_f32(row1 + 2);
 
-			// Store the result back to the output array
+			// Row 2
+			float32x4_t input20 = vld1q_f32(row2);
+			float32x4_t input21 = vld1q_f32(row2 + 1);
+			float32x4_t input22 = vld1q_f32(row2 + 2);
+
+			// Accumulate weighted sum
+			float32x4_t sum = vmulq_f32(input00, k0);
+			sum = vmlaq_f32(sum, input01, k1);
+			sum = vmlaq_f32(sum, input02, k2);
+			sum = vmlaq_f32(sum, input10, k3);
+			sum = vmlaq_f32(sum, input11, k4);
+			sum = vmlaq_f32(sum, input12, k5);
+			sum = vmlaq_f32(sum, input20, k6);
+			sum = vmlaq_f32(sum, input21, k7);
+			sum = vmlaq_f32(sum, input22, k8);
+
+			// Store result
 			vst1q_f32(&srcTbl[i * ColNum + j], sum);
 		}
+
+		// Process remaining columns in current row
+		for (; j < ColNum - 1; j++) {
+			float sum = 0.0f;
+			const float *row0 = &tmpSrcTbl[(i - 1) * ColNum + j - 1];
+			const float *row1 = &tmpSrcTbl[i * ColNum + j - 1];
+			const float *row2 = &tmpSrcTbl[(i + 1) * ColNum + j - 1];
+
+			// Manually unroll the 3x3 convolution
+			sum += row0[0] * gKernel[0];
+			sum += row0[1] * gKernel[1];
+			sum += row0[2] * gKernel[2];
+			sum += row1[0] * gKernel[3];
+			sum += row1[1] * gKernel[4];
+			sum += row1[2] * gKernel[5];
+			sum += row2[0] * gKernel[6];
+			sum += row2[1] * gKernel[7];
+			sum += row2[2] * gKernel[8];
+
+			srcTbl[i * ColNum + j] = sum;
+		}
 	}
 
-	for (i = 0; i < RowNum; i++) {
-		for (; j < ColNum; j++) {
-			y0 = i - 1;
-			if (y0 < 0)
-				y0 = 1;
-			y1 = i;
-			y2 = i + 1;
-			if (y2 > RowNum - 1)
-				y2 = RowNum - 2;
-			x0 = j - 1;
-			if (x0 < 0)
-				x0 = 1;
-			x1 = j;
-			x2 = j + 1;
-			if (x2 > ColNum - 1)
-				x2 = ColNum - 2;
-			srcTbl[i * ColNum + j]
-			    = tmpSrcTbl[y0 * ColNum + x0] * gKernel[0 * 3 + 0]
-				+ tmpSrcTbl[y0 * ColNum + x1] * gKernel[0 * 3 + 1]
-			    + tmpSrcTbl[y0 * ColNum + x2] * gKernel[0 * 3 + 2]
-				+ tmpSrcTbl[y1 * ColNum + x0] * gKernel[1 * 3 + 0]
-				+ tmpSrcTbl[y1 * ColNum + x1] * gKernel[1 * 3 + 1]
-				+ tmpSrcTbl[y1 * ColNum + x2] * gKernel[1 * 3 + 2]
-				+ tmpSrcTbl[y2 * ColNum + x0] * gKernel[2 * 3 + 0]
-				+ tmpSrcTbl[y2 * ColNum + x1] * gKernel[2 * 3 + 1]
-				+ tmpSrcTbl[y2 * ColNum + x2] * gKernel[2 * 3 + 2];
-		}
-	}
-	for (i = 0; i < RowNum; i+=(RowNum-1)) {
+	// Process border pixels (top and bottom rows)
+	for (i = 0; i < RowNum; i += (RowNum - 1)) {
 		for (j = 0; j < ColNum; j++) {
-			y0 = i - 1;
-			if (y0 < 0)
-				y0 = 1;
-			y1 = i;
-			y2 = i + 1;
-			if (y2 > RowNum - 1)
-				y2 = RowNum - 2;
-			x0 = j - 1;
-			if (x0 < 0)
-				x0 = 1;
-			x1 = j;
-			x2 = j + 1;
-			if (x2 > ColNum - 1)
-				x2 = ColNum - 2;
-			srcTbl[i * ColNum + j]
-				= tmpSrcTbl[y0 * ColNum + x0] * gKernel[0 * 3 + 0]
-				+ tmpSrcTbl[y0 * ColNum + x1] * gKernel[0 * 3 + 1]
-				+ tmpSrcTbl[y0 * ColNum + x2] * gKernel[0 * 3 + 2]
-				+ tmpSrcTbl[y1 * ColNum + x0] * gKernel[1 * 3 + 0]
-				+ tmpSrcTbl[y1 * ColNum + x1] * gKernel[1 * 3 + 1]
-				+ tmpSrcTbl[y1 * ColNum + x2] * gKernel[1 * 3 + 2]
-				+ tmpSrcTbl[y2 * ColNum + x0] * gKernel[2 * 3 + 0]
-				+ tmpSrcTbl[y2 * ColNum + x1] * gKernel[2 * 3 + 1]
-				+ tmpSrcTbl[y2 * ColNum + x2] * gKernel[2 * 3 + 2];
+			// Handle boundaries with clamping
+			int y0 = (i == 0) ? 1 : (RowNum - 2);
+			int y1 = i;
+			int y2 = (i == 0) ? 1 : (RowNum - 2);
+
+			int x0 = (j == 0) ? 1 : (j - 1);
+			int x1 = j;
+			int x2 = (j == ColNum - 1) ? (ColNum - 2) : (j + 1);
+
+			float sum = 0.0f;
+			sum += tmpSrcTbl[y0 * ColNum + x0] * gKernel[0];
+			sum += tmpSrcTbl[y0 * ColNum + x1] * gKernel[1];
+			sum += tmpSrcTbl[y0 * ColNum + x2] * gKernel[2];
+			sum += tmpSrcTbl[y1 * ColNum + x0] * gKernel[3];
+			sum += tmpSrcTbl[y1 * ColNum + x1] * gKernel[4];
+			sum += tmpSrcTbl[y1 * ColNum + x2] * gKernel[5];
+			sum += tmpSrcTbl[y2 * ColNum + x0] * gKernel[6];
+			sum += tmpSrcTbl[y2 * ColNum + x1] * gKernel[7];
+			sum += tmpSrcTbl[y2 * ColNum + x2] * gKernel[8];
+
+			srcTbl[i * ColNum + j] = sum;
 		}
 	}
-	for (i = 1; i < RowNum-1; i++) {
-		y0 = i - 1;
-		if (y0 < 0)
-			y0 = 1;
-		y1 = i;
-		y2 = i + 1;
-		if (y2 > RowNum - 1)
-			y2 = RowNum - 2;
-		x0 = 1;
-		x1 = 0;
-		x2 = 1;
-		if (x2 > ColNum - 1)
-			x2 = ColNum - 2;
-		srcTbl[i * ColNum]
-			= tmpSrcTbl[y0 * ColNum + x0] * gKernel[0 * 3 + 0]
-			+ tmpSrcTbl[y0 * ColNum + x1] * gKernel[0 * 3 + 1]
-			+ tmpSrcTbl[y0 * ColNum + x2] * gKernel[0 * 3 + 2]
-			+ tmpSrcTbl[y1 * ColNum + x0] * gKernel[1 * 3 + 0]
-			+ tmpSrcTbl[y1 * ColNum + x1] * gKernel[1 * 3 + 1]
-			+ tmpSrcTbl[y1 * ColNum + x2] * gKernel[1 * 3 + 2]
-			+ tmpSrcTbl[y2 * ColNum + x0] * gKernel[2 * 3 + 0]
-			+ tmpSrcTbl[y2 * ColNum + x1] * gKernel[2 * 3 + 1]
-			+ tmpSrcTbl[y2 * ColNum + x2] * gKernel[2 * 3 + 2];
+
+	// Process left and right borders (excluding corners already processed)
+	for (i = 1; i < RowNum - 1; i++) {
+		for (j = 0; j < ColNum; j += (ColNum - 1)) {
+			int y0 = i - 1;
+			int y1 = i;
+			int y2 = i + 1;
+
+			int x0 = (j == 0) ? 1 : (j - 1);
+			int x1 = j;
+			int x2 = (j == 0) ? 1 : (ColNum - 2);
+
+			float sum = 0.0f;
+			sum += tmpSrcTbl[y0 * ColNum + x0] * gKernel[0];
+			sum += tmpSrcTbl[y0 * ColNum + x1] * gKernel[1];
+			sum += tmpSrcTbl[y0 * ColNum + x2] * gKernel[2];
+			sum += tmpSrcTbl[y1 * ColNum + x0] * gKernel[3];
+			sum += tmpSrcTbl[y1 * ColNum + x1] * gKernel[4];
+			sum += tmpSrcTbl[y1 * ColNum + x2] * gKernel[5];
+			sum += tmpSrcTbl[y2 * ColNum + x0] * gKernel[6];
+			sum += tmpSrcTbl[y2 * ColNum + x1] * gKernel[7];
+			sum += tmpSrcTbl[y2 * ColNum + x2] * gKernel[8];
+
+			srcTbl[i * ColNum + j] = sum;
+		}
 	}
 
 	free(tmpSrcTbl);
@@ -666,28 +682,33 @@ void cat32X24TableTo16X16Table(float *srcTbl, float *dstTbl)
 void cat32X24TableToTwo16X16Table(float *srcTbl, float *dstTbl_l, float *dstTbl_r)
 {
 	int i = 0, j = 0, p1 = 0, p3 = 0;
-	for (i = 0; i < 16; i+=2) {
+	float w1, w2;
+
+	for (i = 0; i < 16; i++) {
+		//Weights are selected based on odd/even rows
+		if (i % 2 == 0) {
+			w1 = 0.66666666667f;  // 2/3
+			w2 = 0.33333333333f;  // 1/3
+		} else {
+			w1 = 0.33333333333f;  // 1/3
+			w2 = 0.66666666667f;  // 2/3
+		}
+
+		//Calculate the row index of the source table
+		int src_row = (i / 2) * 3;  //Mapping relationship:i->line: 0->0, 1->1, 2->3, 3->4, 4->6, 5->7...
+
+		//Process the left table (the 16 columns on the left)
 		for (j = 0; j < 16; j++) {
-			p1 = (i / 2 + i) * 32 + j;
+			p1 = src_row * 32 + j;
 			p3 = p1 + 32;
-			dstTbl_l[i*16+j] = 0.66666666667f * srcTbl[p1] + 0.33333333333f * srcTbl[p3];
+			dstTbl_l[i*16 + j] = w1 * srcTbl[p1] + w2 * srcTbl[p3];
 		}
+
+		//Process the right table (the 16 columns on the right).
 		for (j = 16; j < 32; j++) {
-			p1 = (i / 2 + i) * 32 + j;
+			p1 = src_row * 32 + j;
 			p3 = p1 + 32;
-			dstTbl_r[i*16+j] = 0.66666666667f * srcTbl[p1] + 0.33333333333f * srcTbl[p3];
-		}
-	}
-	for (i = 1; i < 16; i+=2) {
-		for (j = 0; j < 16; j++) {
-			p1 = (i / 2 + i) * 32 + j;
-			p3 = p1 + 32;
-			dstTbl_l[i*16+j] = 0.33333333333f * srcTbl[p1] + 0.66666666667f * srcTbl[p3];
-		}
-		for (j = 16; j < 32; j++) {
-			p1 = (i / 2 + i) * 32 + j;
-			p3 = p1 + 32;
-			dstTbl_r[i*16+j] = 0.33333333333f * srcTbl[p1] + 0.66666666667f * srcTbl[p3];
+			dstTbl_r[i*16 + (j-16)] = w1 * srcTbl[p1] + w2 * srcTbl[p3];
 		}
 	}
 }

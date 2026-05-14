@@ -421,9 +421,11 @@ struct local_wb_data_save {
 };
 
 struct isp_algo_save {
-	HW_U16 wb_rgain_last[2];
-	HW_U16 wb_bgain_last[2];
+	HW_U16 wb_rgain_last[3];
+	HW_U16 wb_bgain_last[3];
 	HW_S8 wb_l_shift;
+	HW_U8 wb_stat_shif_limit;
+	HW_U8 wb_stat_delay;
 	HW_U8 byr_act_bit;
 	HW_U16 lsc_color_temp_save;
 	HW_U16 lsc_comp_save;

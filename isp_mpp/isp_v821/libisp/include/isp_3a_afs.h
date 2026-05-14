@@ -18,11 +18,13 @@
 #ifndef _ISP_3A_AFS_H_
 #define _ISP_3A_AFS_H_
 
+#define MAX_PERIOD_EXTEND  6 //The larger the number, the easier it is to detect slow flicker
+
 enum power_line_frequency {
-	FREQUENCY_DISABLED	= 0,
+	FREQUENCY_AUTO		= 0,
 	FREQUENCY_50HZ		= 1,
 	FREQUENCY_60HZ		= 2,
-	FREQUENCY_AUTO		= 3,
+	FREQUENCY_DISABLED	= 3,
 };
 
 enum detected_flicker_type

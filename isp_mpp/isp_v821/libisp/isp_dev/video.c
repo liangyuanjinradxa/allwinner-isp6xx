@@ -174,6 +174,7 @@ int video_set_fmt(struct isp_video_device *video, struct video_fmt *vfmt)
 	struct v4l2_input inp;
 	struct v4l2_streamparm parms;
 	struct sensor_isp_cfg sensor_isp_cfg;
+	struct pdaf_config pdaf_cfg;
 	int frame_mode;
 	struct csi_ve_online_cfg ve_online_cfg;
 
@@ -217,6 +218,15 @@ int video_set_fmt(struct isp_video_device *video, struct video_fmt *vfmt)
 	if (vfmt->ptn_en) {
 		if (-1 == ioctl(video->entity->fd, VIDIOC_VIN_FIRST_PTN_CFG, &vfmt->ptn_cfg)) {
 			ISP_ERR("VIDIOC_VIN_FIRST_PTN_CFG failed\n");
+		}
+	}
+
+	if (vfmt->pdaf_mode) {
+		pdaf_cfg.mode = vfmt->pdaf_mode;
+		pdaf_cfg.pd_width = vfmt->pd_width;
+		pdaf_cfg.pd_height = vfmt->pd_height;
+		if (-1 == ioctl(video->entity->fd, VIDIOC_SET_PDAF_MODE, &pdaf_cfg)) {
+			ISP_ERR("VIDIOC_SET_PDAF_MODE failed\n");
 		}
 	}
 

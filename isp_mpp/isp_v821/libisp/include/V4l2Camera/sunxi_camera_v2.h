@@ -616,6 +616,11 @@ struct vin_isp_tdm_data {
 #define VIDIOC_VIN_TDM_SEND_DATA \
 	_IOWR('V', BASE_VIDIOC_PRIVATE + 43, struct vin_isp_tdm_data)
 
+struct pdaf_config {
+	unsigned char mode; /* 1:mean pd from embed mode, 2:mean pd from vc ch, 3:mean pd from raw data */
+	unsigned int pd_width; /* vc ch width&height */
+	unsigned int pd_height;
+};
 /*
 * large image dma merge mode
 *
@@ -624,6 +629,9 @@ struct vin_isp_tdm_data {
 */
 #define VIDIOC_SET_DMA_MERGE \
 	_IOWR('V', BASE_VIDIOC_PRIVATE + 50, unsigned char)
+#define VIDIOC_SET_PDAF_MODE \
+	_IOWR('V', BASE_VIDIOC_PRIVATE + 51, struct pdaf_config)
+
 
 struct sensor_config {
 	int width;

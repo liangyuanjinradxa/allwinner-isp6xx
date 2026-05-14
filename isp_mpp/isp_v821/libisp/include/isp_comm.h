@@ -1391,6 +1391,9 @@ struct enc_MovingLevelInfo {
 struct enc_VencVe2IspParam {
 	int d2d_level; //[1,1024], 256 means 1X
 	int d3d_level; //[1,1024], 256 means 1X
+#if (ISP_VERSION == 603)
+	int sharp_level; //[1,1024], 256 means 1X
+#endif
 	struct enc_MovingLevelInfo mMovingLevelInfo;
 };
 

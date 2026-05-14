@@ -309,29 +309,6 @@ int init_server(int port)
 		LOG("%s: failed to init capture module\n", __FUNCTION__);
 	}
 
-	//ret = init_isp_module();
-	//if (ret < 0) {
-	//	LOG("%s: failed to init isp module\n", __FUNCTION__);
-	//}
-
-	//ret = select_isp(0);
-	//if (ret < 0) {
-	//	LOG("%s: failed to select isp 0\n", __FUNCTION__);
-	//}
-
-
-	/////
-#if 0
-	msleep(1000);
-	LOG("%s: ready to select isp 0\n", __FUNCTION__);
-	ret = select_isp(0);
-	if (ret < 0) {
-		LOG("%s: failed to select isp 0\n", __FUNCTION__);
-	}
-	LOG("%s: ready to select isp 0, DONE\n", __FUNCTION__);
-
-#endif
-
 	ret = init_mini_shell(NULL);
 	if (0 != ret) {
 		LOG("%s: failed to init mini shell\n", __FUNCTION__);

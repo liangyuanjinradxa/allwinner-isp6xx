@@ -1031,7 +1031,7 @@ static int setEncParam(VideoEncoder *pVideoEnc ,encode_param_t *encode_param, Ve
 	sWbYuvParam mWbYuvParam;
 	memset(&mWbYuvParam, 0, sizeof(mWbYuvParam));
 	mWbYuvParam.bEnableWbYuv = 1;
-	mWbYuvParam.nWbBufferNum = 1;
+	mWbYuvParam.nWbBufferNum = 2;
 	VideoEncSetParameterDl(pVideoEnc, VENC_IndexParamEnableWbYuv, &mWbYuvParam);
     }
 
@@ -1117,7 +1117,7 @@ static int setEncParam(VideoEncoder *pVideoEnc ,encode_param_t *encode_param, Ve
 		sWbYuvParam mWbYuvParam;
 		memset(&mWbYuvParam, 0, sizeof(mWbYuvParam));
 		mWbYuvParam.bEnableWbYuv = 1;
-		mWbYuvParam.nWbBufferNum = 1;
+		mWbYuvParam.nWbBufferNum = 2;
 		VideoEncSetParameterDl(pVideoEnc, VENC_IndexParamEnableWbYuv, &mWbYuvParam);
 		}
     }

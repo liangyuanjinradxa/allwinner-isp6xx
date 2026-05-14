@@ -20,6 +20,8 @@
 #include "../include/isp_type.h"
 #include "../include/isp_comm.h"
 
+#define TUNING_USE_INI_CFG 0
+
 #if (ISP_VERSION == 601 || ISP_VERSION == 602 || ISP_VERSION == 606)
 #define INI_PATH "/data/vendor/camera/"
 #define ANDROID_TUNING
@@ -1356,7 +1358,7 @@ int isp_cfg_bin_parse(struct hw_isp_device *isp, int rst_en, char *isp_cfg_bin_p
 int isp_tuning_reset(struct hw_isp_device *isp, struct isp_param_config *param);
 
 int isp_tuning_update(struct hw_isp_device *isp);
-struct isp_tuning * isp_tuning_init(struct hw_isp_device *isp, const struct isp_param_config *params);
+struct isp_tuning * isp_tuning_init(struct hw_isp_device *isp, struct isp_param_config *params);
 void isp_tuning_exit(struct hw_isp_device *isp);
 void isp_ini_tuning_run(struct hw_isp_device *isp);
 

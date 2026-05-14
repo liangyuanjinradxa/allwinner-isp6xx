@@ -50,35 +50,45 @@
 
 #define AWAIISP_FILE_PATH_MAX  (128)
 
+#define AWAIISP_RESERVE_PARAM_NUM (8)
+#define AWAIISP_RESERVE_PARAM_LEN (AWAIISP_RESERVE_PARAM_NUM * sizeof(int))
 
 typedef struct awaiisp_config_param {
     /**
-      Specify the version to the model file.
+      Specify the version of the model file, [UNUSED].
     */
     int model_version;
     /**
-      Specify the path to the model file.
+      Specify the path to the weight file.
     */
     char weight_file[AWAIISP_FILE_PATH_MAX];
+    /**
+      Specify the path to the task queue file.
+    */
     char task_q_file[AWAIISP_FILE_PATH_MAX];
-
+    /**
+      Pointer to the AIISP internal information structure.
+    */
     void *aiisp_inform;
+    /**
+      Specify the number of AIISP tasks.
+    */
     int aiisp_task_num;
+    /**
+      Specify the total number of AIISP registers.
+    */
     int aiisp_total_reg_num;
-
-    int reserve0;
-    int reserve1;
-    int reserve2;
-    int reserve3;
-    int reserve4;
-    int reserve5;
-    int reserve6;
-    int reserve7;
+    /**
+      Reserved fields for future use.
+    */
+    int reserve[AWAIISP_RESERVE_PARAM_NUM];
 } awaiisp_config_param;
 
 int awaiisp_start(int isp, awaiisp_config_param *config_param);
 
 int awaiisp_stop(int isp);
+
+int awaiisp_update_config(int isp, awaiisp_config_param *pconfig_param);
 
 #ifdef __cplusplus
        }

@@ -4,11 +4,13 @@ LIBISP_DIR = ./../
 
 #set source files here.
 SRCCS := \
-    $(wildcard ./*.c)
+    $(wildcard ./*.c) \
+    $(wildcard ./bsdiff/*.c)
 
 #include directories
 INCLUDE_DIRS := \
     $(CUR_PATH) \
+    $(CUR_PATH)/bsdiff \
     $(CUR_PATH)/SENSOR_H \
     $(CUR_PATH)/../iniparser/src/ \
     $(CUR_PATH)/../include/ \

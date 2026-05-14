@@ -50,7 +50,7 @@ enum isp_sense_config {
 struct isp_tuning {
 	struct hw_isp_device *isp;
 	struct isp_lib_context *ctx;
-	struct isp_param_config params;
+	struct isp_param_config *params;
 	unsigned int frame_count;
 	unsigned int pix_max;
 	pthread_mutex_t mutex;
@@ -85,7 +85,7 @@ int isp_cfg_bin_parse(struct hw_isp_device *isp, int rst_en, char *isp_cfg_bin_p
 	if (rst_en) {
 		ret = parse_isp_cfg(&ctx->isp_ini_cfg, ctx->debug_param_info.isp_cfg_version, ctx->isp_id, sync_mode, ctx->isp_ir_flag, isp_cfg_bin_path);
 	} else {
-		ret = parse_isp_cfg(&tuning->params, ctx->debug_param_info.isp_cfg_version, ctx->isp_id, sync_mode, ctx->isp_ir_flag, isp_cfg_bin_path);
+		ret = parse_isp_cfg(tuning->params, ctx->debug_param_info.isp_cfg_version, ctx->isp_id, sync_mode, ctx->isp_ir_flag, isp_cfg_bin_path);
 	}
 	if (ret < 0) {
 		ISP_ERR("ISP read isp_cfg.bin error, please check the isp_cfg.bin!\n");
@@ -501,7 +501,7 @@ void isp_ini_tuning_run(struct hw_isp_device *isp)
 
 	channel_en = ini_tuning_en & (0x1 << isp->id);
 	if (!channel_en && access(INI_PATH"isp_tuning", F_OK) == 0) {
-		if (save_ini_tuning_file(isp, INI_PATH, &tuning->params, ctx->sensor_info.name, ctx->sensor_info.sensor_width,
+		if (save_ini_tuning_file(isp, INI_PATH, tuning->params, ctx->sensor_info.name, ctx->sensor_info.sensor_width,
 			ctx->sensor_info.sensor_height, ctx->sensor_info.fps_fixed, ctx->sensor_info.wdr_mode) == 0) {
 			ini_tuning_en |= (0x1 << isp->id);
 			ISP_PRINT("%s:isp%d init ini tuning cfg OK!\n", __FUNCTION__, isp->id);
@@ -509,7 +509,7 @@ void isp_ini_tuning_run(struct hw_isp_device *isp)
 	}
 
 	if (channel_en) {
-		ret = load_ini_tuning_file(isp, INI_PATH, &tuning->params, ctx->sensor_info.name, ctx->sensor_info.sensor_width,
+		ret = load_ini_tuning_file(isp, INI_PATH, tuning->params, ctx->sensor_info.name, ctx->sensor_info.sensor_width,
 			ctx->sensor_info.sensor_height, ctx->sensor_info.fps_fixed, ctx->sensor_info.wdr_mode);
 		if (!ret) {
 			if (isp_tuning_update(isp)) {
@@ -725,7 +725,7 @@ int isp_tuning_update(struct hw_isp_device *isp)
 	if (tuning->ctx == NULL)
 		return -1;
 	pthread_mutex_lock(&tuning->mutex);
-	tuning->ctx->isp_ini_cfg = tuning->params;
+	tuning->ctx->isp_ini_cfg = *tuning->params;
 	pthread_mutex_unlock(&tuning->mutex);
 	isp_ctx_config_update(tuning->ctx);
 	return 0;
@@ -742,14 +742,14 @@ int isp_tuning_reset(struct hw_isp_device *isp, struct isp_param_config *param)
 	if (tuning->ctx == NULL)
 		return -1;
 	pthread_mutex_lock(&tuning->mutex);
-	tuning->params = *param;
+	*tuning->params = *param;
 	pthread_mutex_unlock(&tuning->mutex);
 	isp_ctx_config_reset(tuning->ctx);
 	return 0;
 }
 
 struct isp_tuning * isp_tuning_init(struct hw_isp_device *isp,
-			const struct isp_param_config *params)
+			struct isp_param_config *params)
 {
 	struct isp_tuning *tuning;
 
@@ -762,13 +762,24 @@ struct isp_tuning * isp_tuning_init(struct hw_isp_device *isp,
 	tuning->frame_count = 0;
 
 	tuning->ctx = isp_dev_get_ctx(isp);
-	if (tuning->ctx == NULL) {
+	if (!tuning->ctx) {
 		ISP_ERR("ISP context is not init!\n");
 		free(tuning);
 		return NULL;
 	}
 	FUNCTION_LOG;
-	tuning->params = *params;
+#if !TUNING_USE_INI_CFG
+	tuning->params = malloc(sizeof(struct isp_param_config));
+	if (!tuning->params) {
+		ISP_ERR("tuning->params malloc failed, no memory!\n");
+		free(tuning);
+		return NULL;
+	}
+	*tuning->params = *params;
+#else
+	tuning->params = params;
+#endif
+
 
 	isp_ctx_config_init(tuning->ctx);
 
@@ -791,6 +802,9 @@ void isp_tuning_exit(struct hw_isp_device *isp)
 	pthread_mutex_destroy(&tuning->mutex);
 	isp_ctx_config_exit(tuning->ctx);
 	isp_dev_unbanding_tuning(isp);
+#if !TUNING_USE_INI_CFG
+	free(tuning->params);
+#endif
 	free(tuning);
 }
 
@@ -1537,19 +1551,6 @@ HW_S32 isp_tuning_get_cfg_run(struct hw_isp_device *isp, HW_U8 group_id, HW_U32 
 			data_ptr += sizeof(struct isp_tuning_wdr_table_cfg);
 			ret += sizeof(struct isp_tuning_wdr_table_cfg);
 		}
-		if (cfg_ids & HW_ISP_CFG_TUNING_LCA_TBL) /* isp_tuning_lca  */
-		{
-			memcpy(data_ptr, params->isp_tunning_settings.lca_pf_satu_lut, sizeof(struct isp_tuning_lca_pf_satu_lut));
-			/* lca_pf_satu_lut offset */
-			data_ptr += sizeof(struct isp_tuning_lca_pf_satu_lut);
-			ret += sizeof(struct isp_tuning_lca_pf_satu_lut);
-
-			memcpy(data_ptr, params->isp_tunning_settings.lca_gf_satu_lut, sizeof(struct isp_tuning_lca_gf_satu_lut));
-			/* lca_gf_satu_lut offset */
-			data_ptr += sizeof(struct isp_tuning_lca_gf_satu_lut);
-			ret += sizeof(struct isp_tuning_lca_gf_satu_lut);
-
-		}
 		if (cfg_ids & HW_ISP_CFG_TUNING_MSC) /* isp_tuning_msc */
 		{
 			struct isp_tuning_msc_table_cfg *isp_tuning_msc = (struct isp_tuning_msc_table_cfg *)data_ptr;
@@ -1567,6 +1568,19 @@ HW_S32 isp_tuning_get_cfg_run(struct hw_isp_device *isp, HW_U8 group_id, HW_U32 
 			/* offset */
 			data_ptr += sizeof(struct isp_tuning_msc_table_cfg);
 			ret += sizeof(struct isp_tuning_msc_table_cfg);
+		}
+		if (cfg_ids & HW_ISP_CFG_TUNING_LCA_TBL) /* isp_tuning_lca  */
+		{
+			memcpy(data_ptr, params->isp_tunning_settings.lca_pf_satu_lut, sizeof(struct isp_tuning_lca_pf_satu_lut));
+			/* lca_pf_satu_lut offset */
+			data_ptr += sizeof(struct isp_tuning_lca_pf_satu_lut);
+			ret += sizeof(struct isp_tuning_lca_pf_satu_lut);
+
+			memcpy(data_ptr, params->isp_tunning_settings.lca_gf_satu_lut, sizeof(struct isp_tuning_lca_gf_satu_lut));
+			/* lca_gf_satu_lut offset */
+			data_ptr += sizeof(struct isp_tuning_lca_gf_satu_lut);
+			ret += sizeof(struct isp_tuning_lca_gf_satu_lut);
+
 		}
 #ifdef USE_ENCPP
 		if (cfg_ids & HW_ISP_CFG_TUNING_ENCPP_SHARP) /* isp_tuning_encpp_sharp */
@@ -1819,23 +1833,6 @@ HW_S32 isp_tuning_get_cfg_run(struct hw_isp_device *isp, HW_U8 group_id, HW_U32 
 			data_ptr += sizeof(struct isp_dynamic_encpp_sharp_cfg);
 			ret += sizeof(struct isp_dynamic_encpp_sharp_cfg);
 		}
-		if (cfg_ids & HW_ISP_CFG_DYNAMIC_ENCODER_DENOISE) /* isp_dynamic_encoder_denoise */
-		{
-			struct isp_dynamic_encoder_denoise_cfg *isp_dynamic_encoder_denoise = (struct isp_dynamic_encoder_denoise_cfg *)data_ptr;
-			int i = 0;
-			isp_dynamic_encoder_denoise->trigger = params->isp_iso_settings.triger.encoder_denoise_triger;
-			for (i = 0; i < ISP_DYNAMIC_GROUP_COUNT; i++)
-			{
-				memcpy(isp_dynamic_encoder_denoise->tuning_3dnr_cfg[i].value, &params->isp_iso_settings.isp_dynamic_cfg[i].encoder_denoise_cfg[0],
-				        sizeof(isp_dynamic_encoder_denoise->tuning_3dnr_cfg[i].value));
-				memcpy(isp_dynamic_encoder_denoise->tuning_2dnr_cfg[i].value, &params->isp_iso_settings.isp_dynamic_cfg[i].encoder_denoise_cfg[ENCODER_DENOISE_2D_FILT_STREN_UV],
-				        sizeof(isp_dynamic_encoder_denoise->tuning_2dnr_cfg[i].value));
-			}
-
-			/* offset */
-			data_ptr += sizeof(struct isp_dynamic_encoder_denoise_cfg);
-			ret += sizeof(struct isp_dynamic_encoder_denoise_cfg);
-		}
 #endif
 		if (cfg_ids & HW_ISP_CFG_DYNAMIC_WDR) /* isp_dynamic_wdr */
 		{
@@ -1854,6 +1851,25 @@ HW_S32 isp_tuning_get_cfg_run(struct hw_isp_device *isp, HW_U8 group_id, HW_U32 
 			data_ptr += sizeof(struct isp_dynamic_wdr_cfg);
 			ret += sizeof(struct isp_dynamic_wdr_cfg);
 		}
+#ifdef USE_ENCPP
+		if (cfg_ids & HW_ISP_CFG_DYNAMIC_ENCODER_DENOISE) /* isp_dynamic_encoder_denoise */
+		{
+			struct isp_dynamic_encoder_denoise_cfg *isp_dynamic_encoder_denoise = (struct isp_dynamic_encoder_denoise_cfg *)data_ptr;
+			int i = 0;
+			isp_dynamic_encoder_denoise->trigger = params->isp_iso_settings.triger.encoder_denoise_triger;
+			for (i = 0; i < ISP_DYNAMIC_GROUP_COUNT; i++)
+			{
+				memcpy(isp_dynamic_encoder_denoise->tuning_3dnr_cfg[i].value, &params->isp_iso_settings.isp_dynamic_cfg[i].encoder_denoise_cfg[0],
+				        sizeof(isp_dynamic_encoder_denoise->tuning_3dnr_cfg[i].value));
+				memcpy(isp_dynamic_encoder_denoise->tuning_2dnr_cfg[i].value, &params->isp_iso_settings.isp_dynamic_cfg[i].encoder_denoise_cfg[ENCODER_DENOISE_2D_FILT_STREN_UV],
+				        sizeof(isp_dynamic_encoder_denoise->tuning_2dnr_cfg[i].value));
+			}
+
+			/* offset */
+			data_ptr += sizeof(struct isp_dynamic_encoder_denoise_cfg);
+			ret += sizeof(struct isp_dynamic_encoder_denoise_cfg);
+		}
+#endif
 		if (cfg_ids & HW_ISP_CFG_DYNAMIC_SHADING) /* isp_dynamic_shading */
 		{
 			struct isp_dynamic_shading_cfg *isp_dynamic_shading = (struct isp_dynamic_shading_cfg *)data_ptr;
@@ -2181,7 +2197,7 @@ HW_S32 isp_tuning_get_cfg(struct hw_isp_device *isp, HW_U8 group_id, HW_U32 cfg_
 		 return AW_ERR_VI_INVALID_NULL_PTR;
 
 	/* fill cfg data */
-	ret = isp_tuning_get_cfg_run(isp, group_id, cfg_ids, &tuning->params, cfg_data);
+	ret = isp_tuning_get_cfg_run(isp, group_id, cfg_ids, tuning->params, cfg_data);
 
 	return ret;
 }
@@ -2950,17 +2966,6 @@ HW_S32 isp_tuning_set_cfg_run(struct hw_isp_device *isp, HW_U8 group_id, HW_U32 
 			data_ptr += sizeof(struct isp_tuning_wdr_table_cfg);
 			ret += sizeof(struct isp_tuning_wdr_table_cfg);
 		}
-		if (cfg_ids & HW_ISP_CFG_TUNING_LCA_TBL)
-		{
-			memcpy(params->isp_tunning_settings.lca_pf_satu_lut, data_ptr, sizeof(struct isp_tuning_lca_pf_satu_lut));
-			// lca_pf_satu_lut offset
-			data_ptr += sizeof(struct isp_tuning_lca_pf_satu_lut);
-			ret += sizeof(struct isp_tuning_lca_pf_satu_lut);
-			memcpy(params->isp_tunning_settings.lca_gf_satu_lut, data_ptr, sizeof(struct isp_tuning_lca_gf_satu_lut));
-		    // lca_gf_satu_lut offset
-			data_ptr += sizeof(struct isp_tuning_lca_gf_satu_lut);
-			ret += sizeof(struct isp_tuning_lca_gf_satu_lut);
-		}
 		if (cfg_ids & HW_ISP_CFG_TUNING_MSC) /* isp_tuning_msc */
 		{
 			struct isp_tuning_msc_table_cfg *isp_tuning_msc = (struct isp_tuning_msc_table_cfg *)data_ptr;
@@ -2978,6 +2983,17 @@ HW_S32 isp_tuning_set_cfg_run(struct hw_isp_device *isp, HW_U8 group_id, HW_U32 
 			/* offset */
 			data_ptr += sizeof(struct isp_tuning_msc_table_cfg);
 			ret += sizeof(struct isp_tuning_msc_table_cfg);
+		}
+		if (cfg_ids & HW_ISP_CFG_TUNING_LCA_TBL)
+		{
+			memcpy(params->isp_tunning_settings.lca_pf_satu_lut, data_ptr, sizeof(struct isp_tuning_lca_pf_satu_lut));
+			// lca_pf_satu_lut offset
+			data_ptr += sizeof(struct isp_tuning_lca_pf_satu_lut);
+			ret += sizeof(struct isp_tuning_lca_pf_satu_lut);
+			memcpy(params->isp_tunning_settings.lca_gf_satu_lut, data_ptr, sizeof(struct isp_tuning_lca_gf_satu_lut));
+		    // lca_gf_satu_lut offset
+			data_ptr += sizeof(struct isp_tuning_lca_gf_satu_lut);
+			ret += sizeof(struct isp_tuning_lca_gf_satu_lut);
 		}
 #ifdef USE_ENCPP
 		if (cfg_ids & HW_ISP_CFG_TUNING_ENCPP_SHARP) /* isp_tuning_sharp */
@@ -3225,23 +3241,6 @@ HW_S32 isp_tuning_set_cfg_run(struct hw_isp_device *isp, HW_U8 group_id, HW_U32 
 			data_ptr += sizeof(struct isp_dynamic_encpp_sharp_cfg);
 			ret += sizeof(struct isp_dynamic_encpp_sharp_cfg);
 		}
-		if (cfg_ids & HW_ISP_CFG_DYNAMIC_ENCODER_DENOISE) /* isp_dynamic_encoder_denoise */
-		{
-			struct isp_dynamic_encoder_denoise_cfg *isp_dynamic_encoder_denoise = (struct isp_dynamic_encoder_denoise_cfg *)data_ptr;
-			int i = 0;
-			params->isp_iso_settings.triger.encoder_denoise_triger = (enum isp_triger_type)isp_dynamic_encoder_denoise->trigger;
-			for (i = 0; i < ISP_DYNAMIC_GROUP_COUNT; i++)
-			{
-				memcpy(&params->isp_iso_settings.isp_dynamic_cfg[i].encoder_denoise_cfg[0], isp_dynamic_encoder_denoise->tuning_3dnr_cfg[i].value,
-						sizeof(isp_dynamic_encoder_denoise->tuning_3dnr_cfg[i].value));
-				memcpy(&params->isp_iso_settings.isp_dynamic_cfg[i].encoder_denoise_cfg[ENCODER_DENOISE_2D_FILT_STREN_UV], isp_dynamic_encoder_denoise->tuning_2dnr_cfg[i].value,
-						sizeof(isp_dynamic_encoder_denoise->tuning_2dnr_cfg[i].value));
-			}
-
-			/* offset */
-			data_ptr += sizeof(struct isp_dynamic_encoder_denoise_cfg);
-			ret += sizeof(struct isp_dynamic_encoder_denoise_cfg);
-		}
 #endif
 		if (cfg_ids & HW_ISP_CFG_DYNAMIC_WDR) /* isp_dynamic_wdr */
 		{
@@ -3260,6 +3259,25 @@ HW_S32 isp_tuning_set_cfg_run(struct hw_isp_device *isp, HW_U8 group_id, HW_U32 
 			data_ptr += sizeof(struct isp_dynamic_wdr_cfg);
 			ret += sizeof(struct isp_dynamic_wdr_cfg);
 		}
+#ifdef USE_ENCPP
+		if (cfg_ids & HW_ISP_CFG_DYNAMIC_ENCODER_DENOISE) /* isp_dynamic_encoder_denoise */
+		{
+			struct isp_dynamic_encoder_denoise_cfg *isp_dynamic_encoder_denoise = (struct isp_dynamic_encoder_denoise_cfg *)data_ptr;
+			int i = 0;
+			params->isp_iso_settings.triger.encoder_denoise_triger = (enum isp_triger_type)isp_dynamic_encoder_denoise->trigger;
+			for (i = 0; i < ISP_DYNAMIC_GROUP_COUNT; i++)
+			{
+				memcpy(&params->isp_iso_settings.isp_dynamic_cfg[i].encoder_denoise_cfg[0], isp_dynamic_encoder_denoise->tuning_3dnr_cfg[i].value,
+						sizeof(isp_dynamic_encoder_denoise->tuning_3dnr_cfg[i].value));
+				memcpy(&params->isp_iso_settings.isp_dynamic_cfg[i].encoder_denoise_cfg[ENCODER_DENOISE_2D_FILT_STREN_UV], isp_dynamic_encoder_denoise->tuning_2dnr_cfg[i].value,
+						sizeof(isp_dynamic_encoder_denoise->tuning_2dnr_cfg[i].value));
+			}
+
+			/* offset */
+			data_ptr += sizeof(struct isp_dynamic_encoder_denoise_cfg);
+			ret += sizeof(struct isp_dynamic_encoder_denoise_cfg);
+		}
+#endif
 		if (cfg_ids & HW_ISP_CFG_DYNAMIC_SHADING) /* isp_dynamic_shading */
 		{
 			struct isp_dynamic_shading_cfg *isp_dynamic_shading = (struct isp_dynamic_shading_cfg *)data_ptr;
@@ -3557,7 +3575,7 @@ HW_S32 isp_tuning_set_cfg(struct hw_isp_device *isp, HW_U8 group_id, HW_U32 cfg_
 		 return AW_ERR_VI_INVALID_NULL_PTR;
 
 	/* fill cfg data */
-	ret = isp_tuning_set_cfg_run(isp, group_id, cfg_ids, &tuning->params, cfg_data);
+	ret = isp_tuning_set_cfg_run(isp, group_id, cfg_ids, tuning->params, cfg_data);
 
 	return ret;
 }

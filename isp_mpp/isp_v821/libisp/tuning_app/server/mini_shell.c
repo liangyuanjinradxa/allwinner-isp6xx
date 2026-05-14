@@ -36,11 +36,10 @@
  * date:   20160803
  * http://www.allwinnertech.com
  */
+#include "mini_shell.h"
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-
-#include "mini_shell.h"
 
 #ifndef TEMP_FAILURE_RETRY
 #define TEMP_FAILURE_RETRY(exp) ({             \

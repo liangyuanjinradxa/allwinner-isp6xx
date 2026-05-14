@@ -25,6 +25,7 @@
 #include "../include/isp_manage.h"
 #include "../include/isp_debug.h"
 #include "../isp_dev/tools.h"
+#include "bsdiff/isp_bsdiff.h"
 
 #if (ISP_VERSION == 610)
 #if defined(SENSOR_CV2003) || defined(SENSOR_SC231HAI) || defined(SENSOR_SC235HAI) ||  defined(SENSOR_GC2083) || \
@@ -2069,7 +2070,7 @@ int isp_save_tbl(struct isp_param_config *param, char *tbl_patch)
 int isp_load_ini_param(struct isp_param_config *param, char *path)
 {
 	int i;
-	char isp_tbl_path[128], file_name[128];
+	char isp_tbl_path[ISP_CFG_BIN_PATH_LEN], file_name[ISP_CFG_BIN_PATH_LEN];
 	dictionary *ini;
 
 	sprintf(isp_tbl_path, "%s/bin/", path);
@@ -2102,7 +2103,7 @@ int isp_load_ini_param(struct isp_param_config *param, char *path)
 
 int isp_load_bin_param(struct isp_param_config *param, char *isp_cfg_name, char *path)
 {
-	char fdstr[128], time[20], notes[50];
+	char fdstr[ISP_CFG_BIN_PATH_LEN], time[ISP_CFG_BIN_TIME_LEN], notes[ISP_CFG_BIN_NOTES_LEN];
 	unsigned int size;
 	FILE *file_fd = NULL;
 
@@ -2159,6 +2160,154 @@ int isp_save_bin(struct isp_param_config *param, char *path)
 	return 0;
 }
 
+int isp_load_bsdiff_patch(struct isp_param_config *param, char *isp_cfg_name, char *path)
+{
+	char fdstr[ISP_CFG_BIN_PATH_LEN], time[ISP_CFG_BIN_TIME_LEN], notes[ISP_CFG_BIN_NOTES_LEN];
+	unsigned int i, new_size, old_size = sizeof(struct isp_param_config), adler32_checksum, patch_size;
+	unsigned char *patch_data = NULL;
+	struct isp_param_config *old_data = NULL;
+	FILE *file_fd = NULL;
+
+	sprintf(fdstr, "%sisp_param_config.bsdiff", path);
+	file_fd = fopen(fdstr, "r");
+	if (!file_fd) {
+		return -1;
+	} else {
+		ISP_PRINT("find %s, load bsdiff start.\n", fdstr);
+		fread(&new_size, 1, sizeof(unsigned int), file_fd);//[size]
+		if (old_size != new_size) {
+			ISP_ERR("old_size = %d, new_size = %d. no match\n", old_size, new_size);
+			fclose(file_fd);
+			return -1;
+		}
+		fread(time, 1, sizeof(time), file_fd);//[time]
+		fread(notes, 1, sizeof(notes), file_fd);//[notes]
+		fread(&adler32_checksum, 1, sizeof(unsigned int), file_fd);//[adler32_checksum]
+		old_data = (struct isp_param_config *)malloc(old_size);
+		if (!old_data) {
+			ISP_ERR("old_data malloc failed. size = %d\n", old_size);
+			fclose(file_fd);
+			return -1;
+		}
+		for (i = 0; i < array_size(cfg_arr); i++) {
+			old_data->isp_test_settings = *cfg_arr[i].cfg->isp_test_settings;
+			old_data->isp_3a_settings = *cfg_arr[i].cfg->isp_3a_settings;
+			old_data->isp_iso_settings = *cfg_arr[i].cfg->isp_iso_settings;
+			old_data->isp_tunning_settings = *cfg_arr[i].cfg->isp_tunning_settings;
+			if (adler32_checksum == adler32((unsigned char *)old_data, old_size))
+				break;
+		}
+		if (i == array_size(cfg_arr)) {
+			ISP_ERR("adler32_checksum = %d, no match\n", adler32_checksum);
+			free(old_data);
+			fclose(file_fd);
+			return -1;
+		}
+		ISP_PRINT("find base config %s_%d_%d_%d_%d_%d -> [%s]\n", cfg_arr[i].sensor_name, cfg_arr[i].width, cfg_arr[i].height,
+					cfg_arr[i].fps, cfg_arr[i].wdr, cfg_arr[i].ir, cfg_arr[i].isp_cfg_name);
+		fread(&patch_size, 1, sizeof(unsigned int), file_fd);//[patch size]
+		patch_data = (unsigned char *)malloc(patch_size);
+		if (!patch_data) {
+			ISP_ERR("patch_data malloc failed. size = %d\n", patch_size);
+			free(old_data);
+			fclose(file_fd);
+			return -1;
+		}
+		fread(patch_data, 1, patch_size, file_fd);//[patch data]
+		if (isp_bspatch((unsigned char *)old_data, old_size, patch_data, patch_size, (unsigned char *)param, new_size) < 0) {
+			ISP_ERR("bspatch failed!\n");
+			free(patch_data);
+			free(old_data);
+			fclose(file_fd);
+			return -1;
+		}
+		free(patch_data);
+		free(old_data);
+		/* update isp_cfg_name for isp_debug_info */
+		strcpy(isp_cfg_name, notes);
+		ISP_PRINT("Read bsdiff seccess... Time:%s  Notes:%s\n", time, notes);
+	}
+
+	fclose(file_fd);
+	return 0;
+}
+
+#if 0
+int isp_save_bsdiff(char *path)
+{
+	char time[20] = "2026.3.30";
+	char notes[50] = "sc485sl_color";
+	struct isp_cfg_pt *old_cfg = &gc4663_mipi_isp_cfg;
+	struct isp_cfg_pt *new_cfg = &sc485sl_mipi_isp_cfg;
+	unsigned int size, adler32_checksum, patch_size;
+	int ret;
+	unsigned char *patch_data = NULL;
+	struct isp_param_config *old_data = NULL, *new_data = NULL;
+	char fdstr[ISP_CFG_BIN_PATH_LEN];
+	FILE *file_fd = NULL;
+
+	size = sizeof(struct isp_param_config);
+	old_data = (struct isp_param_config *)malloc(sizeof(struct isp_param_config));
+	if (!old_data) {
+		ISP_ERR("old_data malloc failed. size = %d\n", sizeof(struct isp_param_config));
+		return -1;
+	}
+	new_data = (struct isp_param_config *)malloc(sizeof(struct isp_param_config));
+	if (!new_data) {
+		ISP_ERR("new_data malloc failed. size = %d\n", sizeof(struct isp_param_config));
+		free(old_data);
+		return -1;
+	}
+	old_data->isp_test_settings = *old_cfg->isp_test_settings;
+	old_data->isp_3a_settings = *old_cfg->isp_3a_settings;
+	old_data->isp_iso_settings = *old_cfg->isp_iso_settings;
+	old_data->isp_tunning_settings = *old_cfg->isp_tunning_settings;
+	new_data->isp_test_settings = *new_cfg->isp_test_settings;
+	new_data->isp_3a_settings = *new_cfg->isp_3a_settings;
+	new_data->isp_iso_settings = *new_cfg->isp_iso_settings;
+	new_data->isp_tunning_settings = *new_cfg->isp_tunning_settings;
+
+	adler32_checksum = adler32((unsigned char *)old_data, size);
+
+	//bsdiff
+	ret = isp_bsdiff((unsigned char *)old_data, size, (unsigned char *)new_data, size, &patch_data);
+	if (ret < 0) {
+		ISP_ERR("bsdiff failed!\n");
+		free(new_data);
+		free(old_data);
+		return -1;
+	}
+	patch_size = ret;
+	ISP_PRINT("bsdiff generated successfully, patch_size = %d!\n", patch_size);
+
+	//write bsdiff file
+	sprintf(fdstr, "%sisp_param_config.bsdiff", path);
+	file_fd = fopen(fdstr, "wb");
+	if (!file_fd) {
+		ISP_ERR("open %s failed.\n", fdstr);
+		free(patch_data);
+		free(new_data);
+		free(old_data);
+		return -1;
+	} else {
+		fwrite(&size, 1, sizeof(unsigned int), file_fd);//[size]
+		fwrite(time, 1, sizeof(time), file_fd);//[time]
+		fwrite(notes, 1, sizeof(notes), file_fd);//[notes]
+		fwrite(&adler32_checksum, 1, sizeof(unsigned int), file_fd);//[adler32 checksum]
+		fwrite(&patch_size, 1, sizeof(unsigned int), file_fd);//[patch size]
+		fwrite(patch_data, 1, patch_size, file_fd);//[patch data]
+		fclose(file_fd);
+		file_fd = NULL;
+		ISP_PRINT("save isp_param_config.bsdiff to %s success!!!....  time->[%s]  notes->[%s]\n", fdstr, time, notes);
+	}
+
+	free(patch_data);
+	free(new_data);
+	free(old_data);
+	return 0;
+}
+#endif
+
 int parse_isp_cfg(struct isp_param_config *param, char *isp_cfg_name, char *sensor_name, int isp_id, int ir, char *isp_cfg_path)
 {
 	char isp_ini_path[ISP_CFG_BIN_PATH_LEN];
@@ -2172,6 +2321,10 @@ int parse_isp_cfg(struct isp_param_config *param, char *isp_cfg_name, char *sens
 
 	//load bin parameter
 	if (!isp_load_bin_param(param, isp_cfg_name, isp_cfg_path))
+		return 0;
+
+	//load bsdiff patch
+	if (!isp_load_bsdiff_patch(param, isp_cfg_name, isp_cfg_path))
 		return 0;
 
 	return -1;
@@ -2255,6 +2408,7 @@ int parser_ini_info(struct isp_param_config *param, char *isp_cfg_name, char *se
 		return -1;
 	}
 
+	//isp_save_bsdiff("/tmp/");
 	return 0;
 }
 

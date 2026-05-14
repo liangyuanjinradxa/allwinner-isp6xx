@@ -114,7 +114,8 @@ char *isp_dev_get_sensor_name(struct hw_isp_device *isp);
 
 int isp_dev_tdm_return_buffer(struct hw_isp_device *isp, struct vin_isp_tdm_event_status *status);
 int isp_set_tmd_addr_map(struct hw_isp_device *isp, struct isp_tdm_map_cfg *map);
-int isp_requset_tdm_data(struct hw_isp_device *isp, struct vin_isp_tdm_data *data);
+int isp_dev_requset_tdm_data(struct hw_isp_device *isp, struct vin_isp_tdm_data *data);
+int isp_dev_send_tdm_data(struct hw_isp_device *isp, struct vin_isp_tdm_data *data);
 
 /* Processing parameters */
 int isp_set_load_reg(struct hw_isp_device *isp, struct isp_table_reg_map *reg);

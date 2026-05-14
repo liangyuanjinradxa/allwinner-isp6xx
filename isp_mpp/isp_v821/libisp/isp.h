@@ -49,6 +49,8 @@ int isp_events_stop(int dev_id);
 int isp_events_restar(int dev_id);
 int isp_events_init(int dev_id);
 int isp_set_sync(int mode);
+int isp_get_sync(int *mode);
+int isp_clean_sync(int mode);
 int isp_set_ldci_source(int dev_id, int mode);
 int isp_set_ldci_frame(int dev_id, ldci_frame_config_t *frame_params);
 int isp_set_stitch_mode(int isp_id, enum stitch_mode_t stitch_mode);

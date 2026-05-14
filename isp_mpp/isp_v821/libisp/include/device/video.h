@@ -40,7 +40,7 @@
 #if (ISP_VERSION == 603)
 #define HW_VIDEO_DEVICE_NUM 6
 #else
-#define HW_VIDEO_DEVICE_NUM 16
+#define HW_VIDEO_DEVICE_NUM 17
 #endif
 
 struct video_plane {
@@ -97,6 +97,10 @@ struct video_fmt {
 	unsigned char video_selection_en;
 	struct video_selection_rect rect;
 	unsigned int tdm_rxbuf_cnt;
+	unsigned char pdaf_mode;
+	unsigned int pd_width;
+	unsigned int pd_height;
+
 	FILE *ptn_file;
 	unsigned char ptn_en;
 	unsigned int ptn_count_total;

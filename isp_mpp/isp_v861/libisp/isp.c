@@ -706,10 +706,10 @@ static void __isp_stats_process(struct hw_isp_device *isp, const void *buffer)
 #if (HW_ISP_DEVICE_NUM > 1)
 			/*isp0 and isp1 are opened and have same head sensor, so we only use isp1 control af*/
 			if (isp->id == 0 && media_params.isp_dev[0] != NULL && media_params.isp_dev[1] != NULL &&
-			    !strcmp(media_params.isp_dev[0]->sensor.info.name, media_params.isp_dev[1]->sensor.info.name)) {
+			    !strcmp(media_params.isp_dev[0]->sensor.info.name, media_params.isp_dev[1]->sensor.info.name) && isp_ctx[isp->id].stitch_mode != 0) {
 				ISP_DEV_LOG(ISP_LOG_ISP, "isp0 and isp1 are opened and have same head, so we only use isp1 to do af!\n");
 			} else if (isp->id == 2 && media_params.isp_dev[2] != NULL && media_params.isp_dev[3] != NULL &&
-			    !strcmp(media_params.isp_dev[2]->sensor.info.name, media_params.isp_dev[3]->sensor.info.name)) {
+			    !strcmp(media_params.isp_dev[2]->sensor.info.name, media_params.isp_dev[3]->sensor.info.name) && isp_ctx[isp->id].stitch_mode != 0) {
 			    ISP_DEV_LOG(ISP_LOG_ISP, "isp2 and isp3 are opened and have same head, so we only use isp3 to do af!\n");
 			} else {
 				isp_act_set_pos(isp, af_result->real_code_output);
@@ -726,10 +726,10 @@ static void __isp_stats_process(struct hw_isp_device *isp, const void *buffer)
 #if (HW_ISP_DEVICE_NUM > 1)
 	/*isp0 and isp1 are opened and have same head sensor, so we only use isp1 control flash*/
 	if (isp->id == 0 && media_params.isp_dev[0] != NULL && media_params.isp_dev[1] != NULL &&
-	    !strcmp(media_params.isp_dev[0]->sensor.info.name, media_params.isp_dev[1]->sensor.info.name)) {
+	    !strcmp(media_params.isp_dev[0]->sensor.info.name, media_params.isp_dev[1]->sensor.info.name) && isp_ctx[isp->id].stitch_mode != 0) {
 		ISP_DEV_LOG(ISP_LOG_ISP, "isp0 and isp1 are opened and have same head, so we only use isp1 to set flash!\n");
 	} else if (isp->id == 2 && media_params.isp_dev[2] != NULL && media_params.isp_dev[3] != NULL &&
-	    !strcmp(media_params.isp_dev[2]->sensor.info.name, media_params.isp_dev[3]->sensor.info.name)) {
+	    !strcmp(media_params.isp_dev[2]->sensor.info.name, media_params.isp_dev[3]->sensor.info.name) && isp_ctx[isp->id].stitch_mode != 0) {
 		ISP_DEV_LOG(ISP_LOG_ISP, "isp2 and isp3 are opened and have same head, so we only use isp3 to set flash!\n");
 	} else {
 		isp_flash_update_status(isp);
@@ -758,10 +758,10 @@ static void __isp_stats_process(struct hw_isp_device *isp, const void *buffer)
 #if (HW_ISP_DEVICE_NUM > 1)
 	/*isp0 and isp1 are opened and have same head sensor, so we only use isp0 control ae*/
 	if (isp->id == 1 && media_params.isp_dev[0] != NULL && media_params.isp_dev[1] != NULL &&
-	    !strcmp(media_params.isp_dev[0]->sensor.info.name, media_params.isp_dev[1]->sensor.info.name)) {
+	    !strcmp(media_params.isp_dev[0]->sensor.info.name, media_params.isp_dev[1]->sensor.info.name) && isp_ctx[isp->id].stitch_mode != 0) {
 		ISP_DEV_LOG(ISP_LOG_ISP, "isp0 and isp1 are opened and have same head, so we only use isp0 to do ae!\n");
 	} else if (isp->id == 3 && media_params.isp_dev[2] != NULL && media_params.isp_dev[3] != NULL &&
-	    !strcmp(media_params.isp_dev[2]->sensor.info.name, media_params.isp_dev[3]->sensor.info.name)) {
+	    !strcmp(media_params.isp_dev[2]->sensor.info.name, media_params.isp_dev[3]->sensor.info.name) && isp_ctx[isp->id].stitch_mode != 0) {
 		ISP_DEV_LOG(ISP_LOG_ISP, "isp2 and isp3 are opened and have same head, so we only use isp2 to do ae!\n");
 	} else {
 		isp_sensor_set_exp_gain(isp, &exp_gain);
@@ -1030,6 +1030,18 @@ int isp_set_sync(int mode)
 	return 0;
 }
 
+int isp_clean_sync(int mode)
+{
+	int i;
+	for (i = 0; i < HW_ISP_DEVICE_NUM; i++) {
+		if (mode & (0x1 << i)) {
+			media_params.isp_sync_mode[i] = 0;
+			media_params.isp_sync_count[i] = 0;
+		}
+	}
+	return 0;
+}
+
 int isp_set_stitch_mode(int isp_id, enum stitch_mode_t stitch_mode)
 {
 #if LIBISP_CFG_FASTBOOT
@@ -1045,6 +1057,13 @@ int isp_set_stitch_mode(int isp_id, enum stitch_mode_t stitch_mode)
 
 	isp_ctx[isp_id].stitch_mode = stitch_mode;
 	switch (stitch_mode) {
+	case STITCH_NONE:
+		if (isp_id % 2 == 0)
+			isp_ctx[isp_id + 1].stitch_mode = stitch_mode;
+		else
+			isp_ctx[isp_id - 1].stitch_mode = stitch_mode;
+		ISP_PRINT("STITCH_NONE\n");
+		break;
 	case STITCH_2IN1_LINEAR:
 		if (isp_id % 2 == 0)
 			isp_ctx[isp_id + 1].stitch_mode = stitch_mode;
@@ -1418,16 +1437,16 @@ int isp_events_restar(int dev_id)
 	events_init(&events_arr[dev_id]);
 	events_star(&events_arr[dev_id]);
 
-	isp_ctx[dev_id].af_frame_cnt  = 0;
-	isp_ctx[dev_id].ae_frame_cnt  = 0;
-	isp_ctx[dev_id].awb_frame_cnt = 0;
-	isp_ctx[dev_id].gtm_frame_cnt = 0;
+	//isp_ctx[dev_id].af_frame_cnt  = 0;
+	//isp_ctx[dev_id].ae_frame_cnt  = 0;
+	//isp_ctx[dev_id].awb_frame_cnt = 0;
+	//isp_ctx[dev_id].gtm_frame_cnt = 0;
 
-	isp_ctx[dev_id].md_frame_cnt  = 0;
-	isp_ctx[dev_id].afs_frame_cnt  = 0;
-	isp_ctx[dev_id].iso_frame_cnt = 0;
-	isp_ctx[dev_id].rolloff_frame_cnt = 0;
-	isp_ctx[dev_id].alg_frame_cnt = 0;
+	//isp_ctx[dev_id].md_frame_cnt  = 0;
+	//isp_ctx[dev_id].afs_frame_cnt  = 0;
+	//isp_ctx[dev_id].iso_frame_cnt = 0;
+	//isp_ctx[dev_id].rolloff_frame_cnt = 0;
+	//isp_ctx[dev_id].alg_frame_cnt = 0;
 	isp_run(dev_id);
 
 	return 0;
@@ -1552,12 +1571,12 @@ char *isp_get_sensor_name(int dev_id)
 	struct sensor_fps fps;
 
 	if (dev_id >= HW_ISP_DEVICE_NUM)
-		return -1;
+		return NULL;
 
 	isp = media_params.isp_dev[dev_id];
 	if (!isp) {
 		ISP_ERR("isp%d device is NULL!\n", dev_id);
-		return -1;
+		return NULL;
 	}
 
 	return isp_dev_get_sensor_name(isp);
@@ -1937,7 +1956,8 @@ static void isp_set_attr_cfg_run(struct isp_lib_context *isp_gen, HW_U32 ctrl_id
 			isp_ai_isp_info ai_isp_info_entity;
 			ai_isp_info_entity = *(isp_ai_isp_info *)value;
 			isp_gen->module_cfg.mode_cfg.aiisp_en = ai_isp_info_entity.ai_isp_en;
-			isp_ctx_config_update(isp_gen);
+			if (ai_isp_info_entity.ai_isp_update)
+				isp_ctx_config_update(isp_gen);
 			break;
 		}
 		default:

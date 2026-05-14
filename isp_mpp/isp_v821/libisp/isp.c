@@ -349,7 +349,11 @@ void isp_flash_update_status(struct hw_isp_device *isp)
 				} /* because sensor exp delay n+1/n+2, so we should delay 3 frames report hal */
 				else if (isp_gen->ae_frame_cnt == (3 + pre_flash_end_cnt))
 				{
+					struct timespec t;
 					isp_gen->image_params.isp_image_params.image_para.bits.flash_ok = 1;
+					t.tv_sec = t.tv_nsec = 0;
+    				clock_gettime(CLOCK_MONOTONIC, &t);
+					isp_gen->image_params.user_image_params.image_para.dwval = ((long long)(t.tv_sec)*1000000000LL + t.tv_nsec)/1000000LL;
 				}
 				else if (isp_gen->ae_frame_cnt == (7 + pre_flash_end_cnt))
 				{
@@ -458,7 +462,11 @@ void isp_flash_update_status(struct hw_isp_device *isp)
 				} /* because sensor exp delay n+1/n+2, so we should delay 3 frames report hal */
 				else if (isp_gen->ae_frame_cnt == (3 + pre_flash_end_cnt))
 				{
+					struct timespec t;
 					isp_gen->image_params.isp_image_params.image_para.bits.flash_ok = 1;
+					t.tv_sec = t.tv_nsec = 0;
+    				clock_gettime(CLOCK_MONOTONIC, &t);
+					isp_gen->image_params.user_image_params.image_para.dwval = ((long long)(t.tv_sec)*1000000000LL + t.tv_nsec)/1000000LL;
 				}
 				else if (isp_gen->ae_frame_cnt == (7 + pre_flash_end_cnt))
 				{
@@ -1144,6 +1152,26 @@ int isp_set_sync(int mode)
 	return 0;
 }
 
+int isp_get_sync(int *mode)
+{
+#if (HW_ISP_DEVICE_NUM > 1)
+	*mode = media_params.isp_sync_mode;
+	ISP_PRINT("ISP get Sync Mode = 0x%x\n",*mode);
+#else
+	*mode = 0;
+#endif
+}
+
+int isp_clean_sync(int mode)
+{
+#if (HW_ISP_DEVICE_NUM > 1)
+	media_params.isp_sync_mode = (0 << 16) | (mode & !(media_params.isp_sync_mode & 0xffff));
+	ISP_PRINT("ISP Set clean Sync Mode = 0x%x, isp_sync_mode = 0x%x\n", mode, media_params.isp_sync_mode);
+#else
+	media_params.isp_sync_mode = 0;
+#endif
+}
+
 int isp_set_ldci_source(int dev_id, int mode)
 {
 	if (dev_id >= HW_ISP_DEVICE_NUM)
@@ -1251,6 +1279,13 @@ int isp_set_stitch_mode(int isp_id, enum stitch_mode_t stitch_mode)
 
 	isp_ctx[isp_id].stitch_mode = stitch_mode;
 	switch (stitch_mode) {
+	case STITCH_NONE:
+		if (isp_id % 2 == 0)
+			isp_ctx[isp_id + 1].stitch_mode = stitch_mode;
+		else
+			isp_ctx[isp_id - 1].stitch_mode = stitch_mode;
+		ISP_PRINT("STITCH_NONE\n");
+		break;
 	case STITCH_2IN1_LINNER:
 		if (isp_id % 2 == 0)
 			isp_ctx[isp_id + 1].stitch_mode = stitch_mode;

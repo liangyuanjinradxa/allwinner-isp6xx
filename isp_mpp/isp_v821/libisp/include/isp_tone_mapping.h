@@ -69,7 +69,7 @@ typedef struct gtm_test_config {
 typedef struct isp_gtm_param {
 	gtm_param_type_t type;
 	int isp_platform_id;
-	int gtm_frame_id;
+	unsigned int gtm_frame_id;
 	HW_BOOL gtm_enable;
 	gtm_ini_cfg_t gtm_ini;
 

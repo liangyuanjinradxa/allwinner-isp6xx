@@ -390,6 +390,7 @@ void *sock_handle_preview_thread(void *params)
 			} else {
 				if (cap_fmt.format == V4L2_PIX_FMT_NV12M || cap_fmt.format == V4L2_PIX_FMT_NV21M ||
 					cap_fmt.format == V4L2_PIX_FMT_NV12 || cap_fmt.format == V4L2_PIX_FMT_NV21 ||
+					cap_fmt.format == V4L2_PIX_FMT_YUV420M || cap_fmt.format == V4L2_PIX_FMT_YVU420M ||
 					cap_fmt.format == V4L2_PIX_FMT_LBC_1_0X || cap_fmt.format == V4L2_PIX_FMT_LBC_1_5X ||
 					cap_fmt.format == V4L2_PIX_FMT_LBC_2_0X || cap_fmt.format == V4L2_PIX_FMT_LBC_2_5X) {
 					ret = ini_tuning_get_frame(&cap_fmt, &comm_packet, sock_fd);
@@ -767,7 +768,6 @@ void *sock_handle_tuning_thread(void *params)
 	struct isp_test_special_ctrl_cfg *isp_test_ctrl = NULL;
 	struct ToolsIniTuning_cfg ini_cfg = GetIniTuningEn();
 	HW_U32 stitch_mode = 0;
-	int isp_sel_band = 0;
 
 	if (ini_cfg.enable) {
 		ini_cfg.params = (struct isp_param_config *)malloc(sizeof(struct isp_param_config));
@@ -796,27 +796,11 @@ void *sock_handle_tuning_thread(void *params)
 				LOG("%s: get cfg(isp %d) - group:%02x, cfgs:%08x, length:%d\n", __FUNCTION__, isp_sel, group_id, cfg_ids, cfg_length);
 				if (!ini_cfg.enable) {
 					if (stitch_mode == STITCH_2IN1_LINNER) {
-						ret = select_isp_stitch_mode(isp_sel, STITCH_2IN1_LINNER);
-						if (ret < 0) {
-							LOG("%s: failed to select isp stitch mode (isp %d)\n", __FUNCTION__, isp_sel);
-							comm_packet.ret = htonl(SOCK_CMD_RET_FAILED);
-							ret = sock_write(sock_fd, (const void *)&comm_packet, sizeof(comm_packet), SOCK_DEFAULT_TIMEOUT);
-						}
-						if (isp_sel % 2 == 0)
-							isp_sel_band = isp_sel + 1;
-						else
-							isp_sel_band = isp_sel - 1;
-						ret = select_isp(isp_sel_band, 0);
-						if (ret < 0) {
-							LOG("%s: failed to select isp - %d\n", __FUNCTION__, isp_sel % 2 == 0 ? isp_sel + 1 : isp_sel - 1);
-							comm_packet.ret = htonl(SOCK_CMD_RET_FAILED);
-							ret = sock_write(sock_fd, (const void *)&comm_packet, sizeof(comm_packet), SOCK_DEFAULT_TIMEOUT);
-							continue;
-						}
+						select_isp_stitch_mode(isp_sel, STITCH_2IN1_LINNER);
 					}
-					ret = select_isp(isp_sel, 0);
+					ret = detect_vich();
 					if (ret < 0) {
-						LOG("%s: failed to select isp - %d\n", __FUNCTION__, isp_sel);
+						LOG("%s: failed to detect vich - %d\n", __FUNCTION__, isp_sel);
 						comm_packet.ret = htonl(SOCK_CMD_RET_FAILED);
 						ret = sock_write(sock_fd, (const void *)&comm_packet, sizeof(comm_packet), SOCK_DEFAULT_TIMEOUT);
 						continue;
@@ -850,27 +834,11 @@ void *sock_handle_tuning_thread(void *params)
 				LOG("%s: set cfg(isp %d) - group:%02x, cfgs:%08x, length:%d\n", __FUNCTION__, isp_sel, group_id, cfg_ids, cfg_length);
 				if (!ini_cfg.enable) {
 					if (stitch_mode == STITCH_2IN1_LINNER) {
-						ret = select_isp_stitch_mode(isp_sel, STITCH_2IN1_LINNER);
-						if (ret < 0) {
-							LOG("%s: failed to select isp stitch mode (isp %d)\n", __FUNCTION__, isp_sel);
-							comm_packet.ret = htonl(SOCK_CMD_RET_FAILED);
-							ret = sock_write(sock_fd, (const void *)&comm_packet, sizeof(comm_packet), SOCK_DEFAULT_TIMEOUT);
-						}
-						if (isp_sel % 2 == 0)
-							isp_sel_band = isp_sel + 1;
-						else
-							isp_sel_band = isp_sel - 1;
-						ret = select_isp(isp_sel_band, 0);
-						if (ret < 0) {
-							LOG("%s: failed to select isp - %d\n", __FUNCTION__, isp_sel % 2 == 0 ? isp_sel + 1 : isp_sel - 1);
-							comm_packet.ret = htonl(SOCK_CMD_RET_FAILED);
-							ret = sock_write(sock_fd, (const void *)&comm_packet, sizeof(comm_packet), SOCK_DEFAULT_TIMEOUT);
-							continue;
-						}
+						select_isp_stitch_mode(isp_sel, STITCH_2IN1_LINNER);
 					}
-					ret = select_isp(isp_sel, 0);
+					ret = detect_vich();
 					if (ret < 0) {
-						LOG("%s: failed to select isp - %d\n", __FUNCTION__, isp_sel);
+						LOG("%s: failed to detect vich - %d\n", __FUNCTION__, isp_sel);
 						comm_packet.ret = htonl(SOCK_CMD_RET_FAILED);
 						ret = sock_write(sock_fd, (const void *)&comm_packet, sizeof(comm_packet), SOCK_DEFAULT_TIMEOUT);
 						continue;
@@ -915,28 +883,9 @@ void *sock_handle_tuning_thread(void *params)
 			} else if (SOCK_CMD_UPDATE_CFG == type) {
 				LOG("%s: update isp - %d\n", __FUNCTION__, isp_sel);
 				if (!ini_cfg.enable) {
-					if (stitch_mode == STITCH_2IN1_LINNER) {
-						ret = select_isp_stitch_mode(isp_sel, STITCH_2IN1_LINNER);
-						if (ret < 0) {
-							LOG("%s: failed to select isp stitch mode (isp %d)\n", __FUNCTION__, isp_sel);
-							comm_packet.ret = htonl(SOCK_CMD_RET_FAILED);
-							ret = sock_write(sock_fd, (const void *)&comm_packet, sizeof(comm_packet), SOCK_DEFAULT_TIMEOUT);
-						}
-						if (isp_sel % 2 == 0)
-							isp_sel_band = isp_sel + 1;
-						else
-							isp_sel_band = isp_sel - 1;
-						ret = select_isp(isp_sel_band, 0);
-						if (ret < 0) {
-							LOG("%s: failed to select isp - %d\n", __FUNCTION__, isp_sel % 2 == 0 ? isp_sel + 1 : isp_sel - 1);
-							comm_packet.ret = htonl(SOCK_CMD_RET_FAILED);
-							ret = sock_write(sock_fd, (const void *)&comm_packet, sizeof(comm_packet), SOCK_DEFAULT_TIMEOUT);
-							continue;
-						}
-					}
-					ret = select_isp(isp_sel, 0);
+					ret = detect_vich();
 					if (ret < 0) {
-						LOG("%s: failed to select isp - %d\n", __FUNCTION__, isp_sel);
+						LOG("%s: failed to detect vich - %d\n", __FUNCTION__, isp_sel);
 						comm_packet.ret = htonl(SOCK_CMD_RET_FAILED);
 						ret = sock_write(sock_fd, (const void *)&comm_packet, sizeof(comm_packet), SOCK_DEFAULT_TIMEOUT);
 						continue;
@@ -965,28 +914,9 @@ void *sock_handle_tuning_thread(void *params)
 				ret = sock_write(sock_fd, (const void *)&comm_packet, sizeof(comm_packet), SOCK_DEFAULT_TIMEOUT);
 			} else if (SOCK_CMD_ISP_SEL == type) {
 				LOG("%s: set isp - %d\n", __FUNCTION__, isp_sel);
-				if (stitch_mode == STITCH_2IN1_LINNER) {
-					ret = select_isp_stitch_mode(isp_sel, STITCH_2IN1_LINNER);
-					if (ret < 0) {
-						LOG("%s: failed to select isp stitch mode (isp %d)\n", __FUNCTION__, isp_sel);
-						comm_packet.ret = htonl(SOCK_CMD_RET_FAILED);
-						ret = sock_write(sock_fd, (const void *)&comm_packet, sizeof(comm_packet), SOCK_DEFAULT_TIMEOUT);
-					}
-					if (isp_sel % 2 == 0)
-						isp_sel_band = isp_sel + 1;
-					else
-						isp_sel_band = isp_sel - 1;
-					ret = select_isp(isp_sel_band, 0);
-					if (ret < 0) {
-						LOG("%s: failed to select isp - %d\n", __FUNCTION__, isp_sel % 2 == 0 ? isp_sel + 1 : isp_sel - 1);
-						comm_packet.ret = htonl(SOCK_CMD_RET_FAILED);
-						ret = sock_write(sock_fd, (const void *)&comm_packet, sizeof(comm_packet), SOCK_DEFAULT_TIMEOUT);
-						continue;
-					}
-				}
-				ret = select_isp(isp_sel, 0);
+				ret = detect_vich();
 				if (ret < 0) {
-					LOG("%s: failed to select isp - %d\n", __FUNCTION__, isp_sel);
+					LOG("%s: failed to detect vich - %d\n", __FUNCTION__, isp_sel);
 					comm_packet.ret = htonl(SOCK_CMD_RET_FAILED);
 				} else {
 					comm_packet.ret = htonl(SOCK_CMD_RET_OK);
@@ -1233,7 +1163,6 @@ void *sock_handle_statistics_thread(void *params)
 	int timeout_times = 0;
 	int stitch_mode = 0;
 	struct ToolsIniTuning_cfg ini_cfg = GetIniTuningEn();
-	int isp_sel_band = 0;
 
 	LOG("%s: starts - %d\n", __FUNCTION__, sock_fd);
 	g_thread_status |= TH_STATUS_STATISTICS;
@@ -1251,26 +1180,13 @@ void *sock_handle_statistics_thread(void *params)
 
 			if (SOCK_CMD_STAT_AE == type || SOCK_CMD_STAT_AWB == type || SOCK_CMD_STAT_AF == type || SOCK_CMD_STAT_TDNF == type) {
 				if (!ini_cfg.enable) {
-					if (stitch_mode == STITCH_2IN1_LINNER) {
-						ret = select_isp_stitch_mode(isp_sel, STITCH_2IN1_LINNER);
-						if (ret < 0) {
-							LOG("%s: failed to select isp stitch mode (isp %d)\n", __FUNCTION__, isp_sel);
-							comm_packet.ret = htonl(SOCK_CMD_RET_FAILED);
-							ret = sock_write(sock_fd, (const void *)&comm_packet, sizeof(comm_packet), SOCK_DEFAULT_TIMEOUT);
-						}
-						if (isp_sel % 2 == 0)
-							isp_sel_band = isp_sel + 1;
-						else
-							isp_sel_band = isp_sel - 1;
-						ret = select_isp(isp_sel_band, 0);
-						if (ret < 0) {
-							LOG("%s: failed to select isp - %d\n", __FUNCTION__, isp_sel % 2 == 0 ? isp_sel + 1 : isp_sel - 1);
-							comm_packet.ret = htonl(SOCK_CMD_RET_FAILED);
-							ret = sock_write(sock_fd, (const void *)&comm_packet, sizeof(comm_packet), SOCK_DEFAULT_TIMEOUT);
-							continue;
-						}
+					ret = detect_vich();
+					if (ret < 0) {
+						LOG("%s: failed to detect_vich\n", __FUNCTION__);
+						comm_packet.ret = htonl(SOCK_CMD_RET_FAILED);
+						ret = sock_write(sock_fd, (const void *)&comm_packet, sizeof(comm_packet), SOCK_DEFAULT_TIMEOUT);
+						continue;
 					}
-					ret = select_isp(isp_sel, 0);
 					ret = isp_stats_req(isp_sel, stats_context);
 				} else {
 					ret = ini_tuning_get_3a_stat(stats_context);
@@ -1618,6 +1534,7 @@ void *sock_handle_set_input_thread(void *params)
 				ret = set_sensor_input(&sensor_in);
 				if (CAP_ERR_NONE == ret) {
 					/* set ok */
+					exit_isp_module();
 					msleep(1000);
 					if (sensor_in.stitch_mode == STITCH_2IN1_LINNER) {
 						ret = select_isp_stitch_mode(sensor_in.isp, STITCH_2IN1_LINNER);
@@ -1631,7 +1548,7 @@ void *sock_handle_set_input_thread(void *params)
 							sensor_in_band = sensor_in.isp + 1;
 						else
 							sensor_in_band = sensor_in.isp - 1;
-						ret = select_isp(sensor_in_band, 1);
+						ret = select_isp(sensor_in_band);
 						if (ret < 0) {
 							LOG("%s: failed to select isp (isp %d, ch %d)\n", __FUNCTION__,
 							sensor_in.isp, sensor_in.channel);
@@ -1639,7 +1556,7 @@ void *sock_handle_set_input_thread(void *params)
 							ret = sock_write(sock_fd, (const void *)&comm_packet, sizeof(comm_packet), SOCK_DEFAULT_TIMEOUT);
 						}
 					}
-					ret = select_isp(sensor_in.isp, 1);
+					ret = select_isp(sensor_in.isp);
 					if (ret < 0) {
 						LOG("%s: failed to select isp (isp %d, ch %d)\n", __FUNCTION__,
 						sensor_in.isp, sensor_in.channel);
@@ -1820,8 +1737,8 @@ void *sock_handle_isp_version_thread(void *params)
 	int ret = 0;
 	sock_packet comm_packet;
 	int sock_fd = (int)(intptr_t)params;
-	int timeout_times = 0;
-	char *buffer = (char *)malloc(sizeof(char)*500); // enough memory
+	int timeout_times = 0, buffer_size = 1024;
+	char *buffer = (char *)malloc(buffer_size); // enough memory
 	LOG("%s: starts - %d\n", __FUNCTION__, sock_fd);
 
 	while(1)
@@ -1836,8 +1753,8 @@ void *sock_handle_isp_version_thread(void *params)
 			strcat(buffer, " ");
 			strcat(buffer, BUILD_VERSION_NUM);
 			LOG("isp version = %s, function = %s\n", buffer, __FUNCTION__);
-			ret = sock_write(sock_fd, (const void *)buffer, strlen(buffer), SOCK_DEFAULT_TIMEOUT);
-			if(ret != strlen(buffer))
+			ret = sock_write(sock_fd, (const void *)buffer, buffer_size, SOCK_DEFAULT_TIMEOUT);
+			if(ret != buffer_size)
 			{
 				LOG("%s: write isp version failed!, ret:%d\n", __FUNCTION__, ret);
 				break;

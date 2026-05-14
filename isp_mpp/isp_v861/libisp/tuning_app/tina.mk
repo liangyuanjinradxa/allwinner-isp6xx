@@ -43,7 +43,7 @@ INCLUDE_DIRS := \
 
 INCLUDE_DIRS += \
 	$(USR_INCLUDE)/libcedarc/base/include \
-    $(USR_INCLUDE)/libcedarc/include \
+    $(USR_INCLUDE)/libcedarc/include
 
 LOCAL_SHARED_LIBS :=
 LOCAL_STATIC_LIBS :=

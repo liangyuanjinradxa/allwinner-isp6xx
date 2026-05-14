@@ -26,6 +26,8 @@
 #define ISP_MAX_AWB_AVG_SPEC	(1<<24)
 #define ISP_AWB_GRAY_CNT_SHIFT	6
 
+#define ISP_AWB_START_FRAME_NUM 3
+
 #define ISP_LIB_USE_AI_AWB 		0
 
 enum white_balance_mode {
@@ -110,6 +112,36 @@ typedef struct awb_test_config {
 	HW_S32 awb_en;
 } awb_test_config_t;
 
+typedef struct awb_calc_config {
+	HW_U8 use_gain_sel;
+
+	HW_U8 color_exclude_en;
+	HW_U8 sky_exclude_distance;
+	HW_U8 sky_exclude_rt;
+	HW_S16 sky_temp_thres;
+	HW_U8 sky_br_thres;
+	HW_S16 outside_ae_lv;
+	HW_U8 other_exclude_rt;
+
+	HW_U8 sat_corr_en;
+	HW_U8 sat_corr_thres;
+
+	HW_U8 temp_exclude_en;
+	HW_S16 temp_exclude_range;
+
+	HW_U8 br_weight_en;
+	HW_U8 br_low_th;
+	HW_U8 br_high_th;
+
+	HW_U8 color_exclude_calc_en;
+	HW_S16 class_temp_delt;
+	HW_S16 class_count;
+	HW_S16 exclude_temp_delt;
+	HW_S16 exclude_var;
+	HW_U8 exclude_percent_1;
+	HW_U8 exclude_percent_2;
+} awb_calc_config_t;
+
 typedef struct isp_awb_param {
 	awb_param_type_t type;
 	HW_S32 isp_platform_id;
@@ -119,6 +151,7 @@ typedef struct isp_awb_param {
 	isp_sensor_info_t awb_sensor_info;
 	awb_test_config_t test_cfg;
 	HW_U8 awb_rest_en;
+	awb_calc_config_t calc_cfg;
 } awb_param_t;
 
 typedef struct isp_awb_stats {

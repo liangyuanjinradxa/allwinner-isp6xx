@@ -20,6 +20,10 @@
 #include "isp_manage.h"
 #include "isp_debug.h"
 
+#define ISP_CFG_BIN_PATH_LEN 128
+#define ISP_CFG_BIN_TIME_LEN 20
+#define ISP_CFG_BIN_NOTES_LEN 50
+
 struct isp_cfg_pt
 {
 	struct isp_test_param          *isp_test_settings;
@@ -40,7 +44,6 @@ struct isp_cfg_array
 	struct isp_cfg_pt *cfg;
 };
 
-#define ISP_CFG_BIN_PATH_LEN 128
 struct load_isp_param_t {
 	char path[ISP_CFG_BIN_PATH_LEN];
 	char *isp_param_settings;

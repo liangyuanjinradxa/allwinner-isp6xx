@@ -109,7 +109,9 @@ extern unsigned int isp_lib_log_param;
 #define OTP_MSC_SIZE_2IN1 (OTP_MSC_SIZE * 2)
 #define OTP_WB_SIZE 8
 #define OTP_AF_SIZE 2
-#define OTP_BUF_SIZE (OTP_MSC_SIZE_2IN1 + OTP_WB_SIZE + OTP_AF_SIZE)
+#define OTP_PDAF_SIZE (sizeof(struct pdaf_info)/sizeof(unsigned short))
+#define OTP_PDAF_MAP_SIZE 256
+#define OTP_BUF_SIZE (OTP_MSC_SIZE_2IN1 + OTP_WB_SIZE + OTP_AF_SIZE + OTP_PDAF_SIZE)
 
 enum colorfx {
 	ISP_COLORFX_NONE = 0,
@@ -474,6 +476,20 @@ struct sensor_mipi_switch_entity_info {
 	struct isp_video_device *mipi_switch_video;
 };
 
+struct pdaf_info {
+	unsigned short mode;
+	unsigned short pattern_mode;
+	unsigned short dir;
+	unsigned short ddc_map_width;
+	unsigned short ddc_map_height;
+	unsigned short dcc_map_table_1[OTP_PDAF_MAP_SIZE];
+	unsigned short dcc_map_table_2[OTP_PDAF_MAP_SIZE];
+	unsigned short gain_map_width;
+	unsigned short gain_map_height;
+	unsigned short gain_map_table_1[OTP_PDAF_MAP_SIZE];
+	unsigned short gain_map_table_2[OTP_PDAF_MAP_SIZE];
+};
+
 struct otp_info_cfg {
 	unsigned short otp_buf[OTP_BUF_SIZE];
 	float msc_golden_ratio[OTP_MSC_SIZE_2IN1];
@@ -484,6 +500,7 @@ struct otp_info_cfg {
 	float wb_golden_ratio[AWB_CH_NUM];
 	int af_min_code_offset;
 	int af_max_code_offset;
+	struct pdaf_info pdaf_info;
 };
 
 struct isp_sensor_otp_cfg {
@@ -491,6 +508,7 @@ struct isp_sensor_otp_cfg {
 	unsigned short *pmsc_table;
 	unsigned short *pwb_table;
 	unsigned short *paf_table;
+	unsigned short *ppdaf_info;
 	struct otp_info_cfg *otp_info;
 };
 
