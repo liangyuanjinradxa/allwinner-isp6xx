@@ -13,7 +13,7 @@ TOP_DIR=`pwd`
 SCRIPTS_DIR=${TOP_DIR}/scripts
 
 # 目标目录
-TARGET_DIR1="buildroot/gcc-arm-10.2-2020.11-x86_64-aarch64-none-linux-gnu"
+TARGET_DIR1="./buildroot/arm-gnu-toolchain-14.2.rel1-x86_64-aarch64-none-linux-gnu"
 TARGET_DIR2="./buildroot/arm-gnu-toolchain-14.2.rel1-x86_64-aarch64-none-linux-gnu"
 # 压缩包源路径
 SOURCE_TAR1="../../../../../prebuilt/kernelbuilt/aarch64/gcc-arm-10.2-2020.11-x86_64-aarch64-none-linux-gnu.tar.xz"
