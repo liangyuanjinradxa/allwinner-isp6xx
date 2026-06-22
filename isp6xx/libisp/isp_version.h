@@ -19,7 +19,7 @@
 extern "C" {
 #endif
 #ifndef ISP_VERSION
-#define ISP_VERSION 601
+#define ISP_VERSION 602
 #endif
 #define ISP_SMALL_VERSION 100
 #define REPO_TAG "isp-500-520-v2.00"

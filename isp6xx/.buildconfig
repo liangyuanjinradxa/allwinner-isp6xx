@@ -1,0 +1,9 @@
+export V=64
+export CC=/home/radxa/WorkSpace/project/allwinner-isp6xx/isp6xx/buildroot/gcc-arm-10.2-2020.11-x86_64-aarch64-none-linux-gnu/bin/aarch64-none-linux-gnu-gcc
+export AR=/home/radxa/WorkSpace/project/allwinner-isp6xx/isp6xx/buildroot/gcc-arm-10.2-2020.11-x86_64-aarch64-none-linux-gnu/bin/aarch64-none-linux-gnu-gcc-ar
+export STP=/home/radxa/WorkSpace/project/allwinner-isp6xx/isp6xx/buildroot/gcc-arm-10.2-2020.11-x86_64-aarch64-none-linux-gnu/bin/aarch64-none-linux-gnu-strip
+export STAGING_DIR=/home/radxa/WorkSpace/project/allwinner-isp6xx/isp6xx/buildroot/gcc-arm-10.2-2020.11-x86_64-aarch64-none-linux-gnu/bin/
+export TLDIR=gcc-arm-10.2-2020.11-x86_64-aarch64-none-linux-gnu
+export TOOLCHAIN_DIR=/home/radxa/WorkSpace/project/allwinner-isp6xx/isp6xx/buildroot/gcc-arm-10.2-2020.11-x86_64-aarch64-none-linux-gnu/bin
+export SOURCE=libisp
+export ISP_VERSION=602

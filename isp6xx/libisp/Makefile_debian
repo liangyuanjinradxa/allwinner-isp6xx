@@ -98,7 +98,7 @@ awTuningApp: $(OBJ_TOOLS)
 	cp -f ./out/$(TLDIR)/libAWIspApi.so ./out/libAWIspApi_$(ISP_VERSION)/usr/lib/aarch64-linux-gnu/
 	cp -f ./out/$(TLDIR)/libisp.so ./out/libAWIspApi_$(ISP_VERSION)/usr/lib/aarch64-linux-gnu/
 	cp -f ./out/$(TLDIR)/libisp_ini.so ./out/libAWIspApi_$(ISP_VERSION)/usr/lib/aarch64-linux-gnu/
-	dpkg-deb -b ./out/libAWIspApi_$(ISP_VERSION) ./out/libAWIspApi_$(ISP_VERSION)_1.0.0_arm64.deb
+	dpkg-deb -Zxz -b ./out/libAWIspApi_$(ISP_VERSION) ./out/libAWIspApi_$(ISP_VERSION)_1.0.0_arm64.deb
 	
 __isp_dev:
 	$(MAKE) -C isp_dev CROSS_COMPILE=$(CROSS_COMPILE) KDIR=$(KDIR)
